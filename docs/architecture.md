@@ -1,237 +1,175 @@
-# Config-Driven Email Skill Architecture
+# 配置驱动的邮件代理架构
 
-## Goal
+## 目标
 
-Build one stable email automation core that can serve many companies, roles, and individuals without forking the implementation.
+构建一个稳定的 OpenClaw + Himalaya 邮件代理核心，在不分叉实现的前提下支持多公司、多角色和多个人。
 
-The key is to separate:
+这套架构强调三件事：
 
-- transport and mailbox IO
-- normalized message model
-- policy and routing rules
-- prompt/profile customization
-- action execution
-- review and observability
+- 邮件传输层必须稳定、可替换
+- 策略和个性化必须配置化
+- 任何发送动作都必须经过可审计的人机闭环
 
-## Design Principle
+## 六层模型
 
-Hard things that should stay universal:
+### 1. 传输层
 
-- mailbox connectivity
-- message parsing
-- thread reconstruction
-- idempotent sync
-- retries, timeouts, rate limiting
-- logging and audit trail
-- human approval workflow
+职责：
 
-Things that should stay customizable:
+- 通过 `himalaya` 访问 IMAP/SMTP
+- 输出结构化邮件列表（`--output json`）
+- 使用 `template send` 承接已确认的本地草稿发送
 
-- sender priority
-- team/role-specific rules
-- reply tone and style
-- approval threshold
-- digest format
-- escalation targets
-- ignore/archive logic
+实现原则：
 
-## Six-Layer Model
+- 配置文件由 `.env` 渲染到 `runtime/himalaya/config.toml`
+- 凭证优先使用 `keyring`
+- 传输层不做业务判断
 
-### 1. Transport Layer
+### 2. 标准数据层
 
-Purpose:
+职责：
 
-- connect to IMAP/SMTP
-- fetch message metadata and body
-- send or save drafts
+- 把 Himalaya 输出转成统一内部结构，避免上层直接依赖 CLI 文本格式
 
-Implementation:
-
-- `himalaya` config generated from `.env`
-- no business logic here
-
-### 2. Canonical Data Layer
-
-Purpose:
-
-- convert provider-specific email data into one stable internal schema
-
-Canonical fields:
+建议字段：
 
 - `message_id`
 - `thread_id`
 - `from`
 - `to`
-- `cc`
 - `subject`
 - `received_at`
 - `body_text`
-- `body_html`
 - `attachments`
 - `labels`
 - `mailbox`
 
-Why this matters:
+### 3. 策略层
 
-- the core pipeline should not care whether mail came from Gmail, Exchange, or another IMAP server
+职责：
 
-### 3. Policy Layer
+- 依据全局策略决定优先级、意图、建议目录、是否需要草稿、是否需要复核
 
-Purpose:
+输入：
 
-- decide what the system should do for a message
+- 发件人
+- 关键词
+- profile
+- 风险条件
+- 历史学习规则
 
-Inputs:
+输出：
 
-- sender identity
-- domain
-- keywords
-- role profile
-- current project focus
-- risk rules
+- `intent`
+- `priority`
+- `suggested_folder`
+- `summary_3bullet`
+- `reply_recommended`
+- `review_required`
 
-Outputs:
+### 4. Profile 层
 
-- priority
-- category
-- action plan
-- review requirement
+职责：
 
-This layer should be config-driven, not hard-coded.
+- 注入角色差异，而不是修改核心流程
 
-### 4. Profile Layer
+当前项目中的 profile：
 
-Purpose:
+- `executive`
+- `recruiter`
 
-- inject company-, team-, role-, and person-specific behavior
+每个 profile 由两部分组成：
 
-Examples:
+- `config/profiles/*.yaml`：结构化风格、规则、摘要分区
+- `config/profiles/rules/*.md`：人工确认后的经验规则
 
-- CEO profile
-- sales profile
-- recruiter profile
-- project manager profile
+### 5. 草稿与审批层
 
-Profile data should define:
+职责：
 
-- important senders
-- ignored senders
-- escalation conditions
-- reply style
-- digest sections
-- SLA target
+- 把 AI 输出转成可复核的本地草稿
+- 在显式确认后触发发送
 
-### 5. Action Layer
+标准流程：
 
-Purpose:
+1. 生成 `runtime/drafts/{{thread_id}}.eml`
+2. 人工在本地查看或编辑
+3. 只有当用户提供 `CONFIRM_SEND` 时，才允许发送
 
-- run the selected business actions
+为什么采用本地草稿队列：
 
-Typical actions:
+- 比“直接发出”更安全
+- 比“只给一段文本草稿”更接近真实邮件流程
+- 便于桌面客户端继续编辑，尤其适合高风险外发
 
-- `archive`
-- `notify`
-- `draft_reply`
-- `create_task`
-- `sync_crm`
-- `build_digest`
-- `hold_for_review`
+### 6. 学习与可观测层
 
-Important rule:
+职责：
 
-- action executors should consume a structured action plan, not make policy decisions themselves
+- 把人工修订转成下一轮更好的行为
+- 让用户直观看到价值
 
-### 6. Review and Ops Layer
+学习流程：
 
-Purpose:
+1. 用户触发 `!learn` / `!rule` / `!edit`
+2. 系统对比 AI 草稿与人工修改版
+3. 推断一条新规则
+4. 人工确认后，写入 `config/profiles/rules/{{profile}}.md`
 
-- keep the system safe, observable, and recoverable
+可见指标：
 
-Includes:
+- `triaged_count`
+- `drafted_count`
+- `awaiting_human_review`
+- `sla_at_risk_count`
+- `estimated_minutes_saved`
 
-- approval gates
-- retry rules
-- audit log
-- fallback model routing
-- metrics
-- dead-letter handling for failures
-
-## Recommended Repository Shape
+## 决策流
 
 ```text
-email-bot/
-├── SKILL.md
-├── .env
-├── docs/
-│   └── architecture.md
-├── scripts/
-│   ├── check_env.sh
-│   └── render_himalaya_config.sh
-├── config/
-│   ├── policy.default.yaml
-│   └── profiles/
-│       ├── executive.yaml
-│       └── recruiter.yaml
-└── runtime/
+himalaya envelope list --output json
+-> 标准化邮件数据
+-> 加载全局 policy
+-> 加载 profile YAML
+-> 加载 profile learned rules
+-> 输出 intent / priority / summary
+-> 如需回复则生成本地 .eml 草稿
+-> 人工复核
+-> 收到 CONFIRM_SEND 后才允许 template send
+-> 记录指标与学习样本
 ```
 
-## Decision Flow
+## 通用核心与可定制边界
 
-```text
-mail sync
--> normalize message
--> load tenant profile
--> apply global policy
--> apply role profile overrides
--> produce action plan
--> check review threshold
--> execute action
--> log result
-```
+通用核心：
 
-## Universal vs Customizable Split
+- Himalaya 接入
+- JSON 解析
+- 草稿文件生成
+- 发送守护规则
+- 审计日志与指标
+- 学习闭环的“提议-确认-落盘”流程
 
-Universal core:
+可定制表层：
 
-- sync engine
-- parser
-- canonical schema
-- action runner
-- audit logging
-- retry and fallback
-- review gate
+- `policy.default.yaml`
+- `profiles/*.yaml`
+- `profiles/rules/*.md`
+- 摘要模板
+- 发件人优先级清单
 
-Customizable surface:
+## 高可用与安全要求
 
-- policy YAML
-- profile YAML
-- prompt fragments
-- digest templates
-- sender priority lists
-- escalation routing
+- 同步必须基于 `message_id` 幂等
+- 原始邮件与动作结果分开存储
+- 草稿生成必须可重跑
+- 默认禁止自动发送
+- 法务/财务/外部回复/附件发送必须进入人工复核
+- 任何学习规则都不能静默写入，必须先确认
 
-## How to Achieve High Availability
+## 实施规则
 
-- keep sync idempotent by `message_id`
-- persist checkpoints for last successful fetch
-- store action results separately from raw messages
-- make classification and drafting re-runnable
-- keep sending behind explicit approval by default
-- support fallback model routing when primary model is limited
-- separate transport failures from LLM failures
-
-## How to Avoid Over-Customization Chaos
-
-- allow config overrides only in defined fields
-- do not let each tenant alter the core pipeline
-- version policy/profile files
-- provide a tested default profile
-- introduce extension points, not one-off hacks
-
-## Practical Implementation Rule
-
-If a requirement changes for one person only, put it in profile config.
-
-If a requirement changes for one department, put it in role policy.
-
-If a requirement improves reliability for everyone, put it in the universal core.
+如果需求只影响某个人，写进对应 profile 规则文件。  
+如果需求影响某个角色，写进对应 profile YAML。  
+如果需求影响所有人的稳定性或安全性，写进通用核心与默认 policy。

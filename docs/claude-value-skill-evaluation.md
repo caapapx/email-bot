@@ -1,54 +1,54 @@
-# Claude Value Evaluation For `email-himalaya-assistant`
+# `email-himalaya-assistant` 的 Claude 价值评估
 
-Evaluation date: 2026-03-16
-Target: `/home/caapap/iflytek/ltc-plan/email-bot/SKILL.md`
+评估日期：2026-03-16  
+评估对象：`/home/caapap/iflytek/ltc-plan/email-bot/SKILL.md`
 
-## Evaluation Lens
+## 评估视角
 
-This assessment uses Claude-style value dimensions adapted for production skill quality:
+本评估采用 Claude 风格价值维度，并针对生产级技能质量做了适配：
 
-1. Helpfulness and task utility
-2. Honesty and explicit boundaries
-3. Harmlessness and safety controls
-4. Reliability and operational robustness
-5. Reusability and decoupling quality
-6. Cost-efficiency and scalability
+1. 有用性与任务效能
+2. 诚实性与边界清晰度
+3. 无害性与安全控制
+4. 可靠性与运行稳健性
+5. 复用性与解耦质量
+6. 成本效率与可扩展性
 
-## Scores
+## 评分
 
-| Dimension | Score | Why |
+| 维度 | 分数 | 原因 |
 |---|---:|---|
-| Helpfulness | 8.5/10 | Clear scope: sync, triage, draft, digest. Practical trigger phrases are present. |
-| Honesty and boundaries | 9.0/10 | Out-of-scope section is explicit. No auto-send and no delete are clearly stated. |
-| Safety | 8.5/10 | Review-first defaults and sensitive-data caution exist in policy. |
-| Reliability | 6.5/10 | Core workflow is well-defined, but runtime execution pipeline is still scaffold-level. |
-| Reusability/decoupling | 9.0/10 | Strong config/profile split and universal-core architecture are already in place. |
-| Cost/scalability | 7.5/10 | Model routing intent is good; missing hard budget enforcement in executable logic. |
+| 有用性 | 9.1/10 | 已明确 Day-1 输出、草稿队列与发送确认，任务价值更可见。 |
+| 诚实性与边界 | 9.3/10 | `CONFIRM_SEND`、禁止自动删除、禁止静默外传等边界写得更具体。 |
+| 安全性 | 9.2/10 | 本地草稿优先、人工复核、学习闭环先提议后确认，守护规则更完整。 |
+| 可靠性 | 7.4/10 | 动作契约比之前具体，但仍缺少真正可运行的解析器和测试。 |
+| 复用/解耦 | 9.2/10 | policy/profile/rules 三层分离更清晰，扩展面更稳定。 |
+| 成本/扩展 | 8.0/10 | 采用本地草稿与结构化输出后更利于扩展，但仍未落地预算控制。 |
 
-Overall score: 8.2/10
+综合得分：8.7/10
 
-## Strengths
+## 优势
 
-1. Good safety baseline for real email operations.
-2. Good architecture separation between transport, policy, and profile.
-3. Good fit for multi-tenant or multi-role extension.
+1. `SKILL.md` 已从概念说明升级为接近可执行的动作契约。
+2. 本地草稿队列 + `CONFIRM_SEND` 让人机闭环可操作。
+3. `!learn` 机制让个性化不再依赖隐式提示词漂移。
 
-## Gaps
+## 差距
 
-1. No canonical message schema implementation yet.
-2. No executable policy/profile resolver yet.
-3. No test suite for classification/routing decisions yet.
-4. No metrics dashboard or alerting hooks yet.
+1. 尚未实现标准消息结构（canonical message schema）。
+2. 尚未实现可执行的策略/配置解析器（policy/profile resolver）。
+3. 尚未建立分类、发送守护、学习闭环的测试套件。
+4. 指标定义已写入策略，但尚未真正采集和展示。
 
-## Highest-Value Next Steps
+## 最高价值的下一步
 
-1. Implement canonical message schema and parser contract.
-2. Implement deterministic policy/profile merge engine.
-3. Add dry-run action planner with approval gate.
-4. Add tests for urgent/important/normal classification and review triggers.
-5. Add budget and failure fallback guardrails in runtime layer.
+1. 实现标准消息结构（canonical message schema）与 JSON 解析契约。
+2. 实现确定性的策略/配置合并引擎（policy/profile merge engine）。
+3. 先做一个最小 dry-run triage runner，把 `envelope list` 到 YAML 分类跑通。
+4. 补齐 `CONFIRM_SEND`、高风险复核、`!learn` 规则落盘测试。
+5. 在运行层加入预算、失败回退与可见指标采集。
 
-## Release Recommendation
+## 发布建议
 
-Current state is suitable for internal alpha and architecture validation.
-Not yet ready for unattended production execution without approval gates and tests.
+当前状态适合内部 Alpha 试点与流程验证。  
+在缺少执行器、测试和真实指标前，仍不建议无人值守生产运行。

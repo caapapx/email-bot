@@ -1,15 +1,51 @@
-version: 1
+version: 2
 
+# 全局安全、草稿与可见输出默认值
 global:
   auto_send: false
+  explicit_confirm_token: CONFIRM_SEND
   require_review_for_external_send: true
   require_review_for_high_risk: true
+  local_draft_dir: runtime/drafts
+  learned_rules_dir: config/profiles/rules
+  metrics_dir: runtime/metrics
   digest_timezone: Asia/Shanghai
   digest_schedule:
     daily: "0 18 * * 1-5"
     weekly: "0 17 * * 5"
+  open_local_draft_command_macos: 'open -a "Mail" {{draft_path}}'
+  day_one_outputs:
+    - urgent_queue
+    - draft_queue
+    - estimated_minutes_saved
+    - awaiting_human_review
 
+# 收件与分页行为
+ingestion:
+  primary_folder: INBOX
+  page_size: 50
+  lookback_hours: 24
+  output_format: json
+
+# 分类标签、关键词与忽略规则
 classification:
+  intent_labels:
+    - support
+    - receipt
+    - newsletter
+    - human
+    - internal_update
+    - scheduling
+    - finance
+    - recruiting
+  priority_scale: "1=highest, 5=lowest"
+  output_contract:
+    - intent
+    - priority
+    - suggested_folder
+    - summary_3bullet
+    - reply_recommended
+    - review_required
   urgent_keywords:
     - complaint
     - contract
@@ -29,10 +65,14 @@ classification:
     - partnership
     - follow-up
     - interview
+    - receipt
+    - invoice
     - 报价
     - 合作
     - 跟进
     - 面试
+    - 发票
+    - 回执
   ignore_senders:
     - noreply@
     - no-reply@
@@ -40,7 +80,37 @@ classification:
   ignore_subject_patterns:
     - "^Out of Office"
     - "^Auto Reply"
+    - "^自动回复"
+    - "^外出办公"
 
+# 默认路由规则，优先服务 Day-1 可见价值
+routing:
+  known_sender_priority_boost: true
+  default_rules:
+    - name: finance_receipt
+      if_any_keyword:
+        - receipt
+        - invoice
+        - payment
+        - 发票
+        - 回执
+        - 付款
+      then_folder: Finance
+      priority: 3
+      draft_reply: false
+    - name: known_client_fast_lane
+      if_sender_in: important_senders
+      priority: 1
+      draft_reply: true
+      summarize_only: false
+    - name: newsletter_low_touch
+      if_intent: newsletter
+      then_folder: Newsletters
+      priority: 5
+      draft_reply: false
+      summarize_only: true
+
+# 各优先级动作开关
 actions:
   urgent:
     notify: true
@@ -58,13 +128,51 @@ actions:
     create_task: false
     sync_crm: false
 
+# 人工复核条件
 review:
+  human_review_required_actions:
+    - send
+    - external_reply
+    - attachment_send
+    - legal_or_finance_response
   high_risk_conditions:
     - contains_attachment
     - contains_legal_keyword
     - sender_not_seen_before
     - external_domain_and_finance_topic
+    - user_requested_send_without_confirm_token
 
+# 学习闭环：只允许“提议规则”，不能静默落盘
+learning:
+  enabled: true
+  triggers:
+    - "!learn"
+    - "!rule"
+    - "!edit"
+  workflow:
+    - diff_draft_vs_user_edit
+    - infer_edit_reason
+    - propose_single_rule
+    - require_human_confirmation
+    - append_to_profile_rules
+  append_to: config/profiles/rules/{{profile}}.md
+
+# 对外可见指标，提升价值感知
+metrics:
+  enabled: true
+  visible_metrics:
+    - triaged_count
+    - drafted_count
+    - awaiting_human_review
+    - sla_at_risk_count
+    - estimated_minutes_saved
+
+# 默认表达风格
+tone:
+  default: professional-but-warm
+  default_sign_off: "Best, {{name}}"
+
+# 回复时效目标（小时）
 sla:
   urgent_reply_hours: 4
   important_reply_hours: 24

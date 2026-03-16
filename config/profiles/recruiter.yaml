@@ -1,6 +1,7 @@
 profile: recruiter
 inherits: default
 
+# 高优先级发件人
 important_senders:
   - candidate@
   - hiring-manager@example.com
@@ -9,22 +10,32 @@ important_senders:
 ignore_senders:
   - noreply@
 
+# 语言与表达风格
 style:
   language: zh-CN
   tone: warm-professional
   summary_format: action-first
   reply_length: medium
+  sign_off: "Best, {{name}}"
 
+# 行为规则
 rules:
-  auto_send_allowed_for_templates: true
-  auto_send_templates:
+  auto_send_allowed_for_templates: false
+  fast_confirm_templates:
     - interview_invite
     - thank_you
   require_review_for_offer_related_emails: true
+  learned_rules_path: config/profiles/rules/recruiter.md
+  confirm_send_token: CONFIRM_SEND
 
+# 摘要内容分区
 digest:
   sections:
     - new_candidates
     - interview_followups
     - pending_feedback
     - offers_and_risks
+  visible_metrics:
+    - triaged_count
+    - drafted_count
+    - sla_at_risk_count
