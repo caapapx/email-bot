@@ -159,7 +159,7 @@ Includes:
 ## Recommended Repository Shape
 
 ```text
-email-skill/
+email-bot/
 ├── SKILL.md
 ├── .env
 ├── docs/

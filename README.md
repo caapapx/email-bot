@@ -1,4 +1,4 @@
-# email-skill
+# email-bot
 
 IMAP/SMTP mailbox skill scaffold for OpenClaw, designed around a `himalaya`-style mail backend.
 
