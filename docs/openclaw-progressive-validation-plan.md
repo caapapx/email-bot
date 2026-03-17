@@ -5,7 +5,7 @@
 
 ## 固定执行约束
 
-1. OpenClaw 仓库固定工作目录：`~/.openclaw/email-bot`
+1. OpenClaw 仓库固定工作目录：`~/.openclaw/repos/email-bot`
 2. 只使用 `master` 分支开发，不创建阶段分支。
 3. 每个阶段开始前都先 `git pull --ff-only origin master`，确保最新。
 4. 每个阶段结束后直接提交到 `master`，提交信息带阶段号。
@@ -15,8 +15,8 @@
 
 ```text
 先执行仓库同步，不要开始功能开发：
-1. 工作目录固定为 ~/.openclaw/email-bot
-2. 如果目录不存在：git clone https://github.com/caapapx/email-bot.git ~/.openclaw/email-bot
+1. 工作目录固定为 ~/.openclaw/repos/email-bot
+2. 如果目录不存在：git clone https://github.com/caapapx/email-bot.git ~/.openclaw/repos/email-bot
 3. 进入目录后切换 master：git checkout master
 4. 拉取最新代码：git pull --ff-only origin master
 5. 输出当前目录、当前分支、最近一次 pull 是否成功
@@ -39,7 +39,7 @@
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
 
 当前阶段：Preflight 0（邮箱冒烟测试）
 硬性约束：
@@ -71,7 +71,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 1（邮件分布普查）
 硬性约束：
@@ -112,7 +112,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 2（画像推断）
 硬性约束：
@@ -143,7 +143,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 3（生命周期建模）
 硬性约束：
@@ -179,7 +179,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 4（只读价值输出）
 硬性约束：
@@ -213,7 +213,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 5（草稿不发送）
 硬性约束：
@@ -241,7 +241,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 6（学习闭环）
 硬性约束：
@@ -270,7 +270,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 7（受控发送）
 硬性约束：
