@@ -3,6 +3,44 @@
 日期：2026-03-17  
 项目：`email-bot`
 
+## 文档定位
+
+这是一个面向通用智能体和人工初始化场景的长期维护型模板文档。  
+它的职责是定义“初始化一个邮箱型智能体”时应该如何分阶段验证、沉淀和推进。
+
+这个文档不应该混入某一次邮箱实例的实时证据、结论或推理。  
+任何当前邮箱的阶段结果、价值判断、画像推断、工作流偏好，都应该写入独立的实例备注或结果文件。
+
+## 价值验证原则
+
+1. 每个阶段都要回答一个问题：用户今天能更快知道什么、少做什么、少漏什么。
+2. 先证明只读价值，再进入草稿；先证明草稿价值，再进入发送。
+3. `thread` 级理解优先于单封邮件标签化。
+4. 通用模板保持稳定，实例化判断通过结果文件和固定链接承载。
+
+## 实例化与结果约定
+
+1. 运行时结论不要直接回写到本模板。
+2. 当前邮箱实例的补充结论写入：`docs/validation/instance-calibration-notes.md`
+3. 各阶段结构化结果写入：`runtime/validation/<phase>/`
+4. 各阶段可读报告写入：`docs/validation/`
+5. 智能体执行时，如果发现 `docs/validation/instance-calibration-notes.md` 存在，应先读取该文件，再决定本次初始化的优先策略
+
+## 固定结果索引（本地链接）
+
+- [实例校准备注](validation/instance-calibration-notes.md)
+- [Preflight 报告](validation/preflight-mailbox-smoke-report.md)
+- [Phase 1 报告](validation/phase-1-report.md)
+- [Phase 2 报告](validation/phase-2-report.md)
+- [Phase 3 报告](validation/phase-3-report.md)
+- [Preflight JSON](../runtime/validation/preflight/mailbox-smoke.json)
+- [Phase 1 Census JSON](../runtime/validation/phase-1/mailbox-census.json)
+- [Phase 2 Persona YAML](../runtime/validation/phase-2/persona-hypotheses.yaml)
+- [Phase 3 Lifecycle YAML](../runtime/validation/phase-3/lifecycle-model.yaml)
+- [Phase 3 Thread Samples JSON](../runtime/validation/phase-3/thread-stage-samples.json)
+- [Phase 3 Lifecycle Overview (mermaid)](validation/diagrams/phase-3-lifecycle-overview.mmd)
+- [Phase 3 Thread State Machine (mermaid)](validation/diagrams/phase-3-thread-state-machine.mmd)
+
 ## 固定执行约束
 
 1. OpenClaw 仓库固定工作目录：`~/email-bot`（与 `~/.openclaw` 同级）
@@ -32,6 +70,7 @@ git pull --ff-only origin master
 4. 拉取最新代码：git pull --ff-only origin master
 5. 输出当前目录、当前分支、最近一次 pull 是否成功
 6. 若 pull 失败，停止并报告错误，不要继续
+7. 如果存在 `docs/validation/instance-calibration-notes.md` 或已有阶段输出，先读取它们，再决定本次初始化的优先顺序
 
 后续所有改动都直接在 master 进行。
 ```
@@ -155,7 +194,7 @@ git push origin master
 
 ## Phase 3：生命周期建模与图示更新（只读）
 
-目标：把邮件从“分类结果”升级为“线程生命周期状态机”。
+目标：把邮件从“分类结果”升级为 `thread` 级生命周期状态机，并基于当前邮箱证据选出最值得建模的流程。
 
 给 OpenClaw 的 prompt：
 
@@ -169,19 +208,25 @@ git push origin master
 3. 无法高置信建模的流程必须明确说明
 
 任务：
-1. 归纳至少 3 条主要生命周期流（如商务/招聘/合作/财务/内部决策）
-2. 每条流至少定义 5 个阶段，并包含：
+1. 基于当前邮箱的 `Phase 1/2` 结果和实例备注，归纳至少 3 条主要生命周期流
+2. 不要预设业务类型；应从证据中推导。可选示例包括：
+   - 内部协同 / 审批 / 项目推进
+   - 支持 / 工单 / 问题处理
+   - 招聘 / 财务 / 商务 / 合作 / 外部跟进
+3. 每条流至少定义 5 个阶段，并包含：
    - 阶段进入信号
    - 阶段退出信号
+   - owner_guess / waiting_on / due_hint
    - 高风险信号
    - 推荐 AI 动作（仅 summarize/classify/remind/draft）
-3. 产出文件：
+4. 产出文件：
    - runtime/validation/phase-3/lifecycle-model.yaml
    - runtime/validation/phase-3/thread-stage-samples.json
    - docs/validation/phase-3-report.md
    - docs/validation/diagrams/phase-3-lifecycle-overview.mmd
    - docs/validation/diagrams/phase-3-thread-state-machine.mmd
-4. 给出 policy/profile 的 5 条建议（先写建议，不直接改配置）
+5. 指出哪 2 条线程流最值得直接进入 `Phase 4` 的用户可见输出，并说明原因
+6. 给出 policy/profile 的 5 条建议（先写建议，不直接改配置）
 
 完成后直接提交到 master：
 git add .
@@ -191,7 +236,13 @@ git push origin master
 
 ## Phase 4：日报/周报价值输出（只读）
 
-目标：验证用户能否快速感知价值。
+目标：验证用户能否在不读长报告的情况下，快速知道“今天该跟进什么”。
+
+通过标准：
+
+1. 用户应能在 3 分钟内理解当天最需要关注的线程
+2. 每条输出都要带 evidence / confidence
+3. 如果结果不够有用，必须回退继续优化 `Phase 3`，而不是直接进入 `Phase 5`
 
 给 OpenClaw 的 prompt：
 
@@ -206,16 +257,22 @@ git push origin master
 
 任务：
 1. 生成：
-   - 今日紧急清单
-   - 待我回复清单
-   - SLA 风险清单
-   - 本周摘要
+   - 今日必须跟进线程
+   - 待我拍板 / 待我回复线程
+   - 已阻塞或 SLA 风险线程
+   - 本周项目节奏摘要
 2. 文件：
    - docs/validation/phase-4-report.md
    - runtime/validation/phase-4/daily-urgent.yaml
    - runtime/validation/phase-4/pending-replies.yaml
    - runtime/validation/phase-4/sla-risks.yaml
    - runtime/validation/phase-4/weekly-brief.md
+3. 每条输出至少包含：
+   - thread id 或 thread key
+   - 为什么进入该列表
+   - 证据定位
+   - confidence
+4. 报告最后必须回答：这些输出是否已经足够让用户“愿意每天看一次”
 
 完成后直接提交到 master：
 git add .
@@ -225,7 +282,7 @@ git push origin master
 
 ## Phase 5：本地草稿生成（不发送）
 
-目标：验证草稿质量和人工编辑负担是否下降。
+目标：验证当前邮箱中最有价值的线程草稿，是否真的降低人工编辑负担，而不是单纯证明“能生成草稿”。
 
 给 OpenClaw 的 prompt：
 
@@ -237,13 +294,19 @@ git push origin master
 1. 只允许写本地草稿到 runtime/drafts/
 2. 禁止发送
 3. 外部/法务/财务/附件场景默认 review_required=true
+4. 优先选择 `Phase 4` 中高频、高价值、可解释的线程，不要为展示能力而扩大范围
 
 任务：
-1. 从 Phase 4 输出中选线程生成草稿
+1. 从 `Phase 4` 输出中选取最值得草稿化的线程样本
 2. 产出：
    - runtime/validation/phase-5/draft-candidates.yaml
    - docs/validation/phase-5-report.md
    - runtime/drafts/<thread_id>.eml
+3. 报告必须记录：
+   - 原始上下文
+   - AI 草稿
+   - 人工修改点
+   - 是否真的减少编辑负担
 
 完成后直接提交到 master：
 git add .
@@ -253,7 +316,7 @@ git push origin master
 
 ## Phase 6：学习闭环（!learn / !rule / !edit）
 
-目标：把人工修订稳定沉淀成规则。
+目标：把已被证明有价值的人工修订稳定沉淀成规则，而不是学习所有编辑习惯。
 
 给 OpenClaw 的 prompt：
 
@@ -265,6 +328,7 @@ git push origin master
 1. 一次只提一条新规则
 2. 必须有“草稿 vs 人工修改”证据
 3. 先提议，确认后再落盘
+4. 只学习已验证对当前高价值场景有帮助的规则
 
 任务：
 1. 比对草稿与人工修改
@@ -282,7 +346,7 @@ git push origin master
 
 ## Phase 7：受控发送演练（最后执行）
 
-目标：仅在显式 `CONFIRM_SEND` 时验证发送守护。
+目标：仅在前面阶段已经证明有价值的前提下，再验证显式 `CONFIRM_SEND` 的发送守护。
 
 给 OpenClaw 的 prompt：
 
@@ -311,11 +375,12 @@ git push origin master
 
 ## 建议先跑到哪里
 
-如果当前重点是“读能力验证”，建议先跑：
+如果当前重点是“尽快确认真实价值”，建议先跑：
 
 1. `Preflight 0`
 2. `Phase 1`
 3. `Phase 2`
 4. `Phase 3`
+5. `Phase 4`
 
-这四步过了，再进入草稿和发送环节。
+只有当 `Phase 4` 已经能稳定产出“今天该做什么”的可用结果，再进入草稿和发送环节。
