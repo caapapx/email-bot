@@ -5,7 +5,7 @@
 
 ## 固定执行约束
 
-1. OpenClaw 仓库固定工作目录：`~/.openclaw/repos/email-bot`
+1. OpenClaw 仓库固定工作目录：`$HOME/email-bot`（与 `.openclaw` 同级）
 2. 只使用 `master` 分支开发，不创建阶段分支。
 3. 每个阶段开始前都先 `git pull --ff-only origin master`，确保最新。
 4. 每个阶段结束后直接提交到 `master`，提交信息带阶段号。
@@ -15,8 +15,8 @@
 
 ```text
 先执行仓库同步，不要开始功能开发：
-1. 工作目录固定为 ~/.openclaw/repos/email-bot
-2. 如果目录不存在：git clone https://github.com/caapapx/email-bot.git ~/.openclaw/repos/email-bot
+1. 工作目录固定为 $HOME/email-bot
+2. 如果目录不存在：git clone https://github.com/caapapx/email-bot.git $HOME/email-bot
 3. 进入目录后切换 master：git checkout master
 4. 拉取最新代码：git pull --ff-only origin master
 5. 输出当前目录、当前分支、最近一次 pull 是否成功
@@ -31,15 +31,15 @@
 
 通过标准：
 
-1. `scripts/check_env.sh` 通过
-2. `scripts/render_himalaya_config.sh` 通过
-3. `himalaya` 可用，且可执行最小只读拉取
+1. `scripts/preflight_mailbox_smoke.sh` 可在 `--interactive` 或 `--headless` 模式执行
+2. 脚本内部完成 `check_env + render_himalaya_config + himalaya` 只读拉取
+3. 产出统一报告与 JSON 结果
 4. 输出失败归因：配置/认证/网络/CLI 缺失
 
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 $HOME/email-bot 的 master 最新状态工作。
 
 当前阶段：Preflight 0（邮箱冒烟测试）
 硬性约束：
@@ -47,16 +47,22 @@
 2. 禁止发送、移动、删除、归档、标记邮件
 
 执行步骤：
-1. 阅读 README.md、SKILL.md、scripts/check_env.sh、scripts/render_himalaya_config.sh
-2. 运行 bash scripts/check_env.sh
-3. 运行 bash scripts/render_himalaya_config.sh
-4. 检查 himalaya 是否可用并识别 account
-5. 运行一次最小只读验证（优先）：
-   himalaya --account <account> envelope list --folder INBOX --page 1 --page-size 5 --output json
+1. 阅读 README.md、SKILL.md、scripts/preflight_mailbox_smoke.sh
+2. 如果是对话引导场景，先输出填写模板：
+   bash scripts/preflight_mailbox_smoke.sh --chat-template
+3. 如果可以在终端交互填写，运行：
+   bash scripts/preflight_mailbox_smoke.sh --interactive
+4. 如果是后台命令行（CI/无人值守）运行：
+   bash scripts/preflight_mailbox_smoke.sh --headless
+5. 脚本会自动做：
+   - 环境字段检查
+   - Himalaya 配置渲染
+   - 只读 envelope list 冒烟
 6. 生成：
    - docs/validation/preflight-mailbox-smoke-report.md
    - runtime/validation/preflight/mailbox-smoke.json
-7. 报告结论：是否允许进入 Phase 1
+   - runtime/validation/preflight/mailbox-smoke.stderr.log
+7. 报告结论：是否允许进入 Phase 1；失败时明确失败层级
 
 完成后直接提交到 master：
 git add .
@@ -71,7 +77,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 $HOME/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 1（邮件分布普查）
 硬性约束：
@@ -112,7 +118,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 $HOME/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 2（画像推断）
 硬性约束：
@@ -143,7 +149,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 $HOME/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 3（生命周期建模）
 硬性约束：
@@ -179,7 +185,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 $HOME/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 4（只读价值输出）
 硬性约束：
@@ -213,7 +219,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 $HOME/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 5（草稿不发送）
 硬性约束：
@@ -241,7 +247,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 $HOME/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 6（学习闭环）
 硬性约束：
@@ -270,7 +276,7 @@ git push origin master
 给 OpenClaw 的 prompt：
 
 ```text
-先执行“阶段通用前置提示”里的仓库同步步骤，确认在 ~/.openclaw/repos/email-bot 的 master 最新状态工作。
+先执行“阶段通用前置提示”里的仓库同步步骤，确认在 $HOME/email-bot 的 master 最新状态工作。
 
 当前阶段：Phase 7（受控发送）
 硬性约束：
