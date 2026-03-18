@@ -201,6 +201,15 @@ Phase 4 (gt convoy)
 实测结果：30 封样本 regex vs LLM 不一致率 93%，LLM 新增 3 个关键 intent 类别。
 详见 [`docs/reports/phase1-intent-llm-migration.md`](../reports/phase1-intent-llm-migration.md)。
 
+### 阶段 1.5：Phase 2 Persona LLM 改造 ✅
+
+已完成。将 phase2_profile_inference.sh 拆为：
+- `scripts/phase2_loading.sh` — 读 Phase 1 产出 + 构建 enriched context pack
+- `scripts/phase2_thinking.sh` — 单次 LLM 调用生成 persona + business 假设
+
+实测结果：旧脚本 3 条硬编码假设 → LLM 输出 5 条 persona + 4 条 business，含具体证据链。
+详见 [`docs/reports/phase2-persona-llm-migration.md`](../reports/phase2-persona-llm-migration.md)。
+
 ### 阶段 2：单 Phase gastown 试跑
 
 选一个 Phase（建议 Phase 4，子任务最独立）用 gastown 跑：
