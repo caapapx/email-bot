@@ -161,5 +161,5 @@ The runtime must respect the validation program.
 ## Relationship To Other Docs
 
 - [architecture.md](../architecture.md) defines the system layers and invariants
-- [openclaw-progressive-validation-plan.md](../openclaw-progressive-validation-plan.md) defines when each capability may be activated
+- [progressive-validation-framework.md](../plans/progressive-validation-framework.md) defines when each capability may be activated
 - [agent/custom_scripts/types.ts](../../agent/custom_scripts/types.ts) contains the first committed typed contracts
