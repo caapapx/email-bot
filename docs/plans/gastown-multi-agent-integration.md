@@ -219,6 +219,15 @@ Phase 4 (gt convoy)
 实测结果：5 条生命周期流，20 条线程全部归类，每条带证据链。
 详见 [`docs/reports/phase3-lifecycle-llm-migration.md`](../reports/phase3-lifecycle-llm-migration.md)。
 
+### 阶段 1.7：Phase 4 Value LLM 改造 ✅
+
+已完成。新增：
+- `scripts/phase4_loading.sh` — fetch recent bodies + lifecycle context + 人工上下文 → context-pack
+- `scripts/phase4_thinking.sh` — LLM 生成 daily-urgent / pending-replies / sla-risks / weekly-brief
+
+实测结果：5 urgent + 3 pending + 4 risks，替代硬编码 urgencyScore 和 classifyFlow。
+详见 [`docs/reports/phase4-value-llm-migration.md`](../reports/phase4-value-llm-migration.md)。
+
 ### 阶段 2：单 Phase gastown 试跑
 
 选一个 Phase（建议 Phase 4，子任务最独立）用 gastown 跑：
