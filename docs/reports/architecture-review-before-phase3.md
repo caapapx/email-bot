@@ -215,7 +215,71 @@ gastown 的 bead 依赖机制（`bd dep add`）天然支持这种链式触发。
 
 ---
 
-## 三、结论
+## 四、批判评估：哪些可以直接改进
+
+### 已完成
+
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| PII 清理 | ✅ | 脚本中硬编码的域名、姓名、用户名已改为从 .env 读取 |
+| LLM 模型切换 | ✅ | 切换到 astron-code-latest，max_tokens 从 env 读取 |
+
+### 可以直接改进（不阻塞 Phase 3）
+
+**1. 创建 runtime/context/ 骨架 + 模板文件**
+- 改动量：小（创建目录 + 空 YAML 模板）
+- 价值：为 Phase 2/3/4 的人工上下文注入打基础
+- 不做的后果：Phase 3 改造时还得补
+
+**2. Phase 2 loading 补充人工上下文读取**
+- 改动量：中（phase2_loading.sh 增加文件读取 + context-pack 合入逻辑）
+- 价值：Phase 2 的 persona 假设可以被用户纠偏
+- 不做的后果：LLM 推断无法被校正，错误会传播到 Phase 3/4
+
+### 不应该现在做
+
+**Phase 4 的硬编码规则迁移**
+- Phase 4 本身还没做 loading/thinking 分离
+- 应该在 Phase 4 改造时一并处理，不要单独改旧脚本
+
+**Gastown formula 定义**
+- 等 Phase 1-4 全部完成 loading/thinking 改造后统一接入
+- 过早定义 formula 会在脚本接口变化时反复修改
+
+### Loading 脚本在 gastown 融合后的定位
+
+决定：loading 改为 formula 前置步骤（pre-step），不占 polecat session。
+
+```toml
+# formulas/phase2.toml
+[formula]
+name = "phase2-persona-inference"
+
+[pre]
+# 由 rig 直接 shell 执行，不启动 polecat
+command = "bash scripts/phase2_loading.sh"
+outputs = ["runtime/validation/phase-2/context-pack.json"]
+
+[steps.thinking]
+# 由 polecat 执行（LLM session）
+command = "bash scripts/phase2_thinking.sh"
+depends_on = ["pre"]
+```
+
+理由：
+- loading 是确定性 I/O（himalaya 拉邮件、JSON 合并），不需要 LLM 能力
+- 放在 pre-step 避免浪费 polecat session 时间和 token
+- polecat 只做 thinking，启动即推理，效率最高
+
+---
+
+## 五、Phase 3 前的执行顺序
+
+1. ✅ PII 清理（已完成）
+2. ✅ LLM 模型切换到 astron-code-latest（已完成）
+3. → 创建 runtime/context/ 骨架 + 模板
+4. → Phase 2 loading 补充人工上下文读取
+5. → Phase 3 按完整模式实现（loading/thinking + 人工上下文）
 
 ### 在开始 Phase 3 改造前应该做的事
 
