@@ -210,6 +210,15 @@ Phase 4 (gt convoy)
 实测结果：旧脚本 3 条硬编码假设 → LLM 输出 5 条 persona + 4 条 business，含具体证据链。
 详见 [`docs/reports/phase2-persona-llm-migration.md`](../reports/phase2-persona-llm-migration.md)。
 
+### 阶段 1.6：Phase 3 Lifecycle LLM 改造 ✅
+
+已完成。新增：
+- `scripts/phase3_loading.sh` — 线程分组 + Phase 1/2 产出 + 人工上下文 → context-pack
+- `scripts/phase3_thinking.sh` — LLM 推断生命周期流、阶段、线程归类
+
+实测结果：5 条生命周期流，20 条线程全部归类，每条带证据链。
+详见 [`docs/reports/phase3-lifecycle-llm-migration.md`](../reports/phase3-lifecycle-llm-migration.md)。
+
 ### 阶段 2：单 Phase gastown 试跑
 
 选一个 Phase（建议 Phase 4，子任务最独立）用 gastown 跑：
