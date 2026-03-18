@@ -192,13 +192,14 @@ Phase 4 (gt convoy)
 
 ## 迁移路径
 
-### 阶段 1：Loading/Thinking 分离（当前）
+### 阶段 1：Loading/Thinking 分离 ✅
 
-将 phase1_mailbox_census.sh 拆为：
+已完成。将 phase1_mailbox_census.sh 拆为：
 - `scripts/phase1_loading.sh` — 确定性数据拉取 + 结构化
-- `scripts/phase1_thinking.sh` — 调用 LLM 做 intent 分类
+- `scripts/phase1_thinking.sh` — 调用 LLM 做 intent 分类（OpenAI-compatible API, kimi-k2.5）
 
-先在单机验证 LLM 介入后的分类质量提升，再接入 gastown 并发。
+实测结果：30 封样本 regex vs LLM 不一致率 93%，LLM 新增 3 个关键 intent 类别。
+详见 [`docs/reports/phase1-intent-llm-migration.md`](../reports/phase1-intent-llm-migration.md)。
 
 ### 阶段 2：单 Phase gastown 试跑
 
