@@ -140,7 +140,8 @@ for (const b of business) {
 }
 fs.writeFileSync(`${phase2Dir}/business-hypotheses.yaml`, businessYaml.join('\n') + '\n');
 
-const relationship = ['graph TD', '  User["User: zjma12"]'];
+const userLabel = process.env.MAIL_ACCOUNT_NAME || 'user';
+const relationship = ['graph TD', '  User["User: ' + userLabel + '"]'];
 for (const c of top(contacts, 8)) {
   const safe = c.key.replace(/[^a-zA-Z0-9]/g, '_');
   relationship.push(`  C_${safe}["${c.key}"]`);
@@ -157,7 +158,7 @@ const questions = [
   '你在团队中的主角色更接近：项目交付推进 / 技术协调 / 业务管理中的哪一类？',
   '资源申请与版本发布相关线程，哪些属于你必须拍板，哪些只是同步抄送？',
   '内部邮件里你最想优先自动化的是：每日待办提炼、线程状态跟进、还是周报汇总？',
-  'iflytek.com 与 kxdigit.com 是否都应被视为内部域名？是否还有其他内部域名？',
+  '当前 INTERNAL_DOMAINS 配置的域名是否完整？是否还有其他内部域名？',
   '当前最容易漏跟进的邮件类型是什么（资源申请、联调问题、合规通知等）？',
   '对自动草稿的风险边界是什么（仅建议/必须人工确认/特定对象禁用）？',
   '你希望 Phase 3 的线程生命周期最先覆盖哪类主题？',

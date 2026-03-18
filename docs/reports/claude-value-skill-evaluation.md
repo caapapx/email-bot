@@ -1,7 +1,7 @@
 # Claude Value Evaluation For `email-himalaya-assistant`
 
 Evaluation date: 2026-03-16
-Target: `/home/caapap/iflytek/ltc-plan/email-bot/SKILL.md`
+Target: `SKILL.md` (project root)
 
 ## Evaluation Lens
 

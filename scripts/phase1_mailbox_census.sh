@@ -193,7 +193,7 @@ const bodies = JSON.parse(fs.readFileSync(bodiesPath, 'utf8'));
 const bodyMap = new Map(bodies.map(b => [String(b.id), b.body || '']));
 
 const ownDomain = (mailAddress.split('@')[1] || '').toLowerCase();
-const internalDomains = new Set([ownDomain, 'iflytek.com', 'kxdigit.com']);
+const internalDomains = new Set([ownDomain, ...(process.env.INTERNAL_DOMAINS || '').split(',').map(d => d.trim()).filter(Boolean)]);
 
 const stopWords = new Set(['re','fw','fwd','回复','转发','关于','通知','请','公司','关于为','the','and','for','with','to','of','in']);
 

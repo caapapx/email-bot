@@ -116,7 +116,7 @@
 
 ```bash
 if [ ! -d ~/email-bot/.git ]; then
-  git clone https://github.com/caapapx/email-bot.git ~/email-bot
+  git clone <YOUR_REPO_URL> ~/email-bot
 fi
 cd ~/email-bot
 git checkout master
@@ -128,7 +128,7 @@ git pull --ff-only origin master
 ```text
 先执行仓库同步，不要开始功能开发：
 1. 工作目录固定为 ~/email-bot
-2. 如果目录不存在：git clone https://github.com/caapapx/email-bot.git ~/email-bot
+2. 如果目录不存在：git clone <YOUR_REPO_URL> ~/email-bot
 3. 进入目录后切换 master：git checkout master
 4. 拉取最新代码：git pull --ff-only origin master
 5. 输出当前目录、当前分支、最近一次 pull 是否成功

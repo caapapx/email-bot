@@ -131,7 +131,7 @@ const sampleBodyMap = new Map(sampleBodies.map((row) => [String(row.id), String(
 const threadStageMap = new Map(phase3Samples.map((row) => [row.thread_key, row]));
 const ownerEmail = String(mailAddress || '').toLowerCase();
 const ownerLocal = ownerEmail.split('@')[0] || '';
-const ownerNameHints = ['马兆杰', ownerLocal, ownerEmail];
+const ownerNameHints = (process.env.OWNER_NAME_HINTS || '').split(',').map(s => s.trim()).filter(Boolean).concat([ownerLocal, ownerEmail]);
 
 function parseDate(input) {
   if (!input) return null;
