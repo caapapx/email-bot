@@ -15,7 +15,7 @@
 ### P3: polecat 探索开销过大（~5min）
 - 现象：每次 sling 都花 5 分钟探索代码库、读 formula、理解结构
 - 原因：polecat 没有 session memory，每次从零开始
-- 方案：在 formula description 里写更详细的执行指令，减少探索需求；或用 `gt remember` 存 context
+- 方案：优先扩写 formula description，把最小必读材料、执行顺序、失败分流和禁止探索范围直接写进 formula；`gt remember` 暂缓，除非 formula 优化后仍有明显探索停滞
 
 ### P4: 讯飞 API 不稳定
 - 现象：websocket close 1006、JSON parse error、rate_limit_exceeded
