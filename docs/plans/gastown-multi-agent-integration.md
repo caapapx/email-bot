@@ -228,21 +228,31 @@ Phase 4 (gt convoy)
 实测结果：5 urgent + 3 pending + 4 risks，替代硬编码 urgencyScore 和 classifyFlow。
 详见 [`docs/reports/phase4-value-llm-migration.md`](../reports/phase4-value-llm-migration.md)。
 
-### 阶段 2：单 Phase gastown 试跑
+### 阶段 2：Gastown Formula 融合 ✅
 
-选一个 Phase（建议 Phase 4，子任务最独立）用 gastown 跑：
-1. 定义 3 个 formula
-2. `gt sling` 分发给 3 个 polecat
-3. 验证并发输出正确性
-4. 配置 refinery 合并规则
+已完成。创建 `.beads/formulas/` 下 5 个 formula 文件：
+- `twinbox-phase{1,2,3,4}.formula.toml` — workflow 类型，loading(pre) → thinking
+- `twinbox-full-pipeline.formula.toml` — convoy 类型，4 条 leg + synthesis
 
-### 阶段 3：全 Phase 迁移
+同时创建 `scripts/run_pipeline.sh` 作为纯 bash fallback 编排脚本。
 
-Phase 1-3 逐步迁移，保留原始 shell 脚本作为 fallback。
+### 阶段 3：gt sling 全链路验证 ✅
 
-### 阶段 4：Witness 集成
+已完成。环境搭建 + 端到端验证：
+- `gt install ~/gt` 创建 town，`gt rig add twinbox` 注册 rig（prefix=tw）
+- `gt sling twinbox-phase1 twinbox --create` 分发 formula 给 polecat
+- polecat `rust` 自动执行 Phase 1 loading → thinking，提交代码
+- refinery 自动合并 polecat 分支到 master
+- 全链路：sling → polecat spawn → formula cook → wisp → 执行 → MR → merge
 
-配置 witness 监控所有 polecat，处理 stall/crash 场景。
+### 阶段 4：Witness 集成 ✅
+
+已完成。Witness 由 `gt daemon start` 自动启动，使用内置 `mol-witness-patrol` 分子：
+- 自动监控 polecat 健康状态（stuck detection、restart、escalation）
+- 实测中 witness 正确识别 polecat rust 为 "working" / "Healthy"
+- 收到 refinery MERGED 邮件后正确更新状态
+
+操作指南见 [`docs/guides/gastown-operations.md`](../guides/gastown-operations.md)。
 
 ## 待确认问题
 
