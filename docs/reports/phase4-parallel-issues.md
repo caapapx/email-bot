@@ -10,7 +10,7 @@
 ### P2: polecat worktree 基于旧 commit
 - 现象：第一次 sling 时 worktree 基于 `0d580e3`，缺少并行脚本
 - 原因：polecat worktree 从 remote master 创建，但 master 没 push 最新 commit
-- 方案：sling 前确保 `git push origin master`；或在 formula 里加 `git pull` pre-step
+- 方案：sling 前确保 `git push origin master`；并在 formula 里加 `git fetch + ff-only/rebase` sync step
 
 ### P3: polecat 探索开销过大（~5min）
 - 现象：每次 sling 都花 5 分钟探索代码库、读 formula、理解结构
