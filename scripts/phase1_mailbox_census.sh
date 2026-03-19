@@ -12,6 +12,7 @@ CONFIG_FILE="${ROOT_DIR}/runtime/himalaya/config.toml"
 MAX_PAGES_PER_FOLDER=20
 PAGE_SIZE=50
 SAMPLE_BODY_COUNT=30
+LOOKBACK_DAYS="${PIPELINE_LOOKBACK_DAYS:-7}"
 FOLDER_FILTER=""
 ACCOUNT_OVERRIDE=""
 
@@ -26,6 +27,7 @@ Options:
   --max-pages-per-folder <n>     Max pages per folder (default: 20)
   --page-size <n>                Page size for envelope list (default: 50)
   --sample-body-count <n>        Number of envelopes to sample body text (default: 30)
+  --lookback-days <n>            Keep only recent envelopes in the last N days (default: PIPELINE_LOOKBACK_DAYS or 7)
   -h, --help                     Show this help
 USAGE
 }
@@ -50,6 +52,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --sample-body-count)
       SAMPLE_BODY_COUNT="${2:-}"
+      shift 2
+      ;;
+    --lookback-days)
+      LOOKBACK_DAYS="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -136,9 +142,10 @@ for folder in "${FOLDERS[@]}"; do
   done
 done
 
-node - <<'NODE' "${RAW_DIR}/all-pages.ndjson" "${ENVELOPES_JSON}"
+node - <<'NODE' "${RAW_DIR}/all-pages.ndjson" "${ENVELOPES_JSON}" "${LOOKBACK_DAYS}"
 const fs = require('fs');
-const [ndjsonPath, outPath] = process.argv.slice(2);
+const [ndjsonPath, outPath, lookbackDaysRaw] = process.argv.slice(2);
+const lookbackDays = Number(lookbackDaysRaw);
 const lines = fs.readFileSync(ndjsonPath, 'utf8').trim();
 const items = [];
 if (lines) {
@@ -150,7 +157,20 @@ if (lines) {
     }
   }
 }
-fs.writeFileSync(outPath, JSON.stringify(items, null, 2));
+function parseDate(value) {
+  if (!value) return null;
+  const d = new Date(String(value).replace(' ', 'T'));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+const filtered = (Number.isFinite(lookbackDays) && lookbackDays > 0)
+  ? items.filter((item) => {
+      const dt = parseDate(item.date);
+      if (!dt) return false;
+      const cutoff = Date.now() - lookbackDays * 86400000;
+      return dt.getTime() >= cutoff;
+    })
+  : items;
+fs.writeFileSync(outPath, JSON.stringify(filtered, null, 2));
 NODE
 
 node - <<'NODE' "${ENVELOPES_JSON}" "${BODIES_JSON}" "${SAMPLE_BODY_COUNT}" "${HIMALAYA_BIN}" "${CONFIG_FILE}" "${ACCOUNT}"
@@ -184,13 +204,14 @@ for (const e of samples) {
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
 NODE
 
-node - <<'NODE' "${ENVELOPES_JSON}" "${BODIES_JSON}" "${PHASE_DIR}" "${DOC_DIR}" "${DIAGRAM_DIR}" "${MAIL_ADDRESS}"
+node - <<'NODE' "${ENVELOPES_JSON}" "${BODIES_JSON}" "${PHASE_DIR}" "${DOC_DIR}" "${DIAGRAM_DIR}" "${MAIL_ADDRESS}" "${LOOKBACK_DAYS}"
 const fs = require('fs');
 
-const [envelopesPath, bodiesPath, phaseDir, docDir, diagramDir, mailAddress] = process.argv.slice(2);
+const [envelopesPath, bodiesPath, phaseDir, docDir, diagramDir, mailAddress, lookbackDaysRaw] = process.argv.slice(2);
 const envelopes = JSON.parse(fs.readFileSync(envelopesPath, 'utf8'));
 const bodies = JSON.parse(fs.readFileSync(bodiesPath, 'utf8'));
 const bodyMap = new Map(bodies.map(b => [String(b.id), b.body || '']));
+const lookbackDays = Number(lookbackDaysRaw);
 
 const ownDomain = (mailAddress.split('@')[1] || '').toLowerCase();
 const internalDomains = new Set([ownDomain, ...(process.env.INTERNAL_DOMAINS || '').split(',').map(d => d.trim()).filter(Boolean)]);
@@ -305,6 +326,7 @@ const census = {
   generated_at: new Date().toISOString(),
   scope: {
     folders_scanned: Object.keys(byFolder),
+    lookback_days: Number.isFinite(lookbackDays) && lookbackDays > 0 ? lookbackDays : null,
     total_envelopes: total,
     sampled_bodies: bodies.length,
   },
@@ -377,11 +399,12 @@ const factDomains = topN(byDomain, 5).map(x => `${x.key}(${x.count})`).join('、
 const factIntents = topN(byIntent, 5).map(x => `${x.key}(${x.count})`).join('、');
 const factThreads = threadsTop.slice(0, 5).map(x => `${x.key}(${x.count})`).join('；');
 
-const report = `# Phase 1 Report: Mailbox Distribution Census\n\n## Scope\n- Folders scanned: ${Object.keys(byFolder).join(', ')}\n- Total envelopes: ${total}\n- Sampled message bodies: ${bodies.length}\n- Read-only safeguards: only \`folder list\`, \`envelope list\`, \`message read --preview\` used\n\n## Facts\n- Sender domain Top: ${factDomains || 'N/A'}\n- Intent candidate Top: ${factIntents || 'N/A'}\n- Attachment ratio: ${(census.metrics.attachment_ratio * 100).toFixed(2)}% (${withAttachment}/${total})\n- Internal vs external: internal=${byInternalExternal.internal || 0}, external=${byInternalExternal.external || 0}, unknown=${byInternalExternal.unknown || 0}\n- High-frequency threads: ${factThreads || 'N/A'}\n\n## High-Confidence Inferences\n- Current mailbox has a strong ${byInternalExternal.internal > byInternalExternal.external ? 'internal-collaboration' : 'external-collaboration'} communication signal.\n- Dominant intent candidates are suitable for downstream automation baselines in triage and summarization.\n- Repeated thread subjects indicate opportunities for thread-level state modeling in Phase 3.\n\n## Hypotheses To Confirm\n- Some newsletter/internal-update categories may overlap and need manual calibration with a labeled sample set.\n- Internal domain set currently uses a conservative static allowlist and may require extension for subsidiaries/partners.\n- Week-level distribution should be rechecked with a larger sample window for seasonality stability.\n\n## Outputs\n- \`runtime/validation/phase-1/mailbox-census.json\`\n- \`runtime/validation/phase-1/intent-distribution.yaml\`\n- \`runtime/validation/phase-1/contact-distribution.json\`\n- \`docs/validation/diagrams/phase-1-mailbox-overview.mmd\`\n- \`docs/validation/diagrams/phase-1-sender-network.mmd\`\n`;
+const report = `# Phase 1 Report: Mailbox Distribution Census\n\n## Scope\n- Folders scanned: ${Object.keys(byFolder).join(', ')}\n- Lookback window: recent ${Number.isFinite(lookbackDays) && lookbackDays > 0 ? lookbackDays : 'all'} day(s)\n- Total envelopes: ${total}\n- Sampled message bodies: ${bodies.length}\n- Read-only safeguards: only \`folder list\`, \`envelope list\`, \`message read --preview\` used\n\n## Facts\n- Sender domain Top: ${factDomains || 'N/A'}\n- Intent candidate Top: ${factIntents || 'N/A'}\n- Attachment ratio: ${(census.metrics.attachment_ratio * 100).toFixed(2)}% (${withAttachment}/${total})\n- Internal vs external: internal=${byInternalExternal.internal || 0}, external=${byInternalExternal.external || 0}, unknown=${byInternalExternal.unknown || 0}\n- High-frequency threads: ${factThreads || 'N/A'}\n\n## High-Confidence Inferences\n- Current mailbox has a strong ${byInternalExternal.internal > byInternalExternal.external ? 'internal-collaboration' : 'external-collaboration'} communication signal.\n- Dominant intent candidates are suitable for downstream automation baselines in triage and summarization.\n- Repeated thread subjects indicate opportunities for thread-level state modeling in Phase 3.\n\n## Hypotheses To Confirm\n- Some newsletter/internal-update categories may overlap and need manual calibration with a labeled sample set.\n- Internal domain set currently uses a conservative static allowlist and may require extension for subsidiaries/partners.\n- Week-level distribution should be rechecked with a larger sample window for seasonality stability.\n\n## Outputs\n- \`runtime/validation/phase-1/mailbox-census.json\`\n- \`runtime/validation/phase-1/intent-distribution.yaml\`\n- \`runtime/validation/phase-1/contact-distribution.json\`\n- \`docs/validation/diagrams/phase-1-mailbox-overview.mmd\`\n- \`docs/validation/diagrams/phase-1-sender-network.mmd\`\n`;
 fs.writeFileSync(`${docDir}/phase-1-report.md`, report);
 NODE
 
 echo "Phase 1 census completed."
+echo "- Lookback days: ${LOOKBACK_DAYS}"
 echo "- runtime/validation/phase-1/mailbox-census.json"
 echo "- runtime/validation/phase-1/intent-distribution.yaml"
 echo "- runtime/validation/phase-1/contact-distribution.json"
