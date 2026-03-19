@@ -91,7 +91,13 @@ gt sling phase4-pending-replies polecat-e
 gt sling phase4-sla-risks polecat-f
 ```
 
-三个 polecat 并行执行，各自产出写入 `runtime/validation/phase-4/`。
+三个 polecat 并行执行，但都通过 `scripts/phase4_gastown.sh` 把读写根目录绑定到同一份 canonical root。
+共享状态根目录按以下顺序解析：
+- `TWINBOX_CANONICAL_ROOT`
+- `~/.config/twinbox/canonical-root`
+- 当前 checkout（仅普通仓库；linked worktree 必须显式配置）
+
+各自产出写入同一份 `runtime/validation/phase-4/`。
 全部完成后 refinery 合并为 `attention-budget.yaml`。
 
 ### 场景 3：增量更新时的读写分离
