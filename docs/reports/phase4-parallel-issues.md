@@ -37,8 +37,8 @@
 
 ### P7: gt 不在 Bash tool 的 PATH 里
 - 现象：每次 Bash 调用都要 `export PATH=...`
-- 原因：Bash tool 启动非交互式 shell，不 source .bashrc
-- 方案：工具限制，无法修复；在脚本里用绝对路径
+- 原因：部署阶段没有把 `~/go/bin` 和 `GT_TOWN_ROOT` 稳定写进 shell 启动文件，或写入后没 reload 验证
+- 方案：在 `~/.bashrc` 增加 gastown/go bootstrap（PATH + GT_TOWN_ROOT），部署后立即 `source ~/.bashrc && hash -r && command -v gt`
 
 ## 优先级排序
 
