@@ -32,8 +32,8 @@ bash entrypoints / gastown formulas
 | 阶段 2 | 统一 LLM boundary | ✅ 已完成 | `twinbox_core.llm` 与 `scripts/llm_common.sh` 已成为共享 transport / retry / JSON repair 边界 |
 | 阶段 2.5 | Phase 1 thinking 迁入 Python core | ✅ 已完成 | `phase1_thinking.sh` 已缩成 shell 入口，核心在 `twinbox_core.phase1_intent` |
 | 阶段 3 | Phase 2-4 thinking 迁入 Python core | ✅ 已完成 | `phase2/3/4` thinking、Phase 4 子任务与 merge 已迁入 Python core，shell 入口仅保留薄包装 |
-| 阶段 4 | context builder 收敛 | ❌ 未开始 | `phase2_loading.sh` / `phase3_loading.sh` 仍各自维护一份 context-pack builder |
-| 阶段 5 | render / merge 收敛到共享 renderer | ❌ 未完成 | 只有 Phase 内部局部收口，尚未形成跨 Phase 共享输出层 |
+| 阶段 4 | context builder 收敛 | ✅ 已完成 | `phase2_loading.sh` / `phase3_loading.sh` 已改成薄 shell 入口，共用 `twinbox_core.context_builder` |
+| 阶段 5 | render / merge 收敛到共享 renderer | 🚧 下一步 | Phase 4 已局部收口，但 Phase 2/3/4 仍未共用统一 renderer / report serialization 层 |
 | 阶段 6 | orchestration contract | ❌ 未开始 | pipeline 依赖仍主要基于脚本和文件约定 |
 | 阶段 7 | Go 重新评估 | ⏸ 暂缓 | 仍不在当前收益最高路径上 |
 
@@ -51,8 +51,8 @@ flowchart TD
     C --> D["阶段 2<br/>共享 LLM boundary<br/>已完成"]
     D --> E["阶段 2.5<br/>Phase 1 thinking -> Python core<br/>已完成"]
     E --> F["阶段 3<br/>Phase 2-4 thinking -> Python core<br/>已完成"]
-    F --> G["阶段 4<br/>context builder 收敛<br/>下一步"]
-    G --> H["阶段 5<br/>共享 renderer / merge 层<br/>后续"]
+    F --> G["阶段 4<br/>context builder 收敛<br/>已完成"]
+    G --> H["阶段 5<br/>共享 renderer / merge 层<br/>下一步"]
     H --> I["阶段 6<br/>orchestration contract<br/>后续"]
     I --> J["阶段 7<br/>重新评估 Go<br/>暂缓"]
 
@@ -71,17 +71,17 @@ flowchart TD
     classDef later fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c;
     classDef parked fill:#eceff1,stroke:#546e7a,color:#263238;
 
-    class B,C,D,E,F done;
-    class G,G1,G2,G3 next;
-    class H,H1,H2,I,I1,I2 later;
+    class B,C,D,E,F,G,G1,G2,G3 done;
+    class H,H1,H2 next;
+    class I,I1,I2 later;
     class J parked;
 ```
 
 阅读顺序建议：
 
-1. 先看主干：`阶段 0 -> 阶段 3` 是已经收口的稳定路径
-2. 再看当前焦点：`阶段 4` 是下一批最该做、且返工风险最低的分支
-3. 最后看后续分支：`阶段 5/6` 属于在共享 builder 稳定后再推进的上层收敛
+1. 先看主干：`阶段 0 -> 阶段 4` 是已经收口的稳定路径
+2. 再看当前焦点：`阶段 5` 是下一批最该做、且返工风险最低的分支
+3. 最后看后续分支：`阶段 6` 属于在共享 renderer 稳定后再推进的 orchestration 收敛
 
 ## 自我批判性评估
 
