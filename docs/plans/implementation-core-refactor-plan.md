@@ -33,8 +33,8 @@ bash entrypoints / gastown formulas
 | 阶段 2.5 | Phase 1 thinking 迁入 Python core | ✅ 已完成 | `phase1_thinking.sh` 已缩成 shell 入口，核心在 `twinbox_core.phase1_intent` |
 | 阶段 3 | Phase 2-4 thinking 迁入 Python core | ✅ 已完成 | `phase2/3/4` thinking、Phase 4 子任务与 merge 已迁入 Python core，shell 入口仅保留薄包装 |
 | 阶段 4 | context builder 收敛 | ✅ 已完成 | `phase2_loading.sh` / `phase3_loading.sh` 已改成薄 shell 入口，共用 `twinbox_core.context_builder` |
-| 阶段 5 | render / merge 收敛到共享 renderer | 🚧 下一步 | Phase 4 已局部收口，但 Phase 2/3/4 仍未共用统一 renderer / report serialization 层 |
-| 阶段 6 | orchestration contract | ❌ 未开始 | pipeline 依赖仍主要基于脚本和文件约定 |
+| 阶段 5 | render / merge 收敛到共享 renderer | ✅ 已完成 | Phase 2/3/4 的 YAML / Markdown / Mermaid 序列化已收口到 `twinbox_core.renderer` |
+| 阶段 6 | orchestration contract | 🚧 下一步 | pipeline 依赖仍主要基于脚本和文件约定，Gastown 与本地 fallback 还没有共享 contract surface |
 | 阶段 7 | Go 重新评估 | ⏸ 暂缓 | 仍不在当前收益最高路径上 |
 
 ## 执行树（总览）
@@ -52,8 +52,8 @@ flowchart TD
     D --> E["阶段 2.5<br/>Phase 1 thinking -> Python core<br/>已完成"]
     E --> F["阶段 3<br/>Phase 2-4 thinking -> Python core<br/>已完成"]
     F --> G["阶段 4<br/>context builder 收敛<br/>已完成"]
-    G --> H["阶段 5<br/>共享 renderer / merge 层<br/>下一步"]
-    H --> I["阶段 6<br/>orchestration contract<br/>后续"]
+    G --> H["阶段 5<br/>共享 renderer / merge 层<br/>已完成"]
+    H --> I["阶段 6<br/>orchestration contract<br/>下一步"]
     I --> J["阶段 7<br/>重新评估 Go<br/>暂缓"]
 
     G --> G1["Phase 2 loading context-pack builder"]
@@ -71,17 +71,16 @@ flowchart TD
     classDef later fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c;
     classDef parked fill:#eceff1,stroke:#546e7a,color:#263238;
 
-    class B,C,D,E,F,G,G1,G2,G3 done;
-    class H,H1,H2 next;
-    class I,I1,I2 later;
+    class B,C,D,E,F,G,G1,G2,G3,H,H1,H2 done;
+    class I,I1,I2 next;
     class J parked;
 ```
 
 阅读顺序建议：
 
-1. 先看主干：`阶段 0 -> 阶段 4` 是已经收口的稳定路径
-2. 再看当前焦点：`阶段 5` 是下一批最该做、且返工风险最低的分支
-3. 最后看后续分支：`阶段 6` 属于在共享 renderer 稳定后再推进的 orchestration 收敛
+1. 先看主干：`阶段 0 -> 阶段 5` 是已经收口的稳定路径
+2. 再看当前焦点：`阶段 6` 是下一批最该做、且返工风险最低的分支
+3. 最后看保留分支：`阶段 7` 仍只在 runtime / worker 常驻化后再讨论
 
 ## 自我批判性评估
 
