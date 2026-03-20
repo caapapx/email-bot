@@ -23,6 +23,20 @@ bash entrypoints / gastown formulas
 
 但执行顺序需要更保守，也更清晰。
 
+## 当前状态快照（2026-03-20）
+
+| 阶段 | 目标 | 当前状态 | 说明 |
+|------|------|----------|------|
+| 阶段 0 | authoritative artifact / state-report ownership 收口 | ✅ 已完成 | 已补 `validation-artifact-contract.md`，并把“运行时输入不再挂在 docs/validation”收口到 `runtime/context/` |
+| 阶段 1 | `code root / state root` 与路径底座 | ✅ 已完成 | `twinbox_core.paths` 已接管根路径解析，Phase 1-4 都走 canonical state root |
+| 阶段 2 | 统一 LLM boundary | ✅ 已完成 | `twinbox_core.llm` 与 `scripts/llm_common.sh` 已成为共享 transport / retry / JSON repair 边界 |
+| 阶段 2.5 | Phase 1 thinking 迁入 Python core | ✅ 已完成 | `phase1_thinking.sh` 已缩成 shell 入口，核心在 `twinbox_core.phase1_intent` |
+| 阶段 3 | Phase 2-4 thinking 迁入 Python core | 🚧 进行中 | 当前剩余重点是把 Phase 2-4 的 prompt / parse / render / merge 从 shell + inline Node 收进 Python 模块 |
+| 阶段 4 | context builder 收敛 | ❌ 未开始 | `phase2_loading.sh` / `phase3_loading.sh` 仍各自维护一份 context-pack builder |
+| 阶段 5 | render / merge 收敛到共享 renderer | ❌ 未完成 | 只有 Phase 内部局部收口，尚未形成跨 Phase 共享输出层 |
+| 阶段 6 | orchestration contract | ❌ 未开始 | pipeline 依赖仍主要基于脚本和文件约定 |
+| 阶段 7 | Go 重新评估 | ⏸ 暂缓 | 仍不在当前收益最高路径上 |
+
 ## 自我批判性评估
 
 ### 这个方案里值得保留的创新
