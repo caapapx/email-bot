@@ -31,11 +31,57 @@ bash entrypoints / gastown formulas
 | 阶段 1 | `code root / state root` 与路径底座 | ✅ 已完成 | `twinbox_core.paths` 已接管根路径解析，Phase 1-4 都走 canonical state root |
 | 阶段 2 | 统一 LLM boundary | ✅ 已完成 | `twinbox_core.llm` 与 `scripts/llm_common.sh` 已成为共享 transport / retry / JSON repair 边界 |
 | 阶段 2.5 | Phase 1 thinking 迁入 Python core | ✅ 已完成 | `phase1_thinking.sh` 已缩成 shell 入口，核心在 `twinbox_core.phase1_intent` |
-| 阶段 3 | Phase 2-4 thinking 迁入 Python core | 🚧 进行中 | 当前剩余重点是把 Phase 2-4 的 prompt / parse / render / merge 从 shell + inline Node 收进 Python 模块 |
+| 阶段 3 | Phase 2-4 thinking 迁入 Python core | ✅ 已完成 | `phase2/3/4` thinking、Phase 4 子任务与 merge 已迁入 Python core，shell 入口仅保留薄包装 |
 | 阶段 4 | context builder 收敛 | ❌ 未开始 | `phase2_loading.sh` / `phase3_loading.sh` 仍各自维护一份 context-pack builder |
 | 阶段 5 | render / merge 收敛到共享 renderer | ❌ 未完成 | 只有 Phase 内部局部收口，尚未形成跨 Phase 共享输出层 |
 | 阶段 6 | orchestration contract | ❌ 未开始 | pipeline 依赖仍主要基于脚本和文件约定 |
 | 阶段 7 | Go 重新评估 | ⏸ 暂缓 | 仍不在当前收益最高路径上 |
+
+## 执行树（总览）
+
+下面这棵执行树强调两件事：
+
+- 先走“不会反复返工”的底座主干，再进入实现层迁移
+- 当前已经走完的分支、下一步要接的分支、暂缓分支一眼可见
+
+```mermaid
+flowchart TD
+    A["实现层重构与全局架构收敛"] --> B["阶段 0<br/>契约与 ownership 收口<br/>已完成"]
+    B --> C["阶段 1<br/>paths / code root / state root<br/>已完成"]
+    C --> D["阶段 2<br/>共享 LLM boundary<br/>已完成"]
+    D --> E["阶段 2.5<br/>Phase 1 thinking -> Python core<br/>已完成"]
+    E --> F["阶段 3<br/>Phase 2-4 thinking -> Python core<br/>已完成"]
+    F --> G["阶段 4<br/>context builder 收敛<br/>下一步"]
+    G --> H["阶段 5<br/>共享 renderer / merge 层<br/>后续"]
+    H --> I["阶段 6<br/>orchestration contract<br/>后续"]
+    I --> J["阶段 7<br/>重新评估 Go<br/>暂缓"]
+
+    G --> G1["Phase 2 loading context-pack builder"]
+    G --> G2["Phase 3 loading context-pack builder"]
+    G --> G3["共享 context_builder / human context merge / legacy fallback"]
+
+    H --> H1["Phase 4 merge 与 parallel mode 共用 renderer"]
+    H --> H2["Phase 2/3 report + mermaid 输出序列化收口"]
+
+    I --> I1["Gastown formula 与本地 fallback 共用 contract"]
+    I --> I2["phase 间依赖不再只靠文件存在"]
+
+    classDef done fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+    classDef next fill:#fff8e1,stroke:#f9a825,color:#7f6000;
+    classDef later fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c;
+    classDef parked fill:#eceff1,stroke:#546e7a,color:#263238;
+
+    class B,C,D,E,F done;
+    class G,G1,G2,G3 next;
+    class H,H1,H2,I,I1,I2 later;
+    class J parked;
+```
+
+阅读顺序建议：
+
+1. 先看主干：`阶段 0 -> 阶段 3` 是已经收口的稳定路径
+2. 再看当前焦点：`阶段 4` 是下一批最该做、且返工风险最低的分支
+3. 最后看后续分支：`阶段 5/6` 属于在共享 builder 稳定后再推进的上层收敛
 
 ## 自我批判性评估
 
