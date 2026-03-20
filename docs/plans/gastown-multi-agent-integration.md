@@ -240,7 +240,15 @@ Phase 4 (gt convoy)
 - `twinbox-phase{1,2,3,4}.formula.toml` — workflow 类型，loading(pre) → thinking
 - `twinbox-full-pipeline.formula.toml` — convoy 类型，4 条 leg + synthesis
 
-同时创建 `scripts/run_pipeline.sh` 作为纯 bash fallback 编排脚本。
+同时创建了共享编排入口 `scripts/twinbox_orchestrate.sh`，以及继续保留的兼容 wrapper `scripts/run_pipeline.sh`。
+
+当前应把它们理解为：
+
+- `scripts/twinbox_orchestrate.sh`：编排 contract 的稳定 CLI
+- `scripts/run_pipeline.sh`：向后兼容入口
+- Gastown formula：围绕同一份 phase contract 的执行 adapter
+
+也就是说，Gastown 不再是 pipeline 语义的真相源。
 
 ### 阶段 3：gt sling 全链路验证 ✅
 

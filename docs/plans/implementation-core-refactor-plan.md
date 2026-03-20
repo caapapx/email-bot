@@ -34,7 +34,8 @@ bash entrypoints / gastown formulas
 | 阶段 3 | Phase 2-4 thinking 迁入 Python core | ✅ 已完成 | `phase2/3/4` thinking、Phase 4 子任务与 merge 已迁入 Python core，shell 入口仅保留薄包装 |
 | 阶段 4 | context builder 收敛 | ✅ 已完成 | `phase2_loading.sh` / `phase3_loading.sh` 已改成薄 shell 入口，共用 `twinbox_core.context_builder` |
 | 阶段 5 | render / merge 收敛到共享 renderer | ✅ 已完成 | Phase 2/3/4 的 YAML / Markdown / Mermaid 序列化已收口到 `twinbox_core.renderer` |
-| 阶段 6 | orchestration contract | 🚧 下一步 | pipeline 依赖仍主要基于脚本和文件约定，Gastown 与本地 fallback 还没有共享 contract surface |
+| 阶段 6 | orchestration contract | ✅ 已完成 | `twinbox_core.orchestration`、`scripts/twinbox_orchestrate.sh` 与 `run_pipeline.sh` wrapper 已形成共享 CLI contract，Gastown 明确退到 adapter 位置 |
+| 阶段 6.5 | skill-facing adapter surface | 🚧 下一步 | 还没把 Gastown formula 进一步生成为 contract adapter，也还没把 skill 入口打包成更正式的 runtime surface |
 | 阶段 7 | Go 重新评估 | ⏸ 暂缓 | 仍不在当前收益最高路径上 |
 
 ## 执行树（总览）
@@ -53,8 +54,9 @@ flowchart TD
     E --> F["阶段 3<br/>Phase 2-4 thinking -> Python core<br/>已完成"]
     F --> G["阶段 4<br/>context builder 收敛<br/>已完成"]
     G --> H["阶段 5<br/>共享 renderer / merge 层<br/>已完成"]
-    H --> I["阶段 6<br/>orchestration contract<br/>下一步"]
-    I --> J["阶段 7<br/>重新评估 Go<br/>暂缓"]
+    H --> I["阶段 6<br/>orchestration contract<br/>已完成"]
+    I --> J["阶段 6.5<br/>skill-facing adapter surface<br/>下一步"]
+    J --> K["阶段 7<br/>重新评估 Go<br/>暂缓"]
 
     G --> G1["Phase 2 loading context-pack builder"]
     G --> G2["Phase 3 loading context-pack builder"]
@@ -63,23 +65,27 @@ flowchart TD
     H --> H1["Phase 4 merge 与 parallel mode 共用 renderer"]
     H --> H2["Phase 2/3 report + mermaid 输出序列化收口"]
 
-    I --> I1["Gastown formula 与本地 fallback 共用 contract"]
-    I --> I2["phase 间依赖不再只靠文件存在"]
+    I --> I1["共享 CLI contract: twinbox_orchestrate"]
+    I --> I2["run_pipeline.sh 退化为兼容 wrapper"]
+    I --> I3["Gastown 明确为 adapter，不再是语义真相源"]
+
+    J --> J1["skill 通过 CLI 驱动整条 pipeline"]
+    J --> J2["formula 进一步从 contract 派生或校验"]
 
     classDef done fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
     classDef next fill:#fff8e1,stroke:#f9a825,color:#7f6000;
     classDef later fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c;
     classDef parked fill:#eceff1,stroke:#546e7a,color:#263238;
 
-    class B,C,D,E,F,G,G1,G2,G3,H,H1,H2 done;
-    class I,I1,I2 next;
-    class J parked;
+    class B,C,D,E,F,G,G1,G2,G3,H,H1,H2,I,I1,I2,I3 done;
+    class J,J1,J2 next;
+    class K parked;
 ```
 
 阅读顺序建议：
 
 1. 先看主干：`阶段 0 -> 阶段 5` 是已经收口的稳定路径
-2. 再看当前焦点：`阶段 6` 是下一批最该做、且返工风险最低的分支
+2. 再看当前焦点：`阶段 6.5` 是下一批最该做的 adapter 收口分支
 3. 最后看保留分支：`阶段 7` 仍只在 runtime / worker 常驻化后再讨论
 
 ## 自我批判性评估
@@ -261,7 +267,21 @@ Go 擅长：
 - phase 间依赖可以围绕显式 contract 断言
 - 更高级的并发和失败恢复建立在稳定 contract 上，而不是脚本约定上
 
-### 阶段 6：再评估 Go
+当前落地：
+
+- `twinbox_core.orchestration` 成为 phase 编排 metadata 的共享导出面
+- `scripts/twinbox_orchestrate.sh` 成为本地、skill、未来其他后端都可复用的稳定 CLI
+- `scripts/run_pipeline.sh` 收缩为兼容 wrapper，不再自带另一套顺序逻辑
+- `docs/specs/pipeline-orchestration-contract.md` 明确把 Gastown 放到 adapter 位置
+### 阶段 6：skill-facing adapter surface
+
+下一步重点：
+
+- 让 skill 直接通过 CLI 消费 phase contract，而不需要理解公式细节
+- 评估 Gastown formula 是否应从 contract 派生，或至少做一致性校验
+- 收紧 Phase 4 fan-out / merge 的 adapter 边界，避免 Gastown 专用语义继续外溢
+
+### 阶段 7：再评估 Go
 
 只在以下条件成立时启动：
 
