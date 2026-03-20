@@ -3,24 +3,11 @@
 日期：2026-03-20  
 项目：twinbox
 
-## 目标
+## 执行摘要
 
-在不重写产品语义的前提下，收敛当前仓库的“中编程层”：
+这轮优化不应被理解为“换语言”，而应被理解为“先把实现层的边界拉直”。
 
-- 保留 `bash` 作为薄编排层
-- 引入 `Python` 作为可测试的核心实现层
-- 暂缓 `Go`，直到仓库真正进入常驻 runtime / listener manager / worker service 阶段
-- 同时把当前已经暴露出的全局架构摩擦点落成明确迁移约束
-
-这里讨论的不是“换一门语言会不会更快”，而是：
-
-- 哪些复杂度不该继续留在 shell
-- 哪些契约应该先被拉直
-- 语言层迁移如何服务于整体架构收敛
-
-## 结论
-
-当前最合适的目标形态不是 “all in Go” 或 “全部重写”，而是：
+当前更合适的目标形态仍然是：
 
 ```text
 bash entrypoints / gastown formulas
@@ -28,15 +15,44 @@ bash entrypoints / gastown formulas
       -> transport adapters / artifact store / llm adapters
 ```
 
-具体判断：
+结论保持不变：
 
-- `bash` 继续保留在入口、环境装配、薄编排、向后兼容脚本层
-- `Python` 接管 context-pack builder、artifact contract、LLM boundary、renderer 等核心逻辑
-- `Go` 留给未来的长生命周期能力：
-  - listener manager
-  - scheduled execution
-  - worker orchestration service
-  - review/send runtime
+- `bash` 保留在入口、环境装配、薄编排、向后兼容层
+- `Python` 接管可测试的核心实现层
+- `Go` 暂缓到常驻 runtime / worker service / listener manager 真的出现时再评估
+
+但执行顺序需要更保守，也更清晰。
+
+## 自我批判性评估
+
+### 这个方案里值得保留的创新
+
+- 它没有把问题误诊成“shell 不好”，而是识别出真正的摩擦点在契约、状态根、LLM 边界和重复 builder
+- 它试图把浅脚本收敛成深模块，这对测试性、可导航性、后续多 agent 集成都有长期价值
+- 它保留现有 `scripts/*.sh` 与 gastown formula 入口，避免一次性重写执行面
+
+### 这个方案当前高估了什么
+
+- 高估了“先建 Python core”本身的价值；如果 authoritative artifact 还没定清楚，只是把漂移接口搬到新语言
+- 高估了“目录形态设计”对短期收益的贡献；目录可以先最小落地，不需要一步到位铺满所有子模块
+- 高估了“大块迁移 context builder”的时机；在路径语义、artifact owner、state/report 边界未收口前，迁得越快，返工越大
+
+### 这个方案当前低估了什么
+
+- 低估了 `attention-budget` 契约漂移对所有后续 phase 的放大效应
+- 低估了 `Phase 1-3` 仍未完全共享 `code root / state root` 语义带来的多 worktree 风险
+- 低估了“文档产物兼做运行输入”对稳定性的侵蚀；这会让重构很容易被 markdown 格式耦住
+
+### 平衡创新和稳定性的收敛判断
+
+因此，本方案不应以“先迁最多逻辑”为第一目标，而应以“先建立后续迁移不会反复推倒的底座”为第一目标。
+
+收敛后的执行原则是：
+
+1. 先收口契约，再开语言层迁移
+2. 第一批代码只动共享底座，不动 phase 语义
+3. 保持 shell 和 formula 入口稳定，只做内部替换
+4. 每一阶段都必须有最小可验证输出，而不是只完成抽象设计
 
 ## 为什么不是现在就上 Go
 
@@ -65,6 +81,151 @@ Go 擅长：
 - 更容易做 fixture test / contract test / golden test
 - JSON / YAML / markdown / mermaid 处理都比 shell 自然
 - 可以保留现有 `bash scripts/*.sh` 和 formula 入口，不破坏 Gastown 现状
+
+## 推荐决策
+
+如果这轮优化现在就要启动，推荐决策调整为：
+
+1. 先确认 authoritative artifact 与 state/report ownership
+2. 第一批实现只落 `Python core` 的共享底座，不先迁大块业务逻辑
+3. 优先迁 `paths/state-root` 与共享 LLM 边界，再迁 `context builder`
+4. `Go` 延后到 orchestration/runtime 真的需要常驻化时再讨论
+
+这比“先选一门更强的语言”更重要。
+
+## 渐进式执行顺序
+
+### 阶段 0：先收紧契约，不先重写
+
+目标：
+
+- 明确每个 phase 的 authoritative artifact
+- 决定 `attention-budget.yaml` 是否真的是主线契约
+- 区分 state artifact 与 report artifact
+
+输出：
+
+- phase artifact contract 文档
+- 状态产物与文档产物的 ownership 规则
+
+说明：
+
+这是零阶段，不是为了拖慢实现，而是为了避免把混乱从 bash 搬到 Python。
+
+### 阶段 1：落共享路径与状态根底座
+
+目标：
+
+- 建 `python/pyproject.toml`
+- 建 `twinbox_core.paths`
+- 把 `code root / canonical root / state root` 解析迁到 Python
+- 保持现有 shell 接口不变，让 shell 只做薄封装
+
+优先迁移：
+
+- `scripts/twinbox_paths.sh`
+- `scripts/register_canonical_root.sh` 依赖的根路径解析
+- 所有 Phase 4 现有脚本共享的状态根语义
+
+完成标准：
+
+- shell 不再自己实现复杂的路径判断
+- linked worktree 与本地 checkout 使用同一套解析逻辑
+- 至少有一组路径解析单测覆盖正常路径、worktree 路径与错误路径
+
+### 阶段 2：收敛 LLM boundary
+
+目标：
+
+- 建 `twinbox_core.llm`
+- 统一 provider 差异、retry、timeout、JSON repair
+- 停止各 phase thinking 各自处理 transport / parse 差异
+
+优先迁移：
+
+- `scripts/llm_common.sh`
+- `scripts/phase1_thinking.sh` 内自带的 transport / parse 流程
+
+完成标准：
+
+- phase thinking 不再各自处理 provider 差异
+- malformed JSON、timeout、retry 可以围绕一个统一边界测试
+
+### 阶段 3：迁 context builder
+
+目标：
+
+- 合并 `Phase 2/3` 的 envelope normalization
+- 合并 human context merge
+- 合并 legacy fallback
+- 建共享 `context_builder`
+
+优先对象：
+
+- `scripts/phase2_loading.sh`
+- `scripts/phase3_loading.sh`
+
+完成标准：
+
+- `Phase 2/3 loading` 只负责调用 Python module 并落盘
+- 同一个“由 Phase 1 artifacts 派生 phase-ready context”的概念不再分裂在多个浅脚本里
+
+### 阶段 4：迁 render / merge
+
+目标：
+
+- 拆出统一 renderer
+- 让并行 fallback 与 merge-only 共享一份输出逻辑
+- 把运行时状态与给人看的视图拆开
+
+优先对象：
+
+- `scripts/phase4_merge.sh`
+- `scripts/phase4_thinking_parallel.sh` 中重复的 merge/render
+- `Phase 2/3` 的 report + diagram 写入
+
+完成标准：
+
+- YAML / markdown / mermaid 序列化不再在多个脚本中复制
+- 状态层测试不再被 markdown 视图格式绑死
+
+### 阶段 5：收敛 orchestration contract
+
+目标：
+
+- pipeline dependency 不再只是“文件存在”
+- phase 输入输出变成显式 contract
+- Gastown formula 与本地 fallback 共用一个 orchestration surface
+
+完成标准：
+
+- phase 间依赖可以围绕显式 contract 断言
+- 更高级的并发和失败恢复建立在稳定 contract 上，而不是脚本约定上
+
+### 阶段 6：再评估 Go
+
+只在以下条件成立时启动：
+
+- listener / action runtime 要常驻运行
+- 需要更强的 worker 隔离
+- 需要长期稳定的并发任务执行层
+- Python core 已经把 phase contract 稳定下来
+
+如果这些前提未满足，上 Go 只会放大迁移面。
+
+## 第一阶段现在就该做什么
+
+如果今天只启动一批最小改动，应该只做这些：
+
+1. 建 `python/pyproject.toml` 与 `src/twinbox_core/`
+2. 迁 `twinbox_paths` 到 Python，并让 shell 只做薄封装
+3. 为路径解析补一组最小单测
+
+暂时不做：
+
+- 直接迁 `phase2_loading` / `phase3_loading`
+- 改写 `attention-budget` 读写流程
+- 触碰 phase 业务语义或产物内容
 
 ## 全局架构摩擦点
 
@@ -299,99 +460,6 @@ tests/
 - `python/` 是中编程层
 - `tests/` 围绕 Python core 建立，而不是围绕 shell 文本
 
-## 迁移顺序
-
-### Phase A: 先收紧契约，不先重写全部
-
-目标：
-
-- 明确每个 phase 的 authoritative artifact
-- 决定 `attention-budget.yaml` 是否真的是主线契约
-- 区分 state artifact 与 report artifact
-
-输出：
-
-- phase artifact contract 文档
-- 状态产物与文档产物的 ownership 规则
-
-这是最优先的一步。否则只是把混乱从 bash 搬到 Python。
-
-### Phase B: 落 Python core 的共享底座
-
-目标：
-
-- 建 `pyproject.toml`
-- 建 `twinbox_core.paths`
-- 建 `twinbox_core.llm`
-- 建 `twinbox_core.artifacts`
-
-优先迁移：
-
-- state root 解析
-- artifact load/save
-- LLM backend 调用与 JSON repair
-
-完成标准：
-
-- shell 不再直接拼复杂 JSON
-- 各 phase thinking 不再各自处理 provider 差异
-
-### Phase C: 迁 context builder
-
-优先对象：
-
-- `phase2_loading`
-- `phase3_loading`
-
-目标：
-
-- 合并重复的 envelope normalization
-- 合并 human context merge
-- 合并 legacy fallback
-- 建一个共享的 `context_builder`
-
-完成标准：
-
-- Phase 2/3 loading 只负责“调用 Python module 并落盘”
-
-### Phase D: 迁 render / merge
-
-优先对象：
-
-- `phase4_merge`
-- `phase4_thinking_parallel` 中重复的 merge/render
-- `phase2/3` 的 report + diagram 写入
-
-目标：
-
-- 拆出统一 renderer
-- 让并行 fallback 与 merge-only 共享一份输出逻辑
-
-完成标准：
-
-- YAML / markdown / mermaid 序列化不再在多个脚本中复制
-
-### Phase E: 收敛 orchestration contract
-
-目标：
-
-- 让 pipeline dependency 不再只是“文件存在”
-- 把 phase 输入输出变成显式 contract
-- 决定 Gastown formula 与本地 fallback 如何共用一个 orchestration surface
-
-这一步之后，才适合真正做更高级的并发和失败恢复。
-
-### Phase F: 再评估 Go
-
-只在以下条件成立时启动：
-
-- listener / action runtime 要常驻运行
-- 需要更强的 worker 隔离
-- 需要长期稳定的并发任务执行层
-- Python core 已经把 phase contract 稳定下来
-
-如果这些前提未满足，上 Go 只会放大迁移面。
-
 ## 迁移原则
 
 ### 1. Replace, do not stack
@@ -431,18 +499,7 @@ tests/
 
 `Phase 4` 的 `code root / state root` 分离不应该停在 Phase 4。
 
-后续 Phase 2/3 若继续参与 worker fan-out，也应复用同一套状态根语义。
-
-## 近期可执行切片
-
-下面这些切片足够小，适合作为真正开始迁语言层时的第一批任务。
-
-1. 建 `python/pyproject.toml` 与 `src/twinbox_core/`
-2. 迁 `twinbox_paths` 到 Python，并让 shell 只做薄封装
-3. 迁 `llm_common.sh` 到 Python client
-4. 把 `phase2_loading` 和 `phase3_loading` 的共享逻辑抽成 `context_builder`
-5. 把 `phase4_merge` 与 `phase4_thinking_parallel` 的重复渲染逻辑合并到 `render.phase4`
-6. 单独定义 `attention-budget` 的真实 owner、真实读者和真实写者
+后续 `Phase 2/3` 若继续参与 worker fan-out，也应复用同一套状态根语义。
 
 ## 非目标
 
@@ -460,14 +517,3 @@ tests/
 - `docs/plans/progressive-validation-framework.md` 定义阶段漏斗与验证语义
 - `docs/plans/gastown-multi-agent-integration.md` 定义 Gastown 编排现状
 - 本文档只回答一个问题：当前仓库应如何优化语言层和中编程层，才能支撑后续架构收敛
-
-## 推荐决策
-
-如果下一轮真的开始动语言层，我建议按这个顺序决策：
-
-1. 先确认 `attention-budget` 是否继续作为 authoritative phase contract
-2. 再建立 `Python core`
-3. 先迁 shared builder / LLM / renderer
-4. 最后才评估是否需要 `Go runtime`
-
-这比“先选一门更强的语言”更重要。
