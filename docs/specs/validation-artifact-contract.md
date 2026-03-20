@@ -138,11 +138,11 @@
 - 用于解释、审阅、对外展示
 - 不得作为后续 phase 的必需输入
 
-当前遗留例外：
+当前唯一保留的实例级人工补充说明是：
 
-- `docs/validation/instance-calibration-notes.md` 仍被 `phase2_loading.sh`、`phase3_loading.sh`、`phase4_loading.sh` 读取
-- 它当前更接近 instance-local human context input，而不是 report artifact
-- 后续应迁移到 `runtime/context/` 或其他明确的 state-root 输入目录，再把 `docs/validation/` 完全收敛为视图层
+- `runtime/context/instance-calibration-notes.md`
+- 它属于 instance-local human context input，而不是 `docs/validation/` report artifact
+- `docs/validation/` 现在应完全收敛为视图层，不再承担运行时输入
 
 ### 规则 3：`llm-response.json` 不是长期契约
 

@@ -21,10 +21,10 @@
 ## 实例化与结果约定
 
 1. 运行时结论不要直接回写到本模板。
-2. 当前邮箱实例的补充结论写入：`docs/validation/instance-calibration-notes.md`
+2. 当前邮箱实例的补充结论写入：`runtime/context/instance-calibration-notes.md`
 3. 各阶段结构化结果写入：`runtime/validation/<phase>/`
 4. 各阶段可读报告写入：`docs/validation/`
-5. 智能体执行时，如果发现 `docs/validation/instance-calibration-notes.md` 存在，应先读取该文件，再决定本次初始化的优先策略
+5. 智能体执行时，如果发现 `runtime/context/instance-calibration-notes.md` 存在，应先读取该文件，再决定本次初始化的优先策略
 
 ## 支持的初始化模式
 
@@ -82,7 +82,7 @@
 
 ## 固定结果索引（本地链接）
 
-- [实例校准备注](../validation/instance-calibration-notes.md)
+- [实例校准备注](../../runtime/context/instance-calibration-notes.md)
 - [Context Brief](../validation/context-brief.md)
 - [Preflight 报告](../validation/preflight-mailbox-smoke-report.md)
 - [Phase 1 报告](../validation/phase-1-report.md)
@@ -133,7 +133,7 @@ git pull --ff-only origin master
 4. 拉取最新代码：git pull --ff-only origin master
 5. 输出当前目录、当前分支、最近一次 pull 是否成功
 6. 若 pull 失败，停止并报告错误，不要继续
-7. 如果存在 `docs/validation/instance-calibration-notes.md`、`docs/validation/context-brief.md`、`runtime/context/context-pack.json` 或已有阶段输出，先读取它们，再决定本次初始化的优先顺序
+7. 如果存在 `runtime/context/instance-calibration-notes.md`、`docs/validation/context-brief.md`、`runtime/context/context-pack.json` 或已有阶段输出，先读取它们，再决定本次初始化的优先顺序
 8. 如果用户提供了本地工作材料、文本规则、截图或周期性任务说明，先把它们归档到标准化上下文文件，再进入当前阶段分析
 
 后续所有改动都直接在 master 进行。

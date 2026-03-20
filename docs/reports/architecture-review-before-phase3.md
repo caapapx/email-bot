@@ -3,6 +3,8 @@
 日期：2026-03-18
 触发：Phase 3 改造前的全局审视
 
+注：本文保留 `Phase 3` 改造前的判断背景，但其中提到的 calibration notes 运行时路径已在 2026-03-20 迁移到 `runtime/context/instance-calibration-notes.md`。
+
 ---
 
 ## 一、各阶段人工上下文注入现状
@@ -39,7 +41,7 @@ runtime/context/                    ← 目录不存在
    LLM 输出低置信结论 → 暂停等待确认 → 用户纠偏 → 更新 manual-facts.yaml
 
 3. 回顾校正（Phase 完成后）
-   用户审阅报告 → 发现错误 → 写入 instance-calibration-notes.md → 下次运行读取
+   用户审阅报告 → 发现错误 → 写入 `runtime/context/instance-calibration-notes.md` → 下次运行读取
 ```
 
 ### 各阶段具体注入点
@@ -52,7 +54,7 @@ runtime/context/                    ← 目录不存在
 | 组织架构/部门 | manual-facts.yaml | 同上 | 补充 LLM 无法从邮件推断的信息 |
 | 周期性职责 | manual-habits.yaml | 同上 | 注入"每周统计""每月总结"等 |
 | 术语映射 | manual-facts.yaml | 同上 | 解释 AQ=安全、TG=听谷、FDZ=反诈 |
-| 前次校准 | instance-calibration-notes.md | loading 时读取 | 避免重复犯错 |
+| 前次校准 | `runtime/context/instance-calibration-notes.md` | loading 时读取 | 避免重复犯错 |
 
 **Phase 4 — 价值输出**
 
@@ -61,7 +63,7 @@ runtime/context/                    ← 目录不存在
 | owner 规则 | manual-facts.yaml | thinking 时作为 system context | 替代硬编码的 owner_guess |
 | 固定截止习惯 | manual-habits.yaml | 同上 | "每月5号前总结"进入 sla-risks |
 | 周期任务 | manual-habits.yaml | 同上 | "每周统计资源申请"进入 daily-urgent |
-| 线程纠偏 | instance-calibration-notes.md | 同上 | "这个线程不是我负责" |
+| 线程纠偏 | `runtime/context/instance-calibration-notes.md` | 同上 | "这个线程不是我负责" |
 
 ### 脚本改造方案
 
@@ -71,7 +73,7 @@ Phase 2 loading 增加人工上下文读取：
 # phase2_loading.sh 新增逻辑
 MANUAL_FACTS="${ROOT_DIR}/runtime/context/manual-facts.yaml"
 MANUAL_HABITS="${ROOT_DIR}/runtime/context/manual-habits.yaml"
-CALIBRATION="${ROOT_DIR}/docs/validation/instance-calibration-notes.md"
+CALIBRATION="${ROOT_DIR}/runtime/context/instance-calibration-notes.md"
 
 # 如果存在，合入 context-pack.json
 # 如果不存在，跳过（不阻塞执行）
