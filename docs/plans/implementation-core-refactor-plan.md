@@ -514,6 +514,7 @@ tests/
 ## 与现有文档的关系
 
 - `docs/architecture.md` 定义目标架构与长期原则
+- `docs/specs/validation-artifact-contract.md` 定义当前 authoritative runtime artifact 与 state/report 边界
 - `docs/plans/progressive-validation-framework.md` 定义阶段漏斗与验证语义
 - `docs/plans/gastown-multi-agent-integration.md` 定义 Gastown 编排现状
 - 本文档只回答一个问题：当前仓库应如何优化语言层和中编程层，才能支撑后续架构收敛

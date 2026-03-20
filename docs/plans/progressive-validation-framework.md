@@ -149,6 +149,12 @@ git pull --ff-only origin master
 
 - `runtime/validation/<phase>/attention-budget.yaml`
 
+当前实现说明：
+
+- `attention-budget.yaml` 仍是目标收敛契约，不是当前脚本的真实阶段依赖
+- 当前 authoritative runtime artifact 以各 phase 的结构化状态文件为准
+- 详见 [validation-artifact-contract.md](../specs/validation-artifact-contract.md)
+
 该文件记录三类线程集合：
 
 1. `focus`：下一阶段必须关注的线程（高价值 / 高风险 / 待确认）
