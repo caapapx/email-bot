@@ -1,7 +1,7 @@
 # Task-Facing CLI Specification
 
 日期：2026-03-23
-状态：Draft
+状态：Implemented (queue, context, thread, digest 命令已完成)
 
 ## 执行摘要
 
@@ -690,34 +690,34 @@ Started: 2026-03-23T09:00:00Z
 }
 ```
 
-## 实现策略
+## 实现状态
 
-### 阶段 1：queue 命令（优先落地）
+### ✅ 阶段 1：queue 命令（已完成）
 
-1. 创建 `python/src/twinbox_core/task_cli.py`
-2. 实现 `queue list`、`queue show`、`queue explain`
-3. 从现有 Phase 4 artifacts 投影出 `QueueView`
-4. 添加 `scripts/twinbox` 作为统一入口
+- ✅ 创建 `python/src/twinbox_core/task_cli.py`
+- ✅ 实现 `queue list`、`queue show`、`queue explain`
+- ✅ 从现有 Phase 4 artifacts 投影出 `QueueView`
+- ✅ 添加 `scripts/twinbox` 作为统一入口
 
-### 阶段 2：thread 命令
+### ✅ 阶段 2：context 命令（已完成）
 
-1. 实现 `thread inspect`、`thread explain`
-2. 从 Phase 3/4 artifacts 投影出 `ThreadCard`
-3. 补充 explainability 支持
+- ✅ 实现 `context import-material`、`context upsert-fact`、`context profile-set`
+- ✅ 实现 `context refresh` 触发局部重算
+- ✅ 定义 context 存储格式和更新协议
 
-### 阶段 3：digest 命令
+### ✅ 阶段 3：thread 命令（已完成）
 
-1. 实现 `digest daily`、`digest weekly`
-2. 从 Phase 4 artifacts 投影出 `DigestView`
-3. 支持 weekly 的分层结构
+- ✅ 实现 `thread inspect`、`thread explain`
+- ✅ 从 Phase 3/4 artifacts 投影出 `ThreadCard`
+- ✅ 补充 explainability 支持
 
-### 阶段 4：context 命令
+### ✅ 阶段 4：digest 命令（已完成）
 
-1. 实现 `context import-material`、`context upsert-fact`、`context profile-set`
-2. 实现 `context refresh` 触发局部重算
-3. 定义 context 存储格式和更新协议
+- ✅ 实现 `digest daily`、`digest weekly`
+- ✅ 从 Phase 4 artifacts 投影出 `DigestView`
+- ✅ 支持 weekly 的分层结构
 
-### 阶段 5：action 和 review 命令（后续）
+### 🔜 阶段 5：action 和 review 命令（未来）
 
 1. 实现 `action suggest`、`action materialize`
 2. 实现 `review list`、`review show`
