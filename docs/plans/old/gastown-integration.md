@@ -1,4 +1,4 @@
-# Gastown 多 Agent 集成方案
+# Gastown 集成方案
 
 日期：2026-03-18
 项目：twinbox

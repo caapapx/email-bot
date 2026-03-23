@@ -1,4 +1,4 @@
-# Open Source V1 Refactor Plan
+# Open Source V1 Plan
 
 ## Goal
 
@@ -94,7 +94,7 @@ The first public release should contain at least:
 - rewritten `README.md`
 - stable `docs/architecture.md`
 - stable `docs/openclaw-progressive-validation-plan.md`
-- `docs/release/open-source-v1-plan.md`
+- `docs/release/oss-v1-plan.md`
 - `docs/specs/thread-state-runtime.md`
 - `agent/custom_scripts/types.ts`
 - committed folders for `agent/custom_scripts/listeners/`, `agent/custom_scripts/actions/`, `config/action-templates/`

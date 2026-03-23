@@ -31,10 +31,17 @@ The runtime should center on stateful, reusable event types:
 - `thread_entered_state`
 - `thread_sla_risk`
 - `daily_digest_time`
+- `weekly_digest_time`
 - `context_updated`
 - `confidence_below_threshold`
 
 These are intentionally different from raw `email_received` and `email_sent` events.
+
+Cadence rules:
+
+- daily and weekly value surfaces should be precomputed on schedule by default
+- `context_updated` and explicit user actions may trigger targeted recomputation of affected objects
+- if a scheduled surface is stale or failed, the runtime may serve the last successful result marked `stale` and enqueue a background refresh
 
 ## Listener Contract
 
@@ -64,6 +71,7 @@ Examples:
 
 - `summarize_thread`
 - `build_daily_digest`
+- `build_weekly_digest`
 - `remind_owner`
 - `draft_reply`
 - `send_reply`
@@ -144,7 +152,19 @@ The runtime must respect the validation program.
 - input: top `focus` threads from the latest attention budget
 - output: refresh `daily-urgent` and `pending-replies`
 
+### Example Weekly Listener
+
+- `weekly_digest_time`
+- input: unresolved focus threads plus recent important state transitions
+- output: refresh a layered `weekly-brief` with `action_now`, `backlog`, and `important_changes`
+
 ### Example Action Template
+
+- `build_weekly_digest`
+- allowed from `Preflight-Phase 4`
+- requires cadence-aware projection rules and explainable inclusion reasons
+
+### Example Draft Action Template
 
 - `draft_reply`
 - allowed from `Phase 5`
@@ -161,5 +181,5 @@ The runtime must respect the validation program.
 ## Relationship To Other Docs
 
 - [architecture.md](../architecture.md) defines the system layers and invariants
-- [progressive-validation-framework.md](../plans/progressive-validation-framework.md) defines when each capability may be activated
+- [validation-framework.md](../plans/validation-framework.md) defines when each capability may be activated
 - [agent/custom_scripts/types.ts](../../agent/custom_scripts/types.ts) contains the first committed typed contracts
