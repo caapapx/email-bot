@@ -148,7 +148,7 @@ important_changes: string      # 本周重要变化摘要
 }
 ```
 
-**实现位置**：待实现（`python/src/twinbox_core/task_cli.py::DigestView`）
+**实现位置**：`python/src/twinbox_core/task_cli.py::DigestView`
 
 ---
 
@@ -245,7 +245,7 @@ graph TD
 
 - [x] ThreadCard 定义和实现
 - [x] QueueView 定义和实现
-- [ ] DigestView 定义和实现
+- [x] DigestView 定义和实现
 - [ ] ActionCard 定义（待后续实现）
 - [x] to_dict() 序列化方法
 - [ ] JSON schema 验证（可选）
