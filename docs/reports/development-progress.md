@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-03-23
+
+### Feat / 新增（功能与能力）
+
+- **Task-facing CLI 完整实现**：完成所有核心命令（queue, context, thread, digest）
+  - `queue list/show/explain`：从 Phase 4 artifacts 投影队列视图
+  - `context import-material/upsert-fact/profile-set/refresh`：用户上下文管理
+  - `thread inspect/explain`：线程状态检视与解释
+  - `digest daily/weekly`：每日/每周摘要视图
+  - 统一入口脚本 `scripts/twinbox`，支持 `--json` 输出
+
+### Docs（文档）
+
+- 更新 `task-facing-cli.md` 规范文档，标记所有已完成命令的实现状态
+- 新增 `test_task_cli.py` 测试文件，覆盖核心数据模型和辅助函数（8个测试全部通过）
+
+### 阶段小结
+
+完成了 task-facing CLI 的核心实现，为 skill、listener、review runtime 提供了稳定的命令面。所有命令都支持从 Phase 3/4 artifacts 投影出用户友好的视图，避免直接依赖 phase 文件细节。下一步可以推进 cadence 运行策略和对象 contract 收口。
+
+---
+
 ## 2026-03-16 ~ 2026-03-22
 
 ### Fix（缺陷与稳定性）
