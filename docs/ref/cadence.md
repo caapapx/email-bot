@@ -72,7 +72,7 @@ important_changes:
 **实现方式**：
 
 - 使用 cron 或类似调度器
-- 调用 `twinbox orchestrate run phase4`
+- 调用 `twinbox-orchestrate run --phase 4`
 - 生成新的 Phase 4 artifacts
 
 **失败处理**：
@@ -86,7 +86,7 @@ important_changes:
 **触发方式**：
 
 ```bash
-twinbox orchestrate run phase4
+twinbox-orchestrate run --phase 4
 ```
 
 **使用场景**：
@@ -212,7 +212,7 @@ def _is_stale(generated_at_str: str, max_age_hours: int = 24) -> bool:
 状态: 过期 [STALE]
 线程数: 3
 
-提示: 运行 'twinbox orchestrate run phase4' 刷新队列
+提示: 运行 'twinbox-orchestrate run --phase 4' 刷新队列
 ```
 
 ### 3. Background Refresh
@@ -228,8 +228,8 @@ def _is_stale(generated_at_str: str, max_age_hours: int = 24) -> bool:
 **实现方式**（未来）：
 
 ```bash
-# 后台刷新（不阻塞用户）
-twinbox orchestrate run phase4 --background
+# 后台刷新（不阻塞用户）：当前 CLI 无 --background，由 cron/宿主异步执行
+twinbox-orchestrate run --phase 4
 
 # 或者通过 listener 自动触发
 # 当检测到 stale 时，自动提交刷新任务到队列
@@ -267,7 +267,7 @@ twinbox orchestrate run phase4 --background
 
 ```bash
 # Cron 任务
-0 2 * * * cd /path/to/twinbox && twinbox orchestrate run phase1 phase2 phase3 phase4
+0 2 * * * cd /path/to/twinbox && twinbox-orchestrate run
 ```
 
 ### 3. 校正 vs 局部重算

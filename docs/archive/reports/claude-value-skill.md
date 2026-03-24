@@ -1,4 +1,4 @@
-# Claude Value Evaluation For `email-himalaya-assistant`
+# Claude Value Evaluation For `twinbox`
 
 Evaluation date: 2026-03-16
 Target: `SKILL.md` (project root)

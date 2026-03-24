@@ -1,115 +1,115 @@
-# Value-First Thread-Centric Email Copilot Architecture
+# 以价值优先、线程为中心的邮件 Copilot 架构
 
-## Goal
+## 目标
 
-Build one stable email collaboration copilot core that can serve many companies, roles, and individuals without forking the implementation.
+构建一个稳定的邮件协作 Copilot 核心，在不分叉实现的前提下，服务不同公司、岗位与个人用户。
 
-After early validation, the architecture goal is no longer "generic email automation first". It is:
+经过早期验证后，架构目标已经不再是“优先做通用邮件自动化（generic email automation）”，而是：
 
-- reduce missed high-priority follow-ups
-- compress long threads into user-visible queues
-- generate drafts only after read-only outputs prove useful
-- keep sending behind explicit human approval
+- 减少高优先级跟进被遗漏
+- 把长线程压缩成用户可见的队列
+- 先证明只读输出有价值，再生成草稿
+- 始终把发送动作放在明确的人类审批之后
 
-## Reality Check From Early Validation
+## 来自早期验证的现实校验
 
-Early validation often changes the architecture priority:
+早期验证通常会改变架构优先级：
 
-- some mailboxes are dominated by recurring workflow threads, not isolated messages
-- the immediate user value is usually "what should I follow up today", not "can the bot send mail"
-- thread state, evidence, and confidence often matter more than broad category coverage
+- 有些邮箱主要由重复性的工作流线程组成，而不是彼此独立的单封邮件
+- 用户最直接感受到的价值通常是“我今天该跟进什么”，而不是“机器人能不能发邮件”
+- 线程状态、证据和置信度，往往比大而全的分类覆盖更重要
 
-Run-specific evidence should live in `docs/validation/` and `runtime/validation/`, not inside this architecture file.
+一次运行特有的证据，应放在 `docs/validation/` 和 `runtime/validation/` 中，而不是写进这份架构文档。
 
-## Design Principles
+## 设计原则
 
-Hard things that should stay universal:
+应该保持通用、稳定的“硬问题”：
 
-- mailbox connectivity
-- message normalization
-- thread reconstruction
-- workflow state inference
-- evidence linking
-- idempotent sync
-- logging, audit, and review workflow
+- 邮箱连通性（mailbox connectivity）
+- 邮件标准化（message normalization）
+- 线程重建（thread reconstruction）
+- 工作流状态推断（workflow state inference）
+- 证据链接（evidence linking）
+- 幂等同步（idempotent sync）
+- 日志、审计与复核流程
 
-Things that should stay customizable:
+应该保持可定制的部分：
 
-- internal domain map
-- workflow dictionaries
-- sender and team priority
-- role-specific risk thresholds
-- digest format
-- draft style and tone
-- escalation routing
-- recurring task habits
-- user-confirmed ownership and glossary facts
+- 内部领域映射（internal domain map）
+- 工作流词典（workflow dictionaries）
+- 发件人与团队优先级
+- 面向角色的风险阈值
+- digest 格式
+- 草稿风格与语气
+- 升级路由（escalation routing）
+- 重复性任务习惯
+- 用户确认过的归属与术语事实
 
-## Value-First Rules
+## 价值优先规则
 
-- Thread over message: decisions should be made on thread context, not single-message snapshots.
-- Outputs before automation: the system must prove read-only value before drafting and sending.
-- Evidence before confidence: every important conclusion should point to supporting messages or thread evidence.
-- Dominant workflow before minority workflow: optimize what the mailbox mostly does first.
-- Learn only from validated useful behavior: do not turn every edit into a rule.
-- Human-supplied context is first-class input, but it must be typed, source-labeled, and time-bounded.
+- Thread over message：决策应基于线程上下文，而不是单封邮件快照。
+- Outputs before automation：系统必须先证明只读输出有价值，再进入草稿和自动化。
+- Evidence before confidence：每个重要结论都应指向支持它的消息或线程证据。
+- Dominant workflow before minority workflow：先优化邮箱中占主导的工作流。
+- Learn only from validated useful behavior：不要把每一次编辑都直接学成规则。
+- 人工提供的上下文（human-supplied context）是一等输入，但必须有类型、来源标签和有效期。
 
-## Supported Initialization Modes
+## 支持的初始化模式
 
-The architecture should support three equivalent entry modes:
+架构应支持三种等价的入口模式：
 
-- agent-only initialization
-- guided chat or manual paste initialization
-- hybrid initialization with mailbox sync plus user-supplied materials
+- 仅 agent 初始化（agent-only initialization）
+- 引导式聊天或手工粘贴初始化
+- 邮箱同步与用户材料共同参与的混合初始化
 
-All three should converge into the same normalized context artifacts and the same downstream inference pipeline.
+这三种模式最终都应收敛到同一套标准化上下文工件（normalized context artifacts）和同一条下游推断流水线。
 
-## Shared State Root
+## 共享状态根（Shared State Root）
 
-The system separates executable code from instance-local state.
+系统将可执行代码与实例本地状态分离。
 
-Definitions:
+定义：
 
-- `code root`: the current checkout that provides tracked scripts, formula files, and implementation logic
-- `state root`: the canonical checkout that provides `.env`, `runtime/context/`, `runtime/validation/`, and `docs/validation/`
+- `code root`：当前 checkout，提供受版本管理的脚本、公式文件和实现逻辑
+- `state root`：规范 checkout，提供 `.env`、`runtime/context/`、`runtime/validation/` 和 `docs/validation/`
 
-Resolution order:
+解析顺序：
 
 - `TWINBOX_CANONICAL_ROOT`
 - `~/.config/twinbox/canonical-root`
-- current checkout, but only for a normal repository checkout
+- 当前 checkout，但仅限普通仓库 checkout
 
-Operational rules:
+运行规则：
 
-- linked worktrees must fail fast if no canonical root is configured
-- parallel workers may execute from different `code root` paths, but they must read and write the same `state root`
-- instance-local artifacts stay in the state root; they are not copied into each worker checkout
-- this pattern applies to Phase 1-5; it is especially visible in Phase 4-5, where `loading`, `urgent/pending`, `sla-risks`, `weekly-brief`, `merge`, and draft gating need to share the same context pack and raw outputs
+- linked worktree 在未配置 canonical root 时必须快速失败
+- 并行 worker 可以从不同的 `code root` 路径执行，但必须读写同一个 `state root`
+- 实例本地工件保留在 state root 中，不复制到每个 worker checkout
+- 这一模式适用于 Phase 1-5；在 Phase 4-5 中尤其明显，因为 `loading`、`urgent/pending`、`sla-risks`、`weekly-brief`、`merge` 与 draft gating 都需要共享同一份 context pack 和原始输出
 
-## Human Context Plane
+## 人类上下文平面（Human Context Plane）
 
-This is a cross-cutting input plane, not a tenant-specific hack.
+这是一个横切输入平面，不是面向某个租户的临时 hack。
 
-Purpose:
+用途：
 
-- ingest work materials such as spreadsheets, documents, PDFs, screenshots, and notes
-- ingest user-declared recurring habits and calendar-like obligations
-- ingest user-confirmed facts that correct low-confidence inference
-- keep provenance so the system can explain whether something came from mail, material, or user declaration
+- 导入工作材料，例如 spreadsheet、文档、PDF、截图和笔记
+- 导入用户声明的重复性习惯与类日历义务
+- 导入用户确认的事实，用于修正低置信度推断
+- 保留来源信息（provenance），让系统能解释某条结论来自邮件、材料还是用户声明
 
-Typical inputs:
+典型输入：
 
-- project ledgers and execution trackers
-- weekly or monthly reporting obligations
-- org-role descriptions and glossary mappings
-- corrections such as "this thread is usually CC-only" or "this sender is a system bot"
+- 项目台账与执行追踪表
+- 周报或月报义务
+- 组织角色说明与术语映射
+- 类似“这个线程通常只是 CC-only”或“这个发件人是系统机器人”这样的修正
 
-Reader strategy:
+读取器策略：
 
-- prefer pluggable document readers such as spreadsheet parsers, OCR pipelines, or MCP-backed office document services
-- if a material cannot be parsed reliably, store the file manifest plus a user-provided summary instead of dropping it
+- 优先使用可插拔文档读取器（pluggable document readers），例如 spreadsheet parser、OCR pipeline 或基于 MCP 的 office 文档服务
+- 如果某份材料无法被可靠解析，应保留文件清单（file manifest）和用户摘要，而不是直接丢弃
 
-Normalized context fact fields:
+标准化上下文事实字段（normalized context fact fields）：
 
 - `context_id`
 - `source_type`
@@ -126,42 +126,42 @@ Normalized context fact fields:
 - `merge_policy`
 - `evidence_refs`
 
-Merge rules:
+合并规则：
 
-- raw mailbox facts should never be overwritten silently
-- user-confirmed facts may override low-confidence inference, but the override must stay visible
-- recurring habits and external materials may add due windows, owner hints, glossary mappings, and reporting obligations even when mail alone cannot
-- expired or stale context should reduce confidence automatically
+- 原始邮箱事实不能被静默覆盖
+- 用户确认过的事实可以覆盖低置信度推断，但覆盖关系必须可见
+- 重复性习惯和外部材料可以补充 due window、owner hint、glossary mapping 和 reporting obligation，即使单靠邮件无法推断
+- 过期或陈旧的上下文应自动降低置信度
 
-Binding rules:
+绑定规则：
 
-- user text, imported materials, and long-term profile updates should enter through normalized context facts or profile config, not direct thread mutation
-- `context_updated` should trigger targeted recomputation of affected thread snapshots, queues, and digests
-- generic profile config may affect ranking, queue membership, and presentation, but should not silently rewrite mailbox facts
-- only explicit user-confirmed facts should relabel a thread-state conclusion such as `cc_only`, `waiting_on_me`, or `monitor_only`, and that override must remain visible
+- 用户文本、导入材料和长期 profile 更新，应通过标准化上下文事实或 profile config 进入系统，而不是直接改写线程
+- `context_updated` 应触发针对受影响线程快照、队列和 digest 的定向重算
+- 通用 profile config 可以影响排序、队列成员资格与呈现方式，但不应静默改写邮箱事实
+- 只有显式的用户确认事实，才可以重标记 `cc_only`、`waiting_on_me`、`monitor_only` 这类 thread-state 结论，而且这种 override 必须保持可见
 
-## Seven-Layer Model
+## 七层模型（Seven-Layer Model）
 
-### 1. Transport Layer
+### 1. 传输层（Transport Layer）
 
-Purpose:
+用途：
 
-- connect to IMAP/SMTP
-- fetch folder, envelope, and message data
-- save drafts or send mail only through controlled gates
+- 连接 IMAP/SMTP
+- 拉取 folder、envelope 和 message 数据
+- 仅通过受控 gate 保存草稿或发送邮件
 
-Implementation:
+实现：
 
-- `himalaya` config rendered from `.env`
-- no workflow or business logic here
+- 基于 `.env` 渲染 `himalaya` 配置
+- 这一层不承载工作流或业务逻辑
 
-### 2. Canonical Event and Thread Layer
+### 2. 规范事件与线程层（Canonical Event and Thread Layer）
 
-Purpose:
+用途：
 
-- convert provider-specific mail data into one stable message and thread model
+- 把 provider-specific 的邮件数据转换成稳定的 message 和 thread 模型
 
-Canonical message fields:
+规范消息字段（canonical message fields）：
 
 - `message_id`
 - `folder`
@@ -174,7 +174,7 @@ Canonical message fields:
 - `attachments`
 - `flags`
 
-Canonical thread fields:
+规范线程字段（canonical thread fields）：
 
 - `thread_key`
 - `participants`
@@ -187,20 +187,20 @@ Canonical thread fields:
 - `state_confidence`
 - `evidence_refs`
 
-Why this matters:
+为什么重要：
 
-- the rest of the pipeline should operate on stable thread facts, not provider quirks
-- human context should enrich this layer through references, not by bypassing the canonical model
+- 后续流水线应建立在稳定的线程事实之上，而不是 provider 的怪异行为之上
+- 人类上下文应通过引用来增强这一层，而不是绕过 canonical model 直接写入
 
-### 3. Workflow State Layer
+### 3. 工作流状态层（Workflow State Layer）
 
-Purpose:
+用途：
 
-- infer what kind of workflow a thread belongs to
-- infer which stage the thread is in now
-- infer what the system is waiting on
+- 推断一个线程属于哪类工作流
+- 推断线程当前所处阶段
+- 推断系统当前在等待什么
 
-Outputs:
+输出：
 
 - `workflow_type`
 - `state`
@@ -212,51 +212,51 @@ Outputs:
 - `evidence_refs`
 - `context_refs`
 
-This is often the real center of the system when recurring threads are process-shaped.
+当大量重复线程本身具有流程形状时，这一层往往就是系统真正的中心。
 
-### 3.5. Attention Gate
+### 3.5. 注意力闸门（Attention Gate）
 
-Purpose:
+用途：
 
-- progressively filter threads between phases so downstream layers only spend tokens on threads that matter
-- each phase narrows the attention window: full envelope set → intent-filtered → profile-filtered → lifecycle-modeled → actionable
+- 在各个 phase 之间渐进式过滤线程，让下游层只把 token 花在真正重要的线程上
+- 每个 phase 都进一步收窄注意力窗口：全量 envelope 集合 → intent 过滤 → profile 过滤 → lifecycle 建模 → actionable 集合
 
-How it works:
+工作方式：
 
-- each validation phase outputs an `attention-budget.yaml` with three thread sets: `focus`, `deprioritize`, `skip`
-- the next phase reads the previous budget and only does deep work (body sampling, draft generation) on the `focus` set
-- `skip` threads are not deleted — they stay in raw data for audit and recall
-- user corrections via `user_confirmed_fact` can promote a thread from `skip` back to `focus` at any time
+- 每个 validation phase 输出一份 `attention-budget.yaml`，其中包含三类线程集合：`focus`、`deprioritize`、`skip`
+- 下一个 phase 读取前一份 budget，仅对 `focus` 集合执行深度工作，如 body sampling、draft generation
+- `skip` 线程不会被删除，它们仍保留在原始数据中，供审计和回溯
+- 用户通过 `user_confirmed_fact` 做出的修正，可以随时把线程从 `skip` 提升回 `focus`
 
-Attention narrowing by phase:
+按 phase 的收窄方式：
 
 | Phase | Gate action | Typical reduction |
 |---|---|---|
-| Phase 1 | mark noise candidates (bot notifications, empty threads, duplicate subscriptions) | ~15-25% of envelopes marked skip |
-| Phase 2 | add exclusion rules based on persona (irrelevant domains, unrelated intent types) | ~10-15% additional deprioritize |
-| Phase 3 | mark unmodeled threads (cannot fit any lifecycle flow) | ~20-30% deprioritized |
-| Phase 4 | mark low-signal threads (modeled but no actionable signal in body) | focus narrows to ~30-40% of original |
-| Phase 5 | mark draft-excluded threads (too risky, insufficient context) | draft candidates typically <10% of original |
+| Phase 1 | 标记噪声候选（bot 通知、空线程、重复订阅） | 约 15-25% 的 envelope 被标记为 skip |
+| Phase 2 | 基于 persona 增加排除规则（无关域名、无关 intent 类型） | 额外约 10-15% 被标记为 deprioritize |
+| Phase 3 | 标记未建模线程（无法落入任何 lifecycle flow） | 约 20-30% 被降级 |
+| Phase 4 | 标记低信号线程（已建模但 body 中无 actionable 信号） | focus 通常收窄到原始集合的约 30-40% |
+| Phase 5 | 标记不应生成草稿的线程（风险过高、上下文不足） | draft candidate 通常少于原始集合的 10% |
 
-Why this matters:
+为什么重要：
 
-- without an attention gate, Phase 4 body sampling would consume tokens on the full envelope set
-- with the gate, Phase 4 only samples a smaller focus set, cutting token cost materially while improving review quality
-- the gate also improves precision: fewer noise threads means fewer false positives in urgent/pending queues
+- 没有 attention gate，Phase 4 的 body sampling 会在全量 envelope 集合上消耗 token
+- 有了 gate，Phase 4 只在更小的 focus 集合上做深度采样，能显著降低 token 成本并提升 review 质量
+- gate 还会改善精度：噪声线程更少，`urgent/pending` 队列里的误报也会更少
 
-Important rules:
+重要规则：
 
-- the gate is advisory, not destructive — raw data is never modified
-- every skip decision must have a recorded reason
-- attention budgets are cumulative: each phase inherits and refines the previous budget
+- gate 是建议性的，不是破坏性的，原始数据永远不被修改
+- 每个 skip 决策都必须记录原因
+- attention budget 是累积的：每个 phase 都继承并细化上一阶段的 budget
 
-### 4. Value Surface Layer
+### 4. 价值呈现层（Value Surface Layer）
 
-Purpose:
+用途：
 
-- turn inferred thread state into user-visible outputs that save time immediately
+- 把推断出的线程状态转换成能立刻为用户节省时间的可见输出
 
-Typical surfaces:
+典型 surface：
 
 - `daily-urgent`
 - `pending-replies`
@@ -264,100 +264,100 @@ Typical surfaces:
 - `weekly-brief`
 - `project-watchlist`
 
-These surfaces may contain two kinds of urgency:
+这些 surface 中可能出现两类紧急性：
 
-- live thread urgency inferred from mail activity
-- scheduled obligation urgency inferred from normalized user context
+- 从邮件活动中推断出来的实时线程紧急性
+- 从标准化用户上下文中推断出来的计划义务紧急性
 
-The source of urgency must remain explicit.
+紧急性的来源必须始终明确。
 
-Projection rules:
+投影规则（projection rules）：
 
-- thread state is cadence-independent truth; `daily-urgent`, `pending-replies`, and `weekly-brief` are cadence-specific projections
-- daily and weekly views do not need identical output, but they must be derivable from the same underlying thread state and context facts
-- `weekly-brief` should not collapse into a prose-only summary; by default it should combine `action-now`, `unresolved-but-not-urgent backlog`, and `important weekly changes`
-- `urgent` and `pending` are orthogonal dimensions: one thread may be both, either, or neither
-- items should not be auto-downgraded only because time passed; instead they should accumulate aging signals such as `carry_over` or `stuck`
-- high-risk FYI threads may appear as `monitor_only` items when they matter now even if no direct reply is required
+- thread state 是与 cadence 无关的底层事实；`daily-urgent`、`pending-replies`、`weekly-brief` 是与 cadence 相关的投影
+- 日视图和周视图不必输出完全相同，但必须能从相同的底层 thread state 与 context fact 推导出来
+- `weekly-brief` 不应退化成纯 prose summary；默认应同时包含 `action-now`、`unresolved-but-not-urgent backlog` 和 `important weekly changes`
+- `urgent` 和 `pending` 是正交维度：一个线程可以同时属于两者、只属于其中之一，或两者都不属于
+- 条目不应仅因时间流逝而被自动降级；相反，应累积 `carry_over` 或 `stuck` 之类的 aging signal
+- 高风险 FYI 线程在当下重要时，即使不需要直接回复，也可以作为 `monitor_only` 项出现
 
-Important rule:
+重要规则：
 
-- if this layer is not useful, the system should not move on to more aggressive automation
+- 如果这一层本身对用户没有用，系统就不应该进入更激进的自动化阶段
 
-### 5. Policy and Profile Layer
+### 5. 策略与画像层（Policy and Profile Layer）
 
-Purpose:
+用途：
 
-- adapt the universal workflow engine to a role, team, or organization
+- 让通用工作流引擎适配特定角色、团队或组织
 
-Examples:
+示例：
 
 - internal domain allowlist
-- workflow keyword dictionaries
-- sender/team priority
-- risk thresholds
-- digest sections
-- approval rules
-- recurring cadence rules
-- glossary and alias maps
+- workflow keyword dictionary
+- 发件人或团队优先级
+- 风险阈值
+- digest section
+- 审批规则
+- 重复性 cadence 规则
+- glossary 与 alias 映射
 
-Important rule:
+重要规则：
 
-- profile config may shape interpretation, ranking, queue membership, and presentation, but should not fork the core lifecycle engine
-- generic profile updates should not relabel lifecycle state directly; only explicit user-confirmed facts may do that
+- profile config 可以塑造解释方式、排序、队列成员资格与表现形式，但不应分叉核心 lifecycle engine
+- 通用 profile 更新不应直接重标记 lifecycle state；只有显式的用户确认事实才可以
 
-### 6. Draft and Action Layer
+### 6. 草稿与动作层（Draft and Action Layer）
 
-Purpose:
+用途：
 
-- produce structured assistant actions after value surfaces are stable
+- 在价值呈现层稳定之后，生成结构化的助手动作
 
-First-wave actions:
+第一波动作：
 
 - `summarize`
 - `classify`
 - `remind`
 - `draft_reply`
 
-Later-stage actions:
+后续阶段动作：
 
 - `send`
 - `archive`
 - `notify_external_system`
 
-Important rule:
+重要规则：
 
-- sending should not be a first-class optimization target until read-only value is already proven
+- 在只读价值尚未证明之前，发送不应成为一等优化目标
 
-### 7. Review and Ops Layer
+### 7. 复核与运维层（Review and Ops Layer）
 
-Purpose:
+用途：
 
-- keep the system safe, observable, and recoverable
+- 保证系统安全、可观测、可恢复
 
-Includes:
+包含：
 
-- approval gates
+- approval gate
 - audit log
-- retry rules
+- retry rule
 - dead-letter handling
-- evidence snapshots
+- evidence snapshot
 - fallback model routing
-- quality metrics for outputs and drafts
+- 输出与草稿质量指标
 
-## Runtime Extension Surface
+## 运行时扩展面（Runtime Extension Surface）
 
-The first public runtime should expose a small but explicit extension model instead of hiding behavior in prompts.
+第一版公开运行时（public runtime）应暴露一套小而明确的扩展模型，而不是把行为隐藏在 prompt 中。
 
 ### Listener Layer
 
-Purpose:
+用途：
 
-- react to normalized thread-state events
-- refresh value surfaces and low-risk reminders
-- stay read-oriented through early phases
+- 响应标准化线程状态事件
+- 刷新价值 surface 和低风险提醒
+- 在早期 phase 中保持以读取为主（read-oriented）
 
-Preferred event types:
+推荐事件类型：
 
 - `thread_entered_state`
 - `thread_sla_risk`
@@ -366,20 +366,20 @@ Preferred event types:
 - `context_updated`
 - `confidence_below_threshold`
 
-Cadence rules:
+节奏规则（cadence rules）：
 
-- daily and weekly value surfaces should be precomputed on schedule by default
-- ad hoc user actions may trigger partial recomputation, but scheduled surfaces remain the default experience
-- if a scheduled surface is stale or failed, the runtime may serve the last successful projection marked `stale` and enqueue a background refresh
+- 日和周的 value surface 默认应按计划任务预计算
+- 临时用户动作可以触发局部重算，但计划任务生成的 surface 仍应是默认体验
+- 如果计划生成的 surface 已过期或失败，运行时可以先返回上一次成功投影并标记为 `stale`，同时把刷新任务放到后台队列
 
 ### Action Template Layer
 
-Purpose:
+用途：
 
-- define reusable capabilities without binding them to one thread
-- keep high-risk behavior reviewable and phase-gated
+- 定义可复用能力，而不是把能力绑定到单个线程
+- 保持高风险行为可复核，并受 phase gating 约束
 
-Examples:
+示例：
 
 - `summarize_thread`
 - `build_daily_digest`
@@ -389,56 +389,57 @@ Examples:
 
 ### Action Instance Layer
 
-Purpose:
+用途：
 
-- materialize one concrete action proposal from a template plus thread/context state
-- provide review-ready payloads with evidence, confidence, and due hints
+- 用模板加线程/上下文状态，实例化出一个具体动作提案
+- 生成带 evidence、confidence 和 due hint 的可复核 payload
 
-Important rule:
+重要规则：
 
-- instances belong to runtime data and review flows, not static config files
+- instance 属于运行时数据与 review flow，而不是静态配置文件
 
 ### Execution Audit Layer
 
-Purpose:
+用途：
 
-- record every listener emission, draft proposal, approval, rejection, and send attempt
-- make automation reviewable before it becomes trusted
+- 记录每一次 listener emission、草稿提案、审批、拒绝与发送尝试
+- 让自动化在获得信任之前始终可审查
 
-Important rule:
+重要规则：
 
-- every meaningful action must leave a machine-readable audit trail
+- 每个有意义的动作都必须留下 machine-readable 的审计轨迹
 
-## Immediate Value Surfaces
+## 用户能立刻感知的价值面
 
-The architecture should be judged by whether it can reliably produce:
+评价这套架构，应看它能否稳定产出下面几种结果：
 
-- what I must follow up today
-- what is waiting on me
-- which important thread is blocked
-- what changed this week without rereading the mailbox
+- 我今天必须跟进什么
+- 哪些事情在等我
+- 哪个重要线程被卡住了
+- 这一周发生了什么变化，而我无需重新通读整个邮箱
 
-These are easier for end users to perceive than abstract categories or generic automation claims.
+对最终用户来说，这些结果比抽象分类或泛化自动化叙事更容易感知。
 
-## Recommended Repository Shape
+## 推荐的仓库形态（Repository Shape）
 
 ```text
 twinbox/
-├── agent/
-│   ├── README.md
-│   └── custom_scripts/
-│       ├── actions/
-│       ├── listeners/
-│       └── types.ts
 ├── AGENTS.md
 ├── .env
 ├── docs/
-│   ├── architecture.md
-│   ├── plans/
-│   ├── reports/
-│   ├── specs/
+│   ├── README.md
+│   ├── core-refactor.md
+│   ├── ref/
+│   │   ├── architecture.md
+│   │   ├── orchestration.md
+│   │   ├── runtime.md
+│   │   └── validation.md
+│   ├── guide/
+│   ├── archive/
 │   └── validation/
 │       └── README.md
+├── src/
+│   └── twinbox_core/
 ├── scripts/
 │   ├── check_env.sh
 │   ├── run_pipeline.sh
@@ -449,10 +450,9 @@ twinbox/
 │   └── phase2_profile_inference.sh
 ├── config/
 │   ├── action-templates/
-│   ├── policy.default.yaml
 │   ├── context/
 │   ├── profiles/
-│   └── workflows/
+│   └── policy.default.yaml
 └── runtime/
     ├── context/
     │   ├── material-manifest.json
@@ -466,7 +466,7 @@ twinbox/
     └── drafts/
 ```
 
-## Decision Flow
+## 决策流（Decision Flow）
 
 ```text
 mail sync
@@ -485,9 +485,9 @@ mail sync
 -> log outcome and learn from validated edits
 ```
 
-## Universal vs Customizable Split
+## 通用核心与可定制面的分界
 
-Universal core:
+通用核心（universal core）：
 
 - sync engine
 - canonical message and thread schema
@@ -501,40 +501,40 @@ Universal core:
 - draft runner
 - audit and review gate
 
-Customizable surface:
+可定制面（customizable surface）：
 
 - internal domain map
-- workflow dictionaries
-- priority and SLA rules
+- workflow dictionary
+- priority 和 SLA 规则
 - profile YAML
-- manual habits and confirmed facts
-- prompt fragments
-- digest templates
+- manual habits 与 confirmed facts
+- prompt fragment
+- digest template
 - escalation routing
 
-## Success Metrics Users Can Feel
+## 用户真正能感知到的成功指标
 
-- fewer missed high-priority follow-ups
-- faster morning triage
-- clearer waiting-on-me list
-- lower weekly summary effort
-- lower draft edit burden
+- 更少错过高优先级跟进
+- 更快完成早晨分拣（morning triage）
+- 更清晰的 waiting-on-me 列表
+- 更低的周报汇总成本
+- 更低的草稿编辑负担
 
-These matter more than the number of labels, actions, or profiles supported.
+这些指标比“支持多少标签、动作或画像”更重要。
 
-## What Not to Optimize Yet
+## 暂时不该优化的方向
 
-- broad external auto-send
-- CRM or ticket sync before value proof
-- highly granular persona branching without workflow evidence
-- one-off tenant hacks that bypass the thread model
+- 大范围的外部自动发送
+- 在价值被证明之前就做 CRM 或 ticket 同步
+- 在缺少工作流证据的前提下做过细的 persona 分支
+- 绕过线程模型的一次性租户 hack
 
-## Practical Implementation Rule
+## 实践落地规则
 
-If a requirement changes how one person sees outputs, put it in profile config.
+如果一个需求改变的是某个人如何看到输出，把它放进 profile config。
 
-If a requirement changes how one team names or prioritizes workflows, put it in workflow or policy config.
+如果一个需求改变的是某个团队如何命名或排序工作流，把它放进 workflow 或 policy config。
 
-If a requirement is a user-supplied recurring task, uploaded work material, or explicit factual correction, put it in normalized context artifacts with provenance and validity metadata.
+如果一个需求本质上是用户提供的重复性任务、上传材料或显式事实修正，把它放进带 provenance 与 validity metadata 的标准化上下文工件。
 
-If a requirement improves thread reconstruction, state inference, evidence quality, or review safety for everyone, put it in the universal core.
+如果一个需求能提升所有人的 thread reconstruction、state inference、evidence quality 或 review safety，把它放进通用核心。

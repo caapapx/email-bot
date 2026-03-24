@@ -1,7 +1,7 @@
 # Task-Facing CLI Specification
 
-日期：2026-03-23
-状态：Implemented (mailbox, queue, context, thread, digest 命令已完成)
+日期：2026-03-26
+状态：Implemented (mailbox, queue, context, thread, digest, action, review 命令已完成)
 
 ## 执行摘要
 
@@ -23,55 +23,61 @@
 
 ## 命令树
 
-```text
-twinbox
-  orchestrate          # 现有编排层命令（保留）
-    roots
-    contract
-    run
+> **注意**：`twinbox` 和 `twinbox-orchestrate` 是两个独立入口。
+> `twinbox` = task-facing CLI（`twinbox_core.task_cli:main`）
+> `twinbox-orchestrate` = 编排 CLI（`twinbox_core.orchestration:main`）
 
-  context              # 用户上下文管理（焦点 2）
+```text
+twinbox                      # task-facing CLI 入口
+  context                    # 用户上下文管理
     import-material
     upsert-fact
     profile-set
     refresh
 
-  mailbox              # 邮箱登录与只读预检
+  mailbox                    # 邮箱登录与只读预检
     preflight
 
-  queue                # 队列视图（优先落地）
+  queue                      # 队列视图
     list
     show
     explain
 
-  thread               # 线程检视
+  thread                     # 线程检视
     inspect
-    summarize
+    summarize                # 🚧 未实现
     explain
 
-  digest               # 摘要视图
+  digest                     # 摘要视图
     daily
     weekly
 
-  action               # 动作建议（后续）
+  action                     # 动作建议
     suggest
     materialize
-    apply
+    apply                    # 🚧 未实现
 
-  review               # 审核面（后续）
+  review                     # 审核面
     list
     show
-    approve
-    reject
+    approve                  # 🚧 未实现
+    reject                   # 🚧 未实现
+
+twinbox-orchestrate          # 编排 CLI 入口（独立二进制）
+  roots
+  contract
+  run [--phase N]            # 省略 --phase = 跑满 Phase 1–4
 ```
 
 ## 分层语义
 
-### 编排层（orchestrate）
+### 编排层（twinbox-orchestrate，独立入口）
 
+- 独立二进制入口：`twinbox-orchestrate`（非 `twinbox` 的子命令）
 - 面向实现层和 phase 驱动
 - 保留给开发、调试、批处理和兼容旧脚本
 - 直接操作 phase contract 和 step execution
+- **`run` 子命令**：`twinbox-orchestrate run [--phase N]`，`N` 为 `1`–`4`。省略 `--phase` 时按契约顺序执行 Phase 1→4 全部步骤。示例：仅刷新 Phase 4 投影用 `twinbox-orchestrate run --phase 4`。
 
 ### 任务层（mailbox/context/queue/thread/digest/action/review）
 
@@ -231,18 +237,19 @@ twinbox mailbox preflight [--json] [--account NAME] [--folder INBOX] [--page-siz
 
 ### queue list
 
-列出指定类型的队列。
+列出所有队列概览。
 
 **用法**：
 
 ```bash
-twinbox queue list [--type TYPE] [--json]
+twinbox queue list [--json]
 ```
 
 **参数**：
 
-- `--type TYPE`：队列类型，可选值：`urgent`、`pending`、`sla_risk`、`stale`、`all`（默认：`all`）
 - `--json`：输出 JSON 格式
+
+> 注：当前实现固定返回 urgent、pending、sla_risk 三个队列，无 `--type` 过滤。
 
 **输出**（文本模式）：
 
@@ -343,56 +350,30 @@ Items: 3
 
 ### queue explain
 
-解释为什么某个线程在队列中。
+输出队列投影机制的静态说明。
 
 **用法**：
 
 ```bash
-twinbox queue explain TYPE THREAD_ID [--json]
+twinbox queue explain
 ```
 
-**参数**：
-
-- `TYPE`：队列类型
-- `THREAD_ID`：线程 ID
-- `--json`：输出 JSON 格式
+> 注：当前实现为静态文本输出，不接受参数，不支持 `--json`。
+> 未来可扩展为按 `TYPE THREAD_ID` 解释具体排名。
 
 **输出**（文本模式）：
 
 ```text
-Thread: thread-abc123
-Queue: urgent
-Rank: #1
+队列投影说明
+============
 
-Why in this queue:
-- State: waiting_on_me (confidence: 0.85)
-- Last activity: 2 days ago (2026-03-21T10:30:00Z)
-- Evidence: envelope-5 (customer escalation), envelope-8 (follow-up)
-- Context: escalation-policy (response within 24h)
+twinbox 的队列视图从 Phase 4 artifacts 投影而来，不是独立的数据管道。
 
-Ranking reason:
-High priority: customer escalation + SLA risk
-```
-
-**输出**（JSON 模式）：
-
-```json
-{
-  "thread_id": "thread-abc123",
-  "queue_type": "urgent",
-  "rank": 1,
-  "card": {
-    "thread_id": "thread-abc123",
-    "state": "waiting_on_me",
-    ...
-  },
-  "rank_reason": "High priority: customer escalation + SLA risk",
-  "explainability": {
-    "state_evidence": ["envelope-5", "envelope-8"],
-    "context_refs": ["escalation-policy"],
-    "confidence": 0.85
-  }
-}
+数据源映射：
+- urgent 队列 <- runtime/validation/phase-4/daily-urgent.yaml
+- pending 队列 <- runtime/validation/phase-4/pending-replies.yaml
+- sla_risk 队列 <- runtime/validation/phase-4/sla-risks.yaml
+...
 ```
 
 ### thread inspect
@@ -638,41 +619,29 @@ Important changes this week:
 
 ### context import-material
 
-导入用户材料（文件、文本）。
+导入用户材料（文件）。
 
 **用法**：
 
 ```bash
-twinbox context import-material --file PATH [--label LABEL] [--json]
-twinbox context import-material --text TEXT [--label LABEL] [--json]
+twinbox context import-material SOURCE
 ```
 
 **参数**：
 
-- `--file PATH`：材料文件路径
-- `--text TEXT`：材料文本内容
-- `--label LABEL`：材料标签（可选）
-- `--json`：输出 JSON 格式
+- `SOURCE`：材料文件路径（位置参数）
 
-**输出**（文本模式）：
+**输出**：
 
 ```text
-Material imported: material-abc123
-Label: escalation-policy
-Source: /path/to/policy.md
-Indexed: 2026-03-23T09:00:00Z
+已导入材料: policy.md -> runtime/context/material-extracts/policy.md
+更新清单: runtime/context/material-manifest.json
+已生成抽取 Markdown（供 Phase 4 引用）: runtime/context/material-extracts/policy_md.extracted.md
 ```
 
-**输出**（JSON 模式）：
+对 `.csv`、`.xlsx` / `.xlsm`、`.docx`、`.pptx`、`.md`、`.txt` 会额外生成同目录下的 `*.extracted.md`（表格转 Markdown 表，Office 为 OOXML 内文本抽取）。`twinbox-orchestrate run --phase 4` 的 context-pack 会将这些抽取合并进 `human_context.material_extracts_notes`。旧版 `.doc` / `.ppt` 需先另存为 `.docx` / `.pptx`；`.xlsx` 需安装 `openpyxl`。
 
-```json
-{
-  "material_id": "material-abc123",
-  "label": "escalation-policy",
-  "source": "/path/to/policy.md",
-  "indexed_at": "2026-03-23T09:00:00Z"
-}
-```
+> 注：当前不支持 `--json` 输出。
 
 ### context upsert-fact
 
@@ -681,32 +650,24 @@ Indexed: 2026-03-23T09:00:00Z
 **用法**：
 
 ```bash
-twinbox context upsert-fact --key KEY --value VALUE [--json]
+twinbox context upsert-fact --id ID --type TYPE --content CONTENT [--source SRC]
 ```
 
 **参数**：
 
-- `--key KEY`：事实键
-- `--value VALUE`：事实值
-- `--json`：输出 JSON 格式
+- `--id ID`：事实 ID（必选）
+- `--type TYPE`：事实类型（必选）
+- `--content CONTENT`：事实内容（必选）
+- `--source SRC`：来源（默认 `user_confirmed_fact`）
 
-**输出**（文本模式）：
+**输出**：
 
 ```text
-Fact upserted: customer-tier
-Value: premium
-Updated: 2026-03-23T09:00:00Z
+已添加事实: customer-tier
+保存到: runtime/context/manual-facts.yaml
 ```
 
-**输出**（JSON 模式）：
-
-```json
-{
-  "key": "customer-tier",
-  "value": "premium",
-  "updated_at": "2026-03-23T09:00:00Z"
-}
-```
+> 注：当前不支持 `--json` 输出。
 
 ### context profile-set
 
@@ -715,32 +676,23 @@ Updated: 2026-03-23T09:00:00Z
 **用法**：
 
 ```bash
-twinbox context profile-set --key KEY --value VALUE [--json]
+twinbox context profile-set PROFILE [--key KEY --value VALUE]
 ```
 
 **参数**：
 
-- `--key KEY`：画像键
-- `--value VALUE`：画像值
-- `--json`：输出 JSON 格式
+- `PROFILE`：画像名称（位置参数，必选）
+- `--key KEY`：配置键（支持嵌套如 `style.language`）
+- `--value VALUE`：配置值
+- 不带 `--key`/`--value` 时显示当前画像内容
 
-**输出**（文本模式）：
+**输出**：
 
 ```text
-Profile updated: response-style
-Value: formal
-Updated: 2026-03-23T09:00:00Z
+已更新配置: default.style.language = formal
 ```
 
-**输出**（JSON 模式）：
-
-```json
-{
-  "key": "response-style",
-  "value": "formal",
-  "updated_at": "2026-03-23T09:00:00Z"
-}
-```
+> 注：当前不支持 `--json` 输出。
 
 ### context refresh
 
@@ -749,33 +701,16 @@ Updated: 2026-03-23T09:00:00Z
 **用法**：
 
 ```bash
-twinbox context refresh [--full] [--json]
+twinbox context refresh
 ```
 
-**参数**：
+> 注：当前实现不接受 `--full` 或 `--json` 参数。仅打印提示文本建议用户手动运行 `twinbox-orchestrate run --phase 1`。
 
-- `--full`：全量刷新（默认：局部刷新）
-- `--json`：输出 JSON 格式
-
-**输出**（文本模式）：
+**输出**：
 
 ```text
-Context refresh triggered
-Mode: partial
-Affected threads: 3
-Affected queues: urgent, pending
-Started: 2026-03-23T09:00:00Z
-```
-
-**输出**（JSON 模式）：
-
-```json
-{
-  "mode": "partial",
-  "affected_threads": ["thread-abc123", "thread-def456", "thread-ghi789"],
-  "affected_queues": ["urgent", "pending"],
-  "started_at": "2026-03-23T09:00:00Z"
-}
+刷新 Phase 1 context-pack...
+提示: 使用 'twinbox-orchestrate run --phase 1' 重新生成 Phase 1 artifacts
 ```
 
 ## 实现状态
@@ -811,6 +746,15 @@ Started: 2026-03-23T09:00:00Z
 2. ✅ 实现 `review list`、`review show`
 3. ✅ 实现 `ActionCard`、`ReviewItem` 数据对象（含 `to_dict()`）
 4. ✅ 添加完整单元测试覆盖（27 个测试全部通过）
+
+### 🚧 未实现命令
+
+以下命令在命令树中声明但尚未实现，Skill 和模板不应引用：
+
+- `thread summarize` — 线程摘要
+- `action apply` — 执行行动
+- `review approve` — 批准审核项
+- `review reject` — 拒绝审核项
 
 ## 非目标
 

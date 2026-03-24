@@ -24,7 +24,7 @@
 
 ```yaml
 ---
-name: email-himalaya-assistant
+name: twinbox
 description: Thread-centric email copilot for OpenClaw
 metadata:
   openclaw:
@@ -64,17 +64,17 @@ metadata:
     schedules:
       - name: daily-refresh
         cron: "30 8 * * *"
-        command: "twinbox orchestrate run phase4"
+        command: "twinbox-orchestrate run --phase 4"
         description: "每日 8:30 刷新队列和摘要"
         enabled: true
       - name: weekly-refresh
         cron: "30 17 * * 5"
-        command: "twinbox orchestrate run phase4"
+        command: "twinbox-orchestrate run --phase 4"
         description: "每周五 17:30 刷新周报"
         enabled: true
       - name: nightly-full-refresh
         cron: "0 2 * * *"
-        command: "twinbox orchestrate run phase1 phase2 phase3 phase4"
+        command: "twinbox-orchestrate run"
         description: "夜间全量校正，修正漂移"
         enabled: true
 ---
@@ -108,12 +108,12 @@ metadata:
 
 **Phase 4 局部刷新**（快速）：
 ```bash
-twinbox orchestrate run phase4
+twinbox-orchestrate run --phase 4
 ```
 
 **全量刷新**（完整）：
 ```bash
-twinbox orchestrate run phase1 phase2 phase3 phase4
+twinbox-orchestrate run
 ```
 
 **带事件触发的刷新**（未来）：
@@ -134,7 +134,7 @@ twinbox context refresh --trigger daily_digest_time
 
 ### 1. Listener 事件类型
 
-当前定义的定时相关事件（`agent/custom_scripts/types.ts`）：
+当前定义的定时相关事件（见 [runtime.md](./runtime.md) 的 event model）：
 
 ```typescript
 export type ListenerEventType =
@@ -162,7 +162,7 @@ flowchart LR
 ### 3. Listener 实现示例（未来）
 
 ```typescript
-// agent/custom_scripts/listeners/daily-refresh-listener.ts
+// Illustrative contract sketch only.
 export const dailyRefreshListener: ListenerDefinition = {
   id: "daily-refresh",
   name: "Daily Queue Refresh",
@@ -206,7 +206,7 @@ Twinbox 命令应该：
 schedules:
   - name: daily-refresh
     cron: "30 8 * * *"
-    command: "twinbox orchestrate run phase4"
+    command: "twinbox-orchestrate run --phase 4"
     retry:
       max_attempts: 3
       interval: 300  # 5 分钟
@@ -269,10 +269,10 @@ OpenClaw 读取 `SKILL.md` 的 `metadata.openclaw.schedules`：
 
 ```bash
 # 快速刷新
-twinbox orchestrate run phase4
+twinbox-orchestrate run --phase 4
 
 # 全量刷新
-twinbox orchestrate run phase1 phase2 phase3 phase4
+twinbox-orchestrate run
 
 # 查看队列状态
 twinbox queue list
@@ -288,7 +288,7 @@ twinbox queue show urgent --json | jq '.stale'
 twinbox queue show urgent --json | jq '.generated_at'
 
 # 查看 orchestration 状态
-twinbox orchestrate status
+twinbox-orchestrate status
 ```
 
 ---
@@ -301,9 +301,9 @@ twinbox orchestrate status
 
 **系统 cron**：
 ```cron
-30 8 * * * cd /path/to/twinbox && twinbox orchestrate run phase4
-30 17 * * 5 cd /path/to/twinbox && twinbox orchestrate run phase4
-0 2 * * * cd /path/to/twinbox && twinbox orchestrate run phase1 phase2 phase3 phase4
+30 8 * * * cd /path/to/twinbox && twinbox-orchestrate run --phase 4
+30 17 * * 5 cd /path/to/twinbox && twinbox-orchestrate run --phase 4
+0 2 * * * cd /path/to/twinbox && twinbox-orchestrate run
 ```
 
 **systemd timer**：
@@ -344,5 +344,4 @@ WantedBy=timers.target
 
 - [cadence-runtime-strategy.md](./cadence.md) - Cadence 运行策略
 - [SKILL.md](../../SKILL.md) - OpenClaw skill 定义
-- [agent/README.md](../../agent/README.md) - Agent runtime 骨架
-- [agent/custom_scripts/types.ts](../../agent/custom_scripts/types.ts) - Listener 事件类型
+- [runtime.md](./runtime.md) - Runtime contract 与 listener/action 边界

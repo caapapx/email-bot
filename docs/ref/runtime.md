@@ -11,6 +11,19 @@ This spec is intentionally compatible with the repository's existing architectur
 - human context plane
 - controlled automation
 
+## Source Of Truth
+
+This document is the authoritative runtime-extension contract for the repository.
+
+The previous top-level `agent/` skeleton was intentionally spec-first, but it made the repository root look heavier than the actual implementation state. Its contract content is now folded into this reference so the current root stays focused on:
+
+- `src/` for implementation
+- `scripts/` for thin entrypoints and compatibility wrappers
+- `config/` for static policy and templates
+- `runtime/` for local state and generated artifacts
+
+Until a real long-running listener/action runtime exists, examples in this document should be treated as illustrative contract sketches rather than committed executable plugin paths.
+
 ## Design Rules
 
 1. `Thread state first`
@@ -182,4 +195,4 @@ The runtime must respect the validation program.
 
 - [architecture.md](./architecture.md) defines the system layers and invariants
 - [validation-framework.md](../archive/validation-framework.md) defines when each capability may be activated
-- [agent/custom_scripts/types.ts](../../agent/custom_scripts/types.ts) contains the first committed typed contracts
+- [scheduling.md](./scheduling.md) describes cadence-driven triggering and future listener integration
