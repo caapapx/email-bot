@@ -168,7 +168,7 @@ important_changes: string      # 本周重要变化摘要
 | `required_review_fields` | list[string] | ✓ | 需要审核的字段 |
 | `suggested_draft_mode` | string \| null | ✓ | 建议的草稿模式 |
 
-**实现位置**：待实现
+**实现位置**：`python/src/twinbox_core/task_cli.py::ActionCard`
 
 ---
 
@@ -246,7 +246,8 @@ graph TD
 - [x] ThreadCard 定义和实现
 - [x] QueueView 定义和实现
 - [x] DigestView 定义和实现
-- [ ] ActionCard 定义（待后续实现）
+- [x] ActionCard 定义和实现
+- [x] ReviewItem 定义和实现
 - [x] to_dict() 序列化方法
 - [ ] JSON schema 验证（可选）
 - [x] 单元测试覆盖

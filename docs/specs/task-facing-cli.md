@@ -717,11 +717,12 @@ Started: 2026-03-23T09:00:00Z
 - ✅ 从 Phase 4 artifacts 投影出 `DigestView`
 - ✅ 支持 weekly 的分层结构
 
-### 🔜 阶段 5：action 和 review 命令（未来）
+### ✅ 阶段 5：action 和 review 命令（已完成）
 
-1. 实现 `action suggest`、`action materialize`
-2. 实现 `review list`、`review show`
-3. 定义 action 和 review 的存储格式
+1. ✅ 实现 `action suggest`、`action materialize`
+2. ✅ 实现 `review list`、`review show`
+3. ✅ 实现 `ActionCard`、`ReviewItem` 数据对象（含 `to_dict()`）
+4. ✅ 添加完整单元测试覆盖（27 个测试全部通过）
 
 ## 非目标
 
