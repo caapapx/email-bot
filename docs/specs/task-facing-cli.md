@@ -694,7 +694,7 @@ Started: 2026-03-23T09:00:00Z
 
 ### ✅ 阶段 1：queue 命令（已完成）
 
-- ✅ 创建 `python/src/twinbox_core/task_cli.py`
+- ✅ 创建 `src/twinbox_core/task_cli.py`
 - ✅ 实现 `queue list`、`queue show`、`queue explain`
 - ✅ 从现有 Phase 4 artifacts 投影出 `QueueView`
 - ✅ 添加 `scripts/twinbox` 作为统一入口

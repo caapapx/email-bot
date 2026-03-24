@@ -109,5 +109,5 @@ Gastown 不应重新定义：
 bash scripts/twinbox_orchestrate.sh contract --format json
 bash scripts/twinbox_orchestrate.sh run --dry-run
 bash scripts/run_pipeline.sh --dry-run
-PYTHONPATH=python/src python3 -m unittest discover -s python/tests -v
+PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```

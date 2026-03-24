@@ -48,7 +48,7 @@
 }
 ```
 
-**实现位置**：`python/src/twinbox_core/task_cli.py::ThreadCard`
+**实现位置**：`src/twinbox_core/task_cli.py::ThreadCard`
 
 ---
 
@@ -86,7 +86,7 @@
 }
 ```
 
-**实现位置**：`python/src/twinbox_core/task_cli.py::QueueView`
+**实现位置**：`src/twinbox_core/task_cli.py::QueueView`
 
 ---
 
@@ -148,7 +148,7 @@ important_changes: string      # 本周重要变化摘要
 }
 ```
 
-**实现位置**：`python/src/twinbox_core/task_cli.py::DigestView`
+**实现位置**：`src/twinbox_core/task_cli.py::DigestView`
 
 ---
 
@@ -168,7 +168,7 @@ important_changes: string      # 本周重要变化摘要
 | `required_review_fields` | list[string] | ✓ | 需要审核的字段 |
 | `suggested_draft_mode` | string \| null | ✓ | 建议的草稿模式 |
 
-**实现位置**：`python/src/twinbox_core/task_cli.py::ActionCard`
+**实现位置**：`src/twinbox_core/task_cli.py::ActionCard`
 
 ---
 

@@ -52,7 +52,7 @@ important_changes:
   - 新增、关闭、状态变化的统计
 ```
 
-**实现位置**：`python/src/twinbox_core/task_cli.py::cmd_digest_weekly()`
+**实现位置**：`src/twinbox_core/task_cli.py::cmd_digest_weekly()`
 
 ---
 
@@ -171,7 +171,7 @@ twinbox context refresh
 
 **定义**：如果 artifact 的 `generated_at` 超过 24 小时，标记为 stale。
 
-**实现位置**：`python/src/twinbox_core/task_cli.py::_is_stale()`
+**实现位置**：`src/twinbox_core/task_cli.py::_is_stale()`
 
 **检测逻辑**：
 

@@ -12,7 +12,7 @@
 - `docs/specs/validation-artifact-contract.md`
 - `docs/specs/pipeline-orchestration-contract.md`
 - `README.md` / `README.zh.md`
-- `python/src/twinbox_core/task_cli.py`
+- `src/twinbox_core/task_cli.py`
 - `scripts/twinbox_orchestrate.sh` / `scripts/run_pipeline.sh` / `scripts/twinbox` / `scripts/phase4_gastown.sh`
 
 ## 评估方法（避免“强行分析”）
@@ -37,7 +37,7 @@
 ### 1) P0：将 `task_cli` 的写操作与只读操作做硬门禁
 
 - **当前证据**
-  - `python/src/twinbox_core/task_cli.py` 中 `context import-material` / `upsert-fact` / `profile-set` 直接写本地状态。
+  - `src/twinbox_core/task_cli.py` 中 `context import-material` / `upsert-fact` / `profile-set` 直接写本地状态。
   - 架构文档强调 phase-gated automation 与 early phase read-only-first。
 - **问题本质**
   - “文档只读、命令可写”会制造审计歧义和误操作风险。

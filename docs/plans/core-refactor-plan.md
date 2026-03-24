@@ -25,6 +25,58 @@ bash entrypoints / gastown formulas
 
 
 
+## 当前待办（2026-03-25 更新）
+
+基于上一轮实现收口后的状态快照，以下事项明确未完成，按优先级排列：
+
+### 高优先级
+
+#### TODO-1：阶段 6.5B — skill-facing adapter surface
+
+- [ ] 将 `SKILL.md` 的 Suggested Tooling 从 `scripts/*.sh` 升级为 task-facing CLI（`twinbox queue list`、`twinbox digest daily` 等）
+- [ ] 梳理 skill 调用路径，确保 skill 文档不再需要解释 phase 细节
+- [ ] 评估 Gastown formula 是否可从 task-facing contract 派生或做一致性校验
+- [ ] 补 CI/CD（`.github/workflows/`）：至少覆盖 Python 单测与 evaluation 回归门禁
+
+完成标准：skill 文档只需引用 task-facing 命令；task-facing CLI 覆盖至少一条完整只读用户路径。
+
+#### TODO-2：context_updated 事件触发局部重算
+
+- [ ] `twinbox context import-material / upsert-fact / profile-set` 在写入后发出 `context_updated` 事件（可以先写入 `runtime/context/events/` 下的标记文件）
+- [ ] `cmd_context_refresh` 从仅打印提示语改为真正触发 Phase 1 重算（调用 `twinbox orchestrate run phase1` 或等效路径）
+- [ ] 明确局部重算的受影响对象范围：受影响的 `ThreadCard`、相关 `QueueView`、可能受影响的 `DigestView`
+
+完成标准：执行 context 命令后，相关 phase artifacts 自动更新，无需手动触发。
+
+### 中优先级
+
+#### TODO-3：review approve/reject 与 action apply 命令
+
+- [ ] 实现 `twinbox review approve <review-id>`
+- [ ] 实现 `twinbox review reject <review-id>`
+- [ ] 实现 `twinbox action apply <action-id>`（需要用户二次确认）
+
+完成标准：review 和 action 命令树草案全部落地；apply 需有明确的确认机制。
+
+#### TODO-4：评测框架 CI 集成（阶段 2 启动门槛）
+
+- [ ] 将 `twinbox-eval-phase4` 接入 CI，确保每次提交自动运行
+- [ ] 固化 baseline 报告，使其可版本化复用（存入 `tests/fixtures/baseline/`）
+- [ ] 验证 `contract_pass_rate` 持续保持 100%，并设为 CI 硬性门禁
+
+完成标准：阶段 1 评测稳定接入 CI；baseline 可复用；准备好启动阶段 2 提分工作。
+
+### 低优先级
+
+#### TODO-5：Gastown formula contract 校验
+
+- [ ] Phase 4 fan-out/merge adapter 边界进一步收紧，避免 Gastown 专用语义外溢
+- [ ] 评估 formula 与 task-facing contract 的一致性，必要时补校验脚本
+
+完成标准：Gastown adapter 不再直接暴露 phase 内部语义给外部调用者。
+
+---
+
 ## 当前聚焦与已收口事项（2026-03-23）
 
 以下内容合并自原 `near-term-focus-areas.md`，作为主线计划当前阶段的补充收口。
@@ -251,7 +303,8 @@ bash entrypoints / gastown formulas
 | 阶段 4 | context builder 收敛 | ✅ 已完成 | `phase2_loading.sh` / `phase3_loading.sh` 已改成薄 shell 入口，共用 `twinbox_core.context_builder` |
 | 阶段 5 | render / merge 收敛到共享 renderer | ✅ 已完成 | Phase 2/3/4 的 YAML / Markdown / Mermaid 序列化已收口到 `twinbox_core.renderer` |
 | 阶段 6 | orchestration contract | ✅ 已完成 | `twinbox_core.orchestration`、`scripts/twinbox_orchestrate.sh` 与 `run_pipeline.sh` wrapper 已形成共享 CLI contract，Gastown 明确退到 adapter 位置 |
-| 阶段 6.5 | skill-facing adapter surface | 🚧 下一步 | 还没把 Gastown formula 进一步生成为 contract adapter，也还没把 skill 入口打包成更正式的 runtime surface |
+| 阶段 6.5A | task-facing CLI surface | ✅ 已完成 | context/queue/thread/digest/action/review 全部命令已实现，object contract 收口，27 个测试通过 |
+| 阶段 6.5B | skill-facing adapter surface | 🚧 下一步 | SKILL.md 仍指向旧 scripts；Gastown formula 尚未从 contract 派生；无 CI/CD（见 TODO-1） |
 | 阶段 7 | Go 重新评估 | ⏸ 暂缓 | 仍不在当前收益最高路径上 |
 
 ## 执行树（总览）
@@ -711,9 +764,8 @@ scripts/
   phase1_thinking.sh
   phase4_gastown.sh
 
-python/
-  pyproject.toml
-  src/twinbox_core/
+pyproject.toml
+src/twinbox_core/
     paths.py
     artifacts/
       phase1.py
@@ -752,7 +804,7 @@ tests/
 说明：
 
 - `scripts/` 不消失，只变薄
-- `python/` 是中编程层
+- `src/twinbox_core/` 是中编程层
 - `tests/` 围绕 Python core 建立，而不是围绕 shell 文本
 
 ## 迁移原则
