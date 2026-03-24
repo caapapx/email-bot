@@ -205,7 +205,7 @@ Phase 4 (gt convoy)
 - `scripts/phase1_thinking.sh` — 调用 LLM 做 intent 分类（OpenAI-compatible API, kimi-k2.5）
 
 实测结果：30 封样本 regex vs LLM 不一致率 93%，LLM 新增 3 个关键 intent 类别。
-详见 [`docs/reports/phase1-intent-llm-migration.md`](../reports/phase1-intent-llm-migration.md)。
+详见 [`docs/reports/phase1-intent-llm-migration.md`](./reports/phase1-intent-llm.md)。
 
 ### 阶段 1.5：Phase 2 Persona LLM 改造 ✅
 
@@ -214,7 +214,7 @@ Phase 4 (gt convoy)
 - `scripts/phase2_thinking.sh` — 单次 LLM 调用生成 persona + business 假设
 
 实测结果：旧脚本 3 条硬编码假设 → LLM 输出 5 条 persona + 4 条 business，含具体证据链。
-详见 [`docs/reports/phase2-persona-llm-migration.md`](../reports/phase2-persona-llm-migration.md)。
+详见 [`docs/reports/phase2-persona-llm-migration.md`](./reports/phase2-persona-llm.md)。
 
 ### 阶段 1.6：Phase 3 Lifecycle LLM 改造 ✅
 
@@ -223,7 +223,7 @@ Phase 4 (gt convoy)
 - `scripts/phase3_thinking.sh` — LLM 推断生命周期流、阶段、线程归类
 
 实测结果：5 条生命周期流，20 条线程全部归类，每条带证据链。
-详见 [`docs/reports/phase3-lifecycle-llm-migration.md`](../reports/phase3-lifecycle-llm-migration.md)。
+详见 [`docs/reports/phase3-lifecycle-llm-migration.md`](./reports/phase3-lifecycle-llm.md)。
 
 ### 阶段 1.7：Phase 4 Value LLM 改造 ✅
 
@@ -232,7 +232,7 @@ Phase 4 (gt convoy)
 - `scripts/phase4_thinking.sh` — LLM 生成 daily-urgent / pending-replies / sla-risks / weekly-brief
 
 实测结果：5 urgent + 3 pending + 4 risks，替代硬编码 urgencyScore 和 classifyFlow。
-详见 [`docs/reports/phase4-value-llm-migration.md`](../reports/phase4-value-llm-migration.md)。
+详见 [`docs/reports/phase4-value-llm-migration.md`](./reports/phase4-value-llm.md)。
 
 ### 阶段 2：Gastown Formula 融合 ✅
 
@@ -266,7 +266,7 @@ Phase 4 (gt convoy)
 - 实测中 witness 正确识别 polecat rust 为 "working" / "Healthy"
 - 收到 refinery MERGED 邮件后正确更新状态
 
-操作指南见 [`docs/guides/gastown-operations.md`](../guides/gastown-operations.md)。
+操作指南见 [`docs/guides/gastown-operations.md`](../guide/gastown.md)。
 
 ## 待确认问题
 

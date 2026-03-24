@@ -83,26 +83,26 @@
 ## 固定结果索引（本地链接）
 
 - [实例校准备注](../../runtime/context/instance-calibration-notes.md)
-- [Context Brief](../validation/context-brief.md)
-- [Preflight 报告](../validation/preflight-mailbox-smoke-report.md)
-- [Phase 1 报告](../validation/phase-1-report.md)
-- [Phase 2 报告](../validation/phase-2-report.md)
-- [Phase 3 报告](../validation/phase-3-report.md)
-- [Phase 4 报告](../validation/phase-4-report.md)
-- [Preflight JSON](../../runtime/validation/preflight/mailbox-smoke.json)
-- [Phase 1 Census JSON](../../runtime/validation/phase-1/mailbox-census.json)
-- [Phase 2 Persona YAML](../../runtime/validation/phase-2/persona-hypotheses.yaml)
-- [Phase 3 Lifecycle YAML](../../runtime/validation/phase-3/lifecycle-model.yaml)
-- [Phase 3 Thread Samples JSON](../../runtime/validation/phase-3/thread-stage-samples.json)
-- [Phase 4 Daily Urgent YAML](../../runtime/validation/phase-4/daily-urgent.yaml)
-- [Phase 4 Pending Replies YAML](../../runtime/validation/phase-4/pending-replies.yaml)
-- [Phase 4 SLA Risks YAML](../../runtime/validation/phase-4/sla-risks.yaml)
-- [Phase 4 Weekly Brief](../../runtime/validation/phase-4/weekly-brief.md)
-- [Context Pack](../../runtime/context/context-pack.json)
-- [Manual Habits YAML](../../runtime/context/manual-habits.yaml)
-- [Manual Facts YAML](../../runtime/context/manual-facts.yaml)
-- [Phase 3 Lifecycle Overview (mermaid)](../validation/diagrams/phase-3-lifecycle-overview.mmd)
-- [Phase 3 Thread State Machine (mermaid)](../validation/diagrams/phase-3-thread-state-machine.mmd)
+- `docs/validation/context-brief.md`
+- `docs/validation/preflight-mailbox-smoke-report.md`
+- `docs/validation/phase-1-report.md`
+- `docs/validation/phase-2-report.md`
+- `docs/validation/phase-3-report.md`
+- `docs/validation/phase-4-report.md`
+- `runtime/validation/preflight/mailbox-smoke.json`
+- `runtime/validation/phase-1/mailbox-census.json`
+- `runtime/validation/phase-2/persona-hypotheses.yaml`
+- `runtime/validation/phase-3/lifecycle-model.yaml`
+- `runtime/validation/phase-3/thread-stage-samples.json`
+- `runtime/validation/phase-4/daily-urgent.yaml`
+- `runtime/validation/phase-4/pending-replies.yaml`
+- `runtime/validation/phase-4/sla-risks.yaml`
+- `runtime/validation/phase-4/weekly-brief.md`
+- `runtime/context/context-pack.json`
+- `runtime/context/manual-habits.yaml`
+- `runtime/context/manual-facts.yaml`
+- `docs/validation/diagrams/phase-3-lifecycle-overview.mmd`
+- `docs/validation/diagrams/phase-3-thread-state-machine.mmd`
 
 ## 固定执行约束
 
@@ -153,7 +153,7 @@ git pull --ff-only origin master
 
 - `attention-budget.yaml` 仍是目标收敛契约，不是当前脚本的真实阶段依赖
 - 当前 authoritative runtime artifact 以各 phase 的结构化状态文件为准
-- 详见 [validation-artifact-contract.md](../specs/validation-artifact-contract.md)
+- 详见 [validation-artifact-contract.md](../ref/validation.md)
 
 该文件记录三类线程集合：
 

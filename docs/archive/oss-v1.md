@@ -92,10 +92,10 @@ Minimum output:
 The first public release should contain at least:
 
 - rewritten `README.md`
-- stable `docs/architecture.md`
+- stable `docs/ref/architecture.md`
 - stable `docs/openclaw-progressive-validation-plan.md`
 - `docs/release/oss-v1-plan.md`
-- `docs/specs/thread-state-runtime.md`
+- `docs/ref/runtime.md`
 - `agent/custom_scripts/types.ts`
 - committed folders for `agent/custom_scripts/listeners/`, `agent/custom_scripts/actions/`, `config/action-templates/`
 

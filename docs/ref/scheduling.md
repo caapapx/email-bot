@@ -39,6 +39,28 @@ metadata:
         - SMTP_LOGIN
         - SMTP_PASS
     primaryEnv: IMAP_LOGIN
+    login:
+      mode: password-env
+      runtimeRequiredEnv:
+        - IMAP_HOST
+        - IMAP_PORT
+        - IMAP_LOGIN
+        - IMAP_PASS
+        - SMTP_HOST
+        - SMTP_PORT
+        - SMTP_LOGIN
+        - SMTP_PASS
+        - MAIL_ADDRESS
+      optionalDefaults:
+        MAIL_ACCOUNT_NAME: myTwinbox
+        MAIL_DISPLAY_NAME: "{MAIL_ACCOUNT_NAME}"
+        IMAP_ENCRYPTION: tls
+        SMTP_ENCRYPTION: tls
+      stages:
+        - unconfigured
+        - validated
+        - mailbox-connected
+      preflightCommand: "twinbox mailbox preflight --json"
     schedules:
       - name: daily-refresh
         cron: "30 8 * * *"
@@ -57,6 +79,13 @@ metadata:
         enabled: true
 ---
 ```
+
+登录预检契约说明：
+
+- `requires.env`：OpenClaw 表单最小登录集
+- `login.runtimeRequiredEnv`：twinbox 实际运行与只读 preflight 所需字段
+- `login.optionalDefaults`：OpenClaw 未显式收集时由 twinbox 自动补全
+- `login.preflightCommand`：OpenClaw 在收集字段后调用的稳定 JSON 接口
 
 ### 2. Cron 表达式说明
 
@@ -313,7 +342,7 @@ WantedBy=timers.target
 
 ## 参考文档
 
-- [cadence-runtime-strategy.md](./cadence-runtime-strategy.md) - Cadence 运行策略
+- [cadence-runtime-strategy.md](./cadence.md) - Cadence 运行策略
 - [SKILL.md](../../SKILL.md) - OpenClaw skill 定义
 - [agent/README.md](../../agent/README.md) - Agent runtime 骨架
 - [agent/custom_scripts/types.ts](../../agent/custom_scripts/types.ts) - Listener 事件类型

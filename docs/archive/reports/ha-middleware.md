@@ -6,11 +6,11 @@
 
 评估范围基于当前主干实现与文档契约：
 
-- `docs/architecture.md`
-- `docs/plans/core-refactor-plan.md`
-- `docs/specs/thread-state-runtime.md`
-- `docs/specs/validation-artifact-contract.md`
-- `docs/specs/pipeline-orchestration-contract.md`
+- `docs/ref/architecture.md`
+- `docs/core-refactor.md`
+- `docs/ref/runtime.md`
+- `docs/ref/validation.md`
+- `docs/ref/orchestration.md`
 - `README.md` / `README.zh.md`
 - `src/twinbox_core/task_cli.py`
 - `scripts/twinbox_orchestrate.sh` / `scripts/run_pipeline.sh` / `scripts/twinbox` / `scripts/phase4_gastown.sh`

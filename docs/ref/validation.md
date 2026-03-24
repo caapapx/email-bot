@@ -186,6 +186,6 @@
 
 ## 相关文档
 
-- [Implementation Core Refactor Plan](../plans/core-refactor-plan.md)
-- [Progressive Validation Framework](../plans/validation-framework.md)
-- [Thread State Runtime](./thread-state-runtime.md)
+- [Implementation Core Refactor Plan](../core-refactor.md)
+- [Progressive Validation Framework](../archive/validation-framework.md)
+- [Thread State Runtime](./runtime.md)

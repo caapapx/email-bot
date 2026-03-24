@@ -256,6 +256,6 @@ graph TD
 
 ## 参考文档
 
-- [task-facing-cli.md](./task-facing-cli.md) - CLI 命令规范
-- [architecture.md](../architecture.md) - 整体架构
-- [core-refactor-plan.md](../plans/core-refactor-plan.md) - 重构计划
+- [task-facing-cli.md](./cli.md) - CLI 命令规范
+- [architecture.md](./architecture.md) - 整体架构
+- [core-refactor-plan.md](../core-refactor.md) - 重构计划

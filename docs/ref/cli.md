@@ -1,7 +1,7 @@
 # Task-Facing CLI Specification
 
 日期：2026-03-23
-状态：Implemented (queue, context, thread, digest 命令已完成)
+状态：Implemented (mailbox, queue, context, thread, digest 命令已完成)
 
 ## 执行摘要
 
@@ -35,6 +35,9 @@ twinbox
     upsert-fact
     profile-set
     refresh
+
+  mailbox              # 邮箱登录与只读预检
+    preflight
 
   queue                # 队列视图（优先落地）
     list
@@ -70,7 +73,7 @@ twinbox
 - 保留给开发、调试、批处理和兼容旧脚本
 - 直接操作 phase contract 和 step execution
 
-### 任务层（context/queue/thread/digest/action/review）
+### 任务层（mailbox/context/queue/thread/digest/action/review）
 
 - 面向产品层和任务调用
 - skill、listener、review runtime 优先消费这层
@@ -139,7 +142,92 @@ required_review_fields: list[string]
 suggested_draft_mode: string | null
 ```
 
+### MailboxPreflightResult
+
+OpenClaw 和 skill runtime 消费的邮箱登录/预检结果。
+
+```yaml
+login_mode: string  # password-env
+login_stage: string  # unconfigured | validated | mailbox-connected
+status: string  # success | warn | fail
+error_code: string | null
+exit_code: int
+missing_env: list[string]
+defaults_applied: dict[string, string]
+effective_account: string
+checks:
+  env:
+    status: string
+    missing_env: list[string]
+    fix_commands: list[string]
+  config_render:
+    status: string
+    config_file: string | null
+  imap:
+    status: string
+    error_code: string | null
+    detail: string | null
+  smtp:
+    status: string
+    error_code: string | null
+    detail: string | null
+actionable_hint: string
+next_action: string
+```
+
 ## 命令规范
+
+### mailbox preflight
+
+执行 password-env 模式下的邮箱登录预检。该命令优先服务 OpenClaw 和 skill adapter，也可用于本地只读诊断。
+
+**用法**：
+
+```bash
+twinbox mailbox preflight [--json] [--account NAME] [--folder INBOX] [--page-size 5] [--state-root PATH]
+```
+
+**参数**：
+
+- `--json`：输出稳定 JSON 契约，供 OpenClaw 消费
+- `--account NAME`：覆盖 `MAIL_ACCOUNT_NAME`
+- `--folder INBOX`：用于只读 envelope list 的文件夹（默认 `INBOX`）
+- `--page-size 5`：只读拉取条数（默认 `5`）
+- `--state-root PATH`：覆盖 twinbox state root
+
+**状态语义**：
+
+- `unconfigured`：缺少运行所需邮箱配置；不会尝试渲染 config 或连接 IMAP
+- `validated`：env 已齐全且 himalaya config 已生成，但 IMAP 仍未通过
+- `mailbox-connected`：IMAP 只读验证成功
+
+**只读边界**：
+
+- 只读预检只用 IMAP envelope list 作为连接证据
+- SMTP 在只读模式下不阻塞 Phase 1-4，统一返回 `warn` + `smtp_skipped_read_only`
+
+**退出码**：
+
+- `0`：成功，或只存在只读模式下的 SMTP warn
+- `2`：配置缺失或 config render 失败
+- `3`：IMAP 网络/TLS/命令级失败
+- `4`：IMAP 认证失败
+- `5`：内部错误（例如 `himalaya` 缺失）
+
+**输出字段**：
+
+- `status`：`success | warn | fail`
+- `missing_env`：缺失 env 列表
+- `actionable_hint`：可直接显示给用户的修复提示
+- `next_action`：下一步建议，例如重新预检或运行 Phase 1
+
+**实现映射**：
+
+- 解析 `.env` 与进程环境变量
+- 应用默认值：`MAIL_ACCOUNT_NAME=myTwinbox`、`MAIL_DISPLAY_NAME={MAIL_ACCOUNT_NAME}`、`IMAP_ENCRYPTION=tls`、`SMTP_ENCRYPTION=tls`
+- 渲染 `runtime/himalaya/config.toml`
+- 执行 `himalaya envelope list --output json`
+- 写入 `runtime/validation/preflight/mailbox-smoke.json`
 
 ### queue list
 
@@ -743,6 +831,6 @@ Started: 2026-03-23T09:00:00Z
 
 ## 参考文档
 
-- [core-refactor-plan.md](../plans/core-refactor-plan.md)
-- [architecture.md](../architecture.md)
-- [pipeline-orchestration-contract.md](./pipeline-orchestration-contract.md)
+- [core-refactor-plan.md](../core-refactor.md)
+- [architecture.md](./architecture.md)
+- [pipeline-orchestration-contract.md](./orchestration.md)

@@ -64,9 +64,9 @@ The architecture should support three equivalent entry modes:
 
 All three should converge into the same normalized context artifacts and the same downstream inference pipeline.
 
-## Shared State Root for Multi-Worktree Execution
+## Shared State Root
 
-When Gastown runs work in linked worktrees, the system must separate executable code from instance-local state.
+The system separates executable code from instance-local state.
 
 Definitions:
 

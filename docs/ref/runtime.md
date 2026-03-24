@@ -180,6 +180,6 @@ The runtime must respect the validation program.
 
 ## Relationship To Other Docs
 
-- [architecture.md](../architecture.md) defines the system layers and invariants
-- [validation-framework.md](../plans/validation-framework.md) defines when each capability may be activated
+- [architecture.md](./architecture.md) defines the system layers and invariants
+- [validation-framework.md](../archive/validation-framework.md) defines when each capability may be activated
 - [agent/custom_scripts/types.ts](../../agent/custom_scripts/types.ts) contains the first committed typed contracts

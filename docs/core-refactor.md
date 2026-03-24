@@ -10,7 +10,6 @@
 当前更合适的目标形态仍然是：
 
 ```text
-bash entrypoints / gastown formulas
   -> python core modules
       -> transport adapters / artifact store / llm adapters
 ```
@@ -35,7 +34,6 @@ bash entrypoints / gastown formulas
 
 - [ ] 将 `SKILL.md` 的 Suggested Tooling 从 `scripts/*.sh` 升级为 task-facing CLI（`twinbox queue list`、`twinbox digest daily` 等）
 - [ ] 梳理 skill 调用路径，确保 skill 文档不再需要解释 phase 细节
-- [ ] 评估 Gastown formula 是否可从 task-facing contract 派生或做一致性校验
 - [ ] 补 CI/CD（`.github/workflows/`）：至少覆盖 Python 单测与 evaluation 回归门禁
 
 完成标准：skill 文档只需引用 task-facing 命令；task-facing CLI 覆盖至少一条完整只读用户路径。
@@ -68,12 +66,6 @@ bash entrypoints / gastown formulas
 
 ### 低优先级
 
-#### TODO-5：Gastown formula contract 校验
-
-- [ ] Phase 4 fan-out/merge adapter 边界进一步收紧，避免 Gastown 专用语义外溢
-- [ ] 评估 formula 与 task-facing contract 的一致性，必要时补校验脚本
-
-完成标准：Gastown adapter 不再直接暴露 phase 内部语义给外部调用者。
 
 ---
 
@@ -89,379 +81,17 @@ bash entrypoints / gastown formulas
 当前结论：
 
 - 这项不再是开放式 TODO，已有阶段性结论。
-- 当前最有价值的并发不是“继续泛化更多 gastown 实验”，而是两类：
   - **产品运行层**：`daily` / `weekly` value surfaces 的定时预计算，以及 `context_updated` 触发的局部重算
   - **实现层**：围绕已验证的 `Phase 4` fan-out 模式并发生成 `daily-urgent`、`pending-replies`、`sla-risks`、`weekly-brief`
 - 在 `queue / digest / context` contract 还未完全定型前，不建议继续扩大并发面。
 
 文档依据：
 
-- [gastown-integration.md](./gastown-integration.md)
-- [core-refactor-plan.md](./core-refactor-plan.md)
-- [architecture.md](../architecture.md)
+- [core-refactor-plan.md](./core-refactor.md)
+- [architecture.md](./ref/architecture.md)
 
 处理状态：**已收口，不再保留为 markdown TODO。**
 
-### 2. Witness / 崩溃恢复
-
-旧问题：是否需要 Witness 做自动崩溃恢复。
-
-当前结论：
-
-- Witness 集成在 Gastown 侧已经完成，可作为 **健康监控与执行层运维能力**。
-- 但当前产品级默认恢复策略不应依赖 Witness 自动恢复来兜底。
-- 近阶段应采用：
-  - **用户面**：展示最近一次成功 projection，并明确标记 `stale`
-  - **系统面**：后台补算
-  - **运维面**：必要时手动重跑；Witness 继续做监控和告警，而不是产品完整性的唯一保障
-
-文档依据：
-
-- [gastown-integration.md](./gastown-integration.md)
-- [core-refactor-plan.md](./core-refactor-plan.md)
-- [thread-state-runtime.md](../specs/thread-state-runtime.md)
-
-处理状态：**已收口，不再保留为 markdown TODO。**
-
-### 3. 多邮箱并行
-
-旧问题：支持多邮箱并行并明确近期规划。
-
-当前结论：
-
-- 这项不适合作为当前近期待办。
-- twinbox 当前路线仍以 **单邮箱实例上的 thread/workflow/value surface 收敛** 为主。
-- `oss-v1-plan` 已明确：V1 不追求超出现有 `himalaya` 路径的 mailbox abstraction。
-- 在 `task-facing CLI`、`context binding`、`queue/digest` contract、以及 cadence 运行策略稳定前，不应把多邮箱并行拉进近期主线。
-
-文档依据：
-
-- [oss-v1-plan.md](./oss-v1-plan.md)
-- [core-refactor-plan.md](./core-refactor-plan.md)
-
-处理状态：**明确延期，移出近期聚焦范围。**
-
-### 4. Gastown 上游 formula 展开问题
-
-旧问题：确认 workflow formula 的 `[[steps]]` 是否不会展开为 molecule DAG 节点，并决定是否继续跟踪上游。
-
-当前结论：
-
-- 这项已有验证记录和已知 workaround。
-- 当前仓库侧结论是：把它视为 **上游/外部工具限制**，继续使用“polecat 直接读 formula TOML”的 workaround。
-- 近期不在仓库内投入修复，只在它重新阻断可观测性或 adapter 生成时再重新打开。
-
-文档依据：
-
-- [phase4-parallel-issues.md](../reports/phase4-parallel-issues.md)
-- [gastown-integration.md](./gastown-integration.md)
-
-处理状态：**已收口，保留为外部依赖说明，不再保留为 markdown TODO。**
-
-## 当前近期待聚焦事项
-
-按当前规划、项目进展和最近一轮 cadence/context 设计收口，近阶段应优先推进以下方向。
-
-### 焦点 1：task-facing CLI surface
-
-目标：
-
-- 在已有 `orchestration contract` 之上，补出面向任务的稳定命令面
-- 把 `context / queue / thread / digest / action / review` 提升为一等对象
-- 避免 skill、listener、未来 runtime 直接依赖 phase 文件细节
-
-当前优先度：**最高**
-
-主要依据：
-
-- [core-refactor-plan.md](./core-refactor-plan.md)
-
-### 焦点 2：context 命令面与绑定契约
-
-目标：
-
-- 为用户文本、文件材料、长期画像补齐显式 CLI 入口
-- 默认命令面至少包含：
-  - `twinbox context import-material`
-  - `twinbox context upsert-fact`
-  - `twinbox context profile-set`
-  - `twinbox context refresh`
-- 明确哪些更新只影响 ranking / queue membership，哪些需要 explicit user-confirmed facts 才能重标 thread-state
-
-当前优先度：**最高**
-
-主要依据：
-
-- [core-refactor-plan.md](./core-refactor-plan.md)
-- [architecture.md](/home/caapap/fun/twinbox/docs/architecture.md#L136)
-
-### 焦点 3：cadence 运行策略
-
-目标：
-
-- 固化 `daily` / `weekly` 的预计算刷新策略
-- 固化 `context_updated` 触发的局部重算路径
-- 固化 `stale + background refresh` 的退化行为
-- 把 `weekly-brief` 从 prose-only summary 明确成 layered projection
-
-当前优先度：**高**
-
-主要依据：
-
-- [architecture.md](/home/caapap/fun/twinbox/docs/architecture.md#L274)
-- [thread-state-runtime.md](/home/caapap/fun/twinbox/docs/specs/thread-state-runtime.md#L38)
-
-### 焦点 4：对象 contract 收口
-
-目标：
-
-- 定义 `ThreadCard`、`QueueView`、`DigestView` / `WeeklyBrief` 的最小 schema
-- 让 CLI、listener、review surface、未来 runtime 共享这些对象，而不是共享 phase 内部文件名
-- 保持 explainability 为默认能力
-
-当前优先度：**高**
-
-主要依据：
-
-- [core-refactor-plan.md](./core-refactor-plan.md)
-
-### 焦点 5：Gastown adapter 继续收口，但不扩大范围
-
-目标：
-
-- 保持 Gastown 在 adapter 位置，不再让它成为 pipeline 语义真相源
-- 继续使用已验证的 workflow / formula / workaround 组合
-- 不把新的主线复杂度继续压到上游工具限制上
-
-当前优先度：**中**
-
-主要依据：
-
-- [gastown-integration.md](./gastown-integration.md)
-- [pipeline-orchestration-contract.md](../specs/pipeline-orchestration-contract.md)
-
-## 测试准确率三阶段计划（已启动）
-
-面向“输出正确率 + 回归稳定性并行提升”，当前采用渐进门槛策略：
-
-- 阶段 1：先建立 Phase 4 只读评测基线和回归护栏，再进入提分
-- 阶段 2：提升 Phase 4 `urgent/pending/weekly` 准确率，并强化 explainability 断言
-- 阶段 3：把评测框架扩展到 Phase 1-3，并做跨阶段一致性与 cadence 回归
-
-### 阶段 1 当前落地项（2026-03-23）
-
-- 新增 `twinbox_core.evaluation`，支持 Phase 4 评测与基线回归门禁
-- 评测报告 contract 固定包含：
-  - `urgent_f1`
-  - `pending_f1`
-  - `weekly_action_hit_at_5`
-  - `contract_pass_rate`
-  - `golden_diff_count`
-- 默认允许相对 baseline 最大回退 `1.0pp`，超过阈值返回非零退出码
-- 新增 `twinbox-eval-phase4` CLI 入口与单元测试覆盖
-
-阶段 2 启动门槛：
-
-- 阶段 1 评测命令稳定接入 CI
-- baseline 报告固定化并可复用
-- `contract_pass_rate` 持续保持 `100%`
-
-### 阶段 2 当前落地项（进行中）
-
-- Phase 4 评测兼容 `weekly_brief.action_now` 分层结构，`weekly_action_hit_at_5` 优先按分层动作命中计算
-- 新增 explainability 覆盖率统计：
-  - `urgent_explainability`
-  - `pending_explainability`
-- 新增可选门禁参数 `--min-explainability`，用于在 CI 中开启解释质量下限断言
-
-## 明确延期 / 暂不推进
-
-以下事项当前不应占用近阶段主线注意力：
-
-- 多邮箱并行
-- 更广的 mailbox abstraction
-- 继续扩写 Gastown 上游兼容层
-- 在 queue / digest / context contract 未稳定前，继续扩大并发矩阵
-
-## 使用方式
-
-如果需要把这里的某个焦点变成可执行工作：
-
-1. 先在 `bd` 中确认是否已有对应 issue。  
-2. 若没有，再创建新的 `bd` issue，并把依赖关系挂清楚。  
-3. 本文件只更新“焦点与决策”，不维护勾选状态。
-
-## 当前状态快照（2026-03-20）
-
-| 阶段 | 目标 | 当前状态 | 说明 |
-|------|------|----------|------|
-| 阶段 0 | authoritative artifact / state-report ownership 收口 | ✅ 已完成 | 已补 `validation-artifact-contract.md`，并把“运行时输入不再挂在 docs/validation”收口到 `runtime/context/` |
-| 阶段 1 | `code root / state root` 与路径底座 | ✅ 已完成 | `twinbox_core.paths` 已接管根路径解析，Phase 1-4 都走 canonical state root |
-| 阶段 2 | 统一 LLM boundary | ✅ 已完成 | `twinbox_core.llm` 与 `scripts/llm_common.sh` 已成为共享 transport / retry / JSON repair 边界 |
-| 阶段 2.5 | Phase 1 thinking 迁入 Python core | ✅ 已完成 | `phase1_thinking.sh` 已缩成 shell 入口，核心在 `twinbox_core.phase1_intent` |
-| 阶段 3 | Phase 2-4 thinking 迁入 Python core | ✅ 已完成 | `phase2/3/4` thinking、Phase 4 子任务与 merge 已迁入 Python core，shell 入口仅保留薄包装 |
-| 阶段 4 | context builder 收敛 | ✅ 已完成 | `phase2_loading.sh` / `phase3_loading.sh` 已改成薄 shell 入口，共用 `twinbox_core.context_builder` |
-| 阶段 5 | render / merge 收敛到共享 renderer | ✅ 已完成 | Phase 2/3/4 的 YAML / Markdown / Mermaid 序列化已收口到 `twinbox_core.renderer` |
-| 阶段 6 | orchestration contract | ✅ 已完成 | `twinbox_core.orchestration`、`scripts/twinbox_orchestrate.sh` 与 `run_pipeline.sh` wrapper 已形成共享 CLI contract，Gastown 明确退到 adapter 位置 |
-| 阶段 6.5A | task-facing CLI surface | ✅ 已完成 | context/queue/thread/digest/action/review 全部命令已实现，object contract 收口，27 个测试通过 |
-| 阶段 6.5B | skill-facing adapter surface | 🚧 下一步 | SKILL.md 仍指向旧 scripts；Gastown formula 尚未从 contract 派生；无 CI/CD（见 TODO-1） |
-| 阶段 7 | Go 重新评估 | ⏸ 暂缓 | 仍不在当前收益最高路径上 |
-
-## 执行树（总览）
-
-下面这棵执行树强调两件事：
-
-- 先走“不会反复返工”的底座主干，再进入实现层迁移
-- 当前已经走完的分支、下一步要接的分支、暂缓分支一眼可见
-
-```mermaid
-flowchart TD
-    A["实现层重构与全局架构收敛"] --> B["阶段 0<br/>契约与 ownership 收口<br/>已完成"]
-    B --> C["阶段 1<br/>paths / code root / state root<br/>已完成"]
-    C --> D["阶段 2<br/>共享 LLM boundary<br/>已完成"]
-    D --> E["阶段 2.5<br/>Phase 1 thinking -> Python core<br/>已完成"]
-    E --> F["阶段 3<br/>Phase 2-4 thinking -> Python core<br/>已完成"]
-    F --> G["阶段 4<br/>context builder 收敛<br/>已完成"]
-    G --> H["阶段 5<br/>共享 renderer / merge 层<br/>已完成"]
-    H --> I["阶段 6<br/>orchestration contract<br/>已完成"]
-    I --> J["阶段 6.5<br/>skill-facing adapter surface<br/>下一步"]
-    J --> K["阶段 7<br/>重新评估 Go<br/>暂缓"]
-
-    G --> G1["Phase 2 loading context-pack builder"]
-    G --> G2["Phase 3 loading context-pack builder"]
-    G --> G3["共享 context_builder / human context merge / legacy fallback"]
-
-    H --> H1["Phase 4 merge 与 parallel mode 共用 renderer"]
-    H --> H2["Phase 2/3 report + mermaid 输出序列化收口"]
-
-    I --> I1["共享 CLI contract: twinbox_orchestrate"]
-    I --> I2["run_pipeline.sh 退化为兼容 wrapper"]
-    I --> I3["Gastown 明确为 adapter，不再是语义真相源"]
-
-    J --> J1["skill 通过 CLI 驱动整条 pipeline"]
-    J --> J2["formula 进一步从 contract 派生或校验"]
-
-    classDef done fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
-    classDef next fill:#fff8e1,stroke:#f9a825,color:#7f6000;
-    classDef later fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c;
-    classDef parked fill:#eceff1,stroke:#546e7a,color:#263238;
-
-    class B,C,D,E,F,G,G1,G2,G3,H,H1,H2,I,I1,I2,I3 done;
-    class J,J1,J2 next;
-    class K parked;
-```
-
-阅读顺序建议：
-
-1. 先看主干：`阶段 0 -> 阶段 5` 是已经收口的稳定路径
-2. 再看当前焦点：`阶段 6.5` 是下一批最该做的 adapter 收口分支
-3. 最后看保留分支：`阶段 7` 仍只在 runtime / worker 常驻化后再讨论
-
-## 自我批判性评估
-
-### 这个方案里值得保留的创新
-
-- 它没有把问题误诊成“shell 不好”，而是识别出真正的摩擦点在契约、状态根、LLM 边界和重复 builder
-- 它试图把浅脚本收敛成深模块，这对测试性、可导航性、后续多 agent 集成都有长期价值
-- 它保留现有 `scripts/*.sh` 与 gastown formula 入口，避免一次性重写执行面
-
-### 这个方案当前高估了什么
-
-- 高估了“先建 Python core”本身的价值；如果 authoritative artifact 还没定清楚，只是把漂移接口搬到新语言
-- 高估了“目录形态设计”对短期收益的贡献；目录可以先最小落地，不需要一步到位铺满所有子模块
-- 高估了“大块迁移 context builder”的时机；在路径语义、artifact owner、state/report 边界未收口前，迁得越快，返工越大
-
-### 这个方案当前低估了什么
-
-- 低估了 `attention-budget` 契约漂移对所有后续 phase 的放大效应
-- 低估了 `Phase 1-3` 仍未完全共享 `code root / state root` 语义带来的多 worktree 风险
-- 低估了“文档产物兼做运行输入”对稳定性的侵蚀；这会让重构很容易被 markdown 格式耦住
-
-### 平衡创新和稳定性的收敛判断
-
-因此，本方案不应以“先迁最多逻辑”为第一目标，而应以“先建立后续迁移不会反复推倒的底座”为第一目标。
-
-收敛后的执行原则是：
-
-1. 先收口契约，再开语言层迁移
-2. 第一批代码只动共享底座，不动 phase 语义
-3. 保持 shell 和 formula 入口稳定，只做内部替换
-4. 每一阶段都必须有最小可验证输出，而不是只完成抽象设计
-
-## 为什么不是现在就上 Go
-
-Go 当然有价值，但它当前不是最优先的解。
-
-Go 擅长：
-
-- 强类型的长期维护
-- 并发与常驻进程
-- 单文件二进制分发
-- service/runtime 产品化
-
-而 twinbox 当前更痛的地方是：
-
-- phase 间 artifact contract 漂移
-- shell / inline Node 里堆了过多数据处理
-- LLM 调用边界不统一
-- 文档产物与运行时产物 ownership 混在一起
-- docs 里的语义与实际脚本产物已经出现偏差
-
-这些问题的第一阶段更像“把浅模块收成深模块”，不是“把脚本改写成高性能服务”。
-
-`Python` 在这一阶段的收益更直接：
-
-- 更容易表达数据模型和 schema 校验
-- 更容易做 fixture test / contract test / golden test
-- JSON / YAML / markdown / mermaid 处理都比 shell 自然
-- 可以保留现有 `bash scripts/*.sh` 和 formula 入口，不破坏 Gastown 现状
-
-## 推荐决策
-
-如果这轮优化现在就要启动，推荐决策调整为：
-
-1. 先确认 authoritative artifact 与 state/report ownership
-2. 第一批实现只落 `Python core` 的共享底座，不先迁大块业务逻辑
-3. 优先迁 `paths/state-root` 与共享 LLM 边界，再迁 `context builder`
-4. `Go` 延后到 orchestration/runtime 真的需要常驻化时再讨论
-
-这比“先选一门更强的语言”更重要。
-
-## 渐进式执行顺序
-
-### 阶段 0：先收紧契约，不先重写
-
-目标：
-
-- 明确每个 phase 的 authoritative artifact
-- 决定 `attention-budget.yaml` 是否真的是主线契约
-- 区分 state artifact 与 report artifact
-
-输出：
-
-- phase artifact contract 文档
-- 状态产物与文档产物的 ownership 规则
-
-说明：
-
-这是零阶段，不是为了拖慢实现，而是为了避免把混乱从 bash 搬到 Python。
-
-### 阶段 1：落共享路径与状态根底座
-
-目标：
-
-- 建 `python/pyproject.toml`
-- 建 `twinbox_core.paths`
-- 把 `code root / canonical root / state root` 解析迁到 Python
-- 保持现有 shell 接口不变，让 shell 只做薄封装
-
-优先迁移：
-
-- `scripts/twinbox_paths.sh`
-- `scripts/register_canonical_root.sh` 依赖的根路径解析
-- 所有 Phase 4 现有脚本共享的状态根语义
-
-完成标准：
 
 - shell 不再自己实现复杂的路径判断
 - linked worktree 与本地 checkout 使用同一套解析逻辑
@@ -529,7 +159,6 @@ Go 擅长：
 
 - pipeline dependency 不再只是“文件存在”
 - phase 输入输出变成显式 contract
-- Gastown formula 与本地 fallback 共用一个 orchestration surface
 
 完成标准：
 
@@ -541,14 +170,11 @@ Go 擅长：
 - `twinbox_core.orchestration` 成为 phase 编排 metadata 的共享导出面
 - `scripts/twinbox_orchestrate.sh` 成为本地、skill、未来其他后端都可复用的稳定 CLI
 - `scripts/run_pipeline.sh` 收缩为兼容 wrapper，不再自带另一套顺序逻辑
-- `docs/specs/pipeline-orchestration-contract.md` 明确把 Gastown 放到 adapter 位置
 ### 阶段 6：skill-facing adapter surface
 
 下一步重点：
 
 - 让 skill 直接通过 CLI 消费 phase contract，而不需要理解公式细节
-- 评估 Gastown formula 是否应从 contract 派生，或至少做一致性校验
-- 收紧 Phase 4 fan-out / merge 的 adapter 边界，避免 Gastown 专用语义继续外溢
 
 ### 阶段 7：再评估 Go
 
@@ -683,7 +309,6 @@ Go 擅长：
 
 影响：
 
-- 本地串行和 Gastown worker 模式不是同一个状态模型
 - 上游 phase 后续很可能重复踩一遍 Phase 4 刚处理过的问题
 
 ## 目标分层
@@ -697,13 +322,11 @@ Go 擅长：
 - 参数入口
 - 环境装配
 - 调用 Python 命令
-- 保持与现有 formula / `gt sling` / 本地手工命令兼容
 
 应该保留在 shell 的典型内容：
 
 - `check_env`
 - `render_himalaya_config`
-- `phase4_gastown.sh`
 - `run_pipeline.sh`
 
 约束：
@@ -762,7 +385,6 @@ scripts/
   run_pipeline.sh
   phase1_loading.sh
   phase1_thinking.sh
-  phase4_gastown.sh
 
 pyproject.toml
 src/twinbox_core/
@@ -831,15 +453,14 @@ tests/
 
 报告是视图，不应反过来决定核心模型。
 
-### 4. Keep formulas stable
+### 4. Keep execution entrypoints stable
 
-公式和 `gt sling` 入口尽量保持不变。
+CLI 入口尽量保持不变。
 
-迁移优先做“内部替换”，避免同时改：
+迁移优先做”内部替换”，避免同时改：
 
 - 语言层
 - 目录结构
-- 公式行为
 - phase 语义
 
 ### 5. Extend state-root model upward
@@ -860,10 +481,9 @@ tests/
 
 ## 与现有文档的关系
 
-- `docs/architecture.md` 定义目标架构与长期原则
-- `docs/specs/validation-artifact-contract.md` 定义当前 authoritative runtime artifact 与 state/report 边界
-- `docs/plans/validation-framework.md` 定义阶段漏斗与验证语义
-- `docs/plans/gastown-integration.md` 定义 Gastown 编排现状
+- `docs/ref/architecture.md` 定义目标架构与长期原则
+- `docs/ref/validation.md` 定义当前 authoritative runtime artifact 与 state/report 边界
+- `docs/archive/validation-framework.md` 定义阶段漏斗与验证语义
 - 本文档只回答一个问题：当前仓库应如何优化语言层和中编程层，才能支撑后续架构收敛
 
 
@@ -896,8 +516,6 @@ tests/
 现有共享 CLI contract 已经把编排语义收口，这是必要步骤；但它主要解决的是：
 
 - phase 依赖如何声明
-- 本地 fallback 与 Gastown 如何共享入口
-- shell / Python / formula 之间如何对齐
 
 它还没有充分解决另一个问题：
 
