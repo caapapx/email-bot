@@ -640,6 +640,10 @@ twinbox/
   - [x] 未开始：listener runtime / action runner / hosted review flow
 - [ ] 设计托管验证面
   - [x] Gateway 宿主内真实跑通 `twinbox mailbox preflight --json`
+  - [x] 真实 OpenClaw prompt 已验证 `twinbox task latest-mail --json`
+  - [x] 真实 OpenClaw prompt 已验证 `twinbox task todo --json`
+  - [x] 真实 OpenClaw prompt 已验证 `twinbox task progress QUERY --json`
+  - [x] `twinbox task mailbox-status --json` 的参数漂移 bug 已修复，并由本地 CLI 复验
   - [ ] 平台自动消费 `preflightCommand` smoke
   - [ ] `schedules` 触发 smoke
   - [ ] stale / retry / audit 行为 smoke
@@ -680,11 +684,14 @@ twinbox/
 - [x] `Polls` 是 IM 频道投票，不是宿主机轮询；Twinbox host poller 仍需自建
 - [x] 当前默认交付形态仍是 Markdown `SKILL.md` + CLI；插件只在确定性工具面需要时再评估
 - [x] 当前 manifest-only `SKILL.md` 不足以支撑用户视角 prompt 测试；已补成更完整 skill 正文，但 `main` agent prompt 是否注入仍受平台选择策略影响
+- [x] `agent:twinbox:main` 下的真实 prompt 已经证实可显式触发 `latest-mail` / `todo` / `progress` 三条 task 路由
+- [x] chat-visible 定时推送当前落点是独立 `agent:twinbox:cron:<jobId>` session，而不是回写 `agent:twinbox:main`
 
 ### 仍待验证
 
 - [ ] 平台交互层是否会真实自动消费 `preflightCommand`
 - [ ] OpenClaw 对 `metadata.openclaw.schedules` 的消费是否已跑通过
+- [ ] timed push 的外部投递 channel 应如何配置，才能从“可查看 cron session”升级为真正渠道送达
 - [ ] Queue / Digest stale 时，后台补刷由宿主调度层还是 OpenClaw 平台负责
 - [ ] listener/event-driven 模式是否属于本仓库后续实现，还是由 OpenClaw 提供宿主能力
 - [ ] action/review 的人工审批面是平台托管，还是 Twinbox 只提供 CLI / JSON contract

@@ -514,7 +514,16 @@ bash scripts/install_openclaw_twinbox_init.sh
 - [x] preflight 成功后，宿主侧已能进入 phase 运行验证
 - [x] `openclaw skills info twinbox` 显示 `Ready`
 - [x] 根 `SKILL.md` 已提供显式 `twinbox task ...` 入口
-- [ ] agent 对话层显式触发 Twinbox 命令的路径已验证，而不是仅靠 prompt 提示“自行执行”
+- [x] agent 对话层显式触发 Twinbox 命令的路径已验证，而不是仅靠 prompt 提示“自行执行”
+
+2026-03-25 至 2026-03-26 本机补充证据：
+
+- 已通过真实 `openclaw agent --agent twinbox ...` prompt 验证 `twinbox task latest-mail --json`
+- 已通过真实 `openclaw agent --agent twinbox ...` prompt 验证 `twinbox task todo --json`
+- 已通过真实 `openclaw agent --agent twinbox ...` prompt 验证 `twinbox task progress QUERY --json`
+- `twinbox task mailbox-status --json` 在真实 prompt 中暴露了参数漂移 bug：`run_preflight() got an unexpected keyword argument 'account'`
+- 该 bug 已在仓库内修复为 `account_override=...`，并已通过本地 `twinbox task mailbox-status --json` 复验返回结构化 preflight 结果
+- 上述证据只证明“显式 task 路由可被对话层触发”；**不等于** 平台已经自动消费 `metadata.openclaw.login.preflightCommand`
 
 ## 为什么会出现“缺少 env”回复
 
@@ -549,6 +558,7 @@ bash scripts/install_openclaw_twinbox_init.sh
 - [x] 宿主机 service 已有最小消费器实现：`scripts/twinbox_openclaw_bridge_poll.sh`
 - [x] 用户态宿主 service 已实际安装 [twinbox-openclaw-bridge.timer](./twinbox-openclaw-bridge.timer)
 - [x] 宿主机 poller 已在非 dry-run 下调用 `twinbox-orchestrate schedule --job daytime-sync --format json`
+- [x] 一次性 `agentTurn` cron job 已能生成独立 Twinbox cron session，并产出可查看摘要
 - [ ] `metadata.openclaw.schedules` 是否已被平台解析
 - [x] Gateway `cron -> system-event -> host poller -> schedule --job daytime-sync` 已真实触发一次
 - [ ] 失败后平台是否有重试 / 告警
@@ -562,6 +572,7 @@ bash scripts/install_openclaw_twinbox_init.sh
 - [x] 至少一次日内 schedule smoke 已跑通
 - [ ] weekly refresh 至少成功跑通一次
 - [x] phase4 产物生成后，queue / digest 可被消费
+- [x] 至少一次 chat-visible timed push smoke 已生成独立 cron session 摘要
 - [ ] preflight 错误能回显给平台用户
 - [ ] stale 队列能被识别并恢复
 - [x] 没有自动发送 / destructive mailbox 操作
@@ -576,8 +587,10 @@ bash scripts/install_openclaw_twinbox_init.sh
 - Twinbox 已经准备好了 `manifest + preflight + orchestration CLI + scheduling contract`
 - OpenClaw native 安装、managed skill 迁移、TUI 连通性已经有了实测基础
 - OpenClaw 的 `cron -> system-event` 这半段已经有 authenticated smoke 证据
+- chat-visible 定时推送当前更准确地说是“生成独立 cron session + summary”，而不是“把摘要直接回写 `agent:twinbox:main`”
 - 但 OpenClaw 托管接入，尤其是 `schedule / heartbeat / listener / action runtime`，仍然需要单独推进和验证
 - 当前 `cron add` 只支持 agent message 或 `system-event` payload，没有“直接执行宿主命令”的现成入口，所以 `system-event -> 宿主机 service -> twinbox-orchestrate bridge --event-text ...` 的 bridge 仍然是刚需
+- `openclaw cron add --announce` 对 `system-event` 不适合直接投到 `agent:twinbox:main`；当前实测要求非 main 的 agentTurn session，且在未配置 channel 时会报 `Channel is required`
 - Twinbox 侧已经补出 bridge dispatcher：宿主 service 在拿到事件文本后，可以稳定调用 `scripts/twinbox_openclaw_bridge.sh --event-text ... --format json`；wrapper 会统一 `TWINBOX_CODE_ROOT`、`TWINBOX_STATE_ROOT` 和工作目录，再由它转发到 `schedule --job ...`
 - Twinbox 侧也已经补出 host poller：宿主 service 可直接调用 `scripts/twinbox_openclaw_bridge_poll.sh --format json`，由它轮询 Gateway `cron.list` / `cron.runs`，识别新完成的 Twinbox `systemEvent` run，再转发到 `schedule`
 - 本仓库已提供最小用户态 systemd 样例：
