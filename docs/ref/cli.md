@@ -61,6 +61,12 @@ twinbox                      # task-facing CLI 入口
     weekly
     mailbox-status
 
+  rule                       # 语义分拣规则管理
+    list
+    add
+    remove
+    test
+
   action                     # 动作建议
     suggest
     materialize
@@ -931,6 +937,11 @@ twinbox context refresh
 2. ✅ 实现 `review list`、`review show`
 3. ✅ 实现 `ActionCard`、`ReviewItem` 数据对象（含 `to_dict()`）
 4. ✅ 添加完整单元测试覆盖（27 个测试全部通过）
+
+### ✅ 阶段 6：rule 命令（已完成）
+
+- ✅ 实现 `rule list`、`rule add`、`rule remove`、`rule test`
+- ✅ 支持 `config/routing-rules.yaml` 的读写与回测
 
 ### 🚧 未实现命令
 
