@@ -525,6 +525,12 @@ bash scripts/install_openclaw_twinbox_init.sh
 - 该 bug 已在仓库内修复为 `account_override=...`，并已通过本地 `twinbox task mailbox-status --json` 复验返回结构化 preflight 结果
 - 上述证据只证明“显式 task 路由可被对话层触发”；**不等于** 平台已经自动消费 `metadata.openclaw.login.preflightCommand`
 
+补充测试口径：
+
+- 这些带明文命令的 prompt 是**探针式 smoke**，目标是确认 agent 有没有真的执行 Twinbox 命令
+- 更接近真实用户的话术仍应单独验证，例如“帮我查看下最新的邮件情况”“这个事情现在进展如何”
+- 当前本机实测里，自然话术“帮我查看下最新的邮件情况”也已经命中过一次 `twinbox task latest-mail --json`
+
 ## 为什么会出现“缺少 env”回复
 
 当前已验证，至少有两种完全不同的成因：

@@ -76,6 +76,7 @@
   - 写清 `skills.entries.twinbox.env`、`skillsSnapshot`、专用 `twinbox` agent 与当前 bridge 调度链
 - 第 2 步：补强验证面而不是急着扩能力
   - prompt smoke 固定验证 `latest-mail`、`todo`、`progress`、`mailbox-status`
+  - 真实用户 prompt 与探针 prompt 分层维护；前者做验收，后者做诊断
   - 部署文档和 checklist 只记录已证实行为
 - 第 3 步：把宿主执行面稳定下来
   - bridge / poller / timer 先形成最小可靠闭环
