@@ -108,20 +108,25 @@ twinbox-orchestrate          # 编排 CLI 入口（独立二进制）
 
 ```yaml
 thread_id: string
-state: string  # waiting_on_me | waiting_on_them | monitor_only | cc_only | group_only | indirect | closed
+state: string  # direct | cc_only | group_only | indirect | unknown
 waiting_on: string | null
 last_activity_at: string  # ISO 8601
 confidence: float  # 0.0-1.0
 evidence_refs: list[string]
 context_refs: list[string]
-why: string  # 简短解释
+why: string  # 简短解释，若为非 direct 则包含警告文案
 ```
 
 说明：
-- `thread_id` 在 `task todo --json` 这类薄路由里，可能带有 `[CC]` 或 `[GROUP]` 前缀，用来显式暴露 recipient routing 信号
-- `[CC]` 表示邮箱 owner 显式只在 `Cc`
-- `[GROUP]` 表示邮箱 owner 不在 `To/Cc`，而是通过邮件组或别名收到该线程
-- 2026-03-25 起，`group_only` 不再被静默折叠成 `cc_only`；默认 recipient-role 降权只作用于 `cc_only`
+- `thread_id` 在 `task todo --json` 这类薄路由里，可能带有 `[CC]` 或 `[GRP]` 前缀，用来显式暴露 recipient routing 信号
+- `[CC]` 表示邮箱 owner 在 `Cc` 列表中（含 `cc_only` 和 `indirect` 角色）
+- `[GRP]` 表示邮箱 owner 不在 `To/Cc`，而是通过邮件组或别名收到该线程（`group_only` 角色）
+- **recipient_role 降权策略**：
+  - `direct`：1.0 (不降权)
+  - `cc_only` / `indirect`：0.6 (默认乘数)
+  - `group_only`：0.4 (大幅降权)
+  - `unknown`：1.0 (样本不足，不降权)
+- 所有非 `direct` 线程在 `why` 字段中会自动追加统一警告：`⚠️ 你不是主要收件人，请确认是否真的需要你处理`
 
 ### QueueView
 

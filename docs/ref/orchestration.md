@@ -119,7 +119,7 @@ scripts/twinbox_openclaw_bridge_poll.sh --format json
 
 | Job | 目的 | 默认步骤 | 关键产物 |
 |-----|------|----------|----------|
-| `daytime-sync` | 小时级日内刷新与去重推送 | `phase1_loading --sample-body-count 0` + `activity-pulse` 投影 | `runtime/validation/phase-4/activity-pulse.json`、`runtime/context/activity-pulse-state.json` |
+| `daytime-sync` | 小时级日内刷新与去重推送 | `phase1_loading` + `phase3_loading` + `phase4_loading` + `phase4_thinking` (serial) | `runtime/validation/phase-4/activity-pulse.json`、`daily-urgent.yaml`、`recipient_role` 信号 |
 | `nightly-full` | 夜间全量校正 | Phase 1→4 全量 | Phase 1-4 全套产物 + 归档快照 |
 | `friday-weekly` | 周五正式周报刷新 | Phase 1→4 全量 | Phase 1-4 全套产物 + 周报归档快照 |
 
@@ -128,6 +128,7 @@ scripts/twinbox_openclaw_bridge_poll.sh --format json
 - 所有 `schedule` 作业通过单一锁文件串行化：`runtime/tmp/schedule.lock`
 - 每次非 dry-run 追加运行日志：`runtime/audit/schedule-runs.jsonl`
 - 归档策略：默认归档 `nightly-full`、`friday-weekly`、以及所有失败运行到 `runtime/archive/phase-4/`
+- `daytime-sync` 现在覆盖了数据拉取、recipient-role 解析、线程聚合与 Phase 4 打分（serial 模式），保证日内 `twinbox task todo` 可见最新的 [CC]/[GRP] 状态
 - `daytime-sync` 成功后会刷新 `activity-pulse`，并更新去重状态，保证“同线程无新邮件且无状态变化则不重复推送”
 - `bridge` 当前支持两种事件文本：JSON `{"kind":"twinbox.schedule","job":"daytime-sync"}`，或紧凑文本 `twinbox.schedule:daytime-sync`
 - `bridge-poll` 通过 OpenClaw Gateway 的 `cron.list` / `cron.runs` 公开 RPC 轮询新完成的 `systemEvent` 运行记录，并用 `jobId|runAtMs|ts` 做用户态宿主侧去重
