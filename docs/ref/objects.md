@@ -25,7 +25,7 @@
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
 | `thread_id` | string | ✓ | 线程唯一标识符 |
-| `state` | string | ✓ | 线程状态：`waiting_on_me` \| `waiting_on_them` \| `monitor_only` \| `cc_only` \| `closed` |
+| `state` | string | ✓ | 线程状态：`waiting_on_me` \| `waiting_on_them` \| `monitor_only` \| `cc_only` \| `group_only` \| `indirect` \| `closed` |
 | `waiting_on` | string | ✓ | 等待对象：`me` \| `them` \| `external` \| `none` |
 | `last_activity_at` | string \| null | ✓ | 最后活动时间（ISO 8601 格式） |
 | `confidence` | float | ✓ | 状态推断置信度（0.0-1.0） |
@@ -47,6 +47,12 @@
   "why": "Customer escalation, no response in 48h"
 }
 ```
+
+补充说明：
+
+- `cc_only` 表示邮箱 owner 显式只在 `Cc`
+- `group_only` 表示邮箱 owner 不在 `To/Cc`，但线程通过邮件组或别名送达
+- `indirect` 表示同一线程里同时混有 `cc_only` 与 `group_only` 证据，不能静默压平为单一 `cc_only`
 
 **实现位置**：`src/twinbox_core/task_cli.py::ThreadCard`
 
