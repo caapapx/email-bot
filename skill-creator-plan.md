@@ -87,6 +87,37 @@
   - 多渠道订阅 registry
   - 选择性停推 / 周报订阅 / 去重游标
 
+### 为什么当前 prompt smoke 固定验证这几个 task 维度
+
+这里的选择不是要把 Twinbox 的底层领域模型收窄成四个产品词，而是要给 hosted skill 一组最小、稳定、可验证的适配层入口。
+
+判断依据分成五个维度：
+
+1. **通用性**
+   - `latest-mail`、`todo`、`progress`、`mailbox-status` 都不依赖某家公司、岗位或内部流程命名
+   - 这些意图对销售、研发、运营、管理岗都成立
+2. **底层映射完整**
+   - `latest-mail` -> `digest pulse` / `activity-pulse`
+   - `todo` -> `queue urgent` + `queue pending` + 现有 `action suggest` / `review list`
+   - `progress` -> `thread progress`
+   - `mailbox-status` -> `mailbox preflight`
+   - 它们都是薄包装，不引入新的推理链路
+3. **宿主可靠性**
+   - 这四类都能明确验证 skill 是否真的执行了 Twinbox 命令
+   - 比只测试某条 prompt 的自然语言回答更容易发现“读了 SKILL 但没跑命令”的问题
+4. **安全边界**
+   - 它们全部是只读入口
+   - 适合作为 OpenClaw 托管接入的第一批 smoke，不会把风险提前推到 draft/send 面
+5. **能力覆盖**
+   - 四者合起来覆盖 hosted skill 最基础的四种问题：总览、待办、下钻、健康检查
+   - `weekly` 是合理补充，但不是 hosted smoke 第一优先级
+
+结论：
+
+- `task` 路由层应被视为 hosted 适配层，而不是底层领域核心
+- Twinbox 的底层 source of truth 仍然是 `mailbox` / `queue` / `thread` / `digest` / `action` / `review` / `orchestrate`
+- 如果未来某个新 task 入口不能同时满足“通用性 + 薄包装 + 只读高可靠”，就不应轻易加入默认 smoke 集
+
 ### 基于根级 docs 的当前确定项
 
 - 登录预检已经闭环：根级 `SKILL.md` 暴露 `metadata.openclaw.login.preflightCommand`，而 `docs/ref/cli.md` 已定义 `MailboxPreflightResult`、`login_stage`、退出码和只读边界

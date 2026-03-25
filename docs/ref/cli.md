@@ -582,6 +582,29 @@ twinbox digest pulse [--json]
 
 > 注：`activity-pulse.json` 不会由 `digest pulse` 现算；需先运行 `twinbox-orchestrate schedule --job daytime-sync`。
 
+## Task 路由选型标准
+
+`task ...` 子命令不是第二套 CLI 领域模型，而是面向 hosted skill / agent runtime 的薄路由层。
+
+设计约束：
+
+- 必须薄包装现有只读能力，不能引入新的推理链路
+- 必须服务通用用户意图，而不是某个团队特有术语
+- 必须适合作为 prompt smoke 和默认 skill 入口
+- 必须能清晰暴露“命令是否真的执行”这一事实
+
+按当前实现，核心 task 维度分为：
+
+- `latest-mail`：总览型问题，“今天发生了什么 / 最新邮件情况”
+- `todo`：待办型问题，“我现在要处理什么”
+- `progress`：下钻型问题，“某件事现在进展如何”
+- `mailbox-status`：健康检查型问题，“邮箱配好没 / skill 能不能跑”
+
+补充说明：
+
+- `weekly` 保留为时间尺度更长的补充入口，但不是 hosted smoke 的第一优先级
+- 如果未来想新增 task 路由，应先证明它仍然是“薄包装 + 通用意图 + 只读高可靠”，否则应考虑扩到底层命令组，而不是继续堆 `task`
+
 ### task latest-mail
 
 为 OpenClaw / skill 场景提供的稳定任务入口，对“帮我看下最新邮件情况 / 今天发生了什么”这类提问返回统一投影。
