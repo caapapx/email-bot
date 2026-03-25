@@ -69,6 +69,12 @@
 - `distribution` 层：多群/多渠道推送最终应落到显式 subscription registry，而不是继续依赖 session history
 - `extension` 层：插件是后续可选项，不是当前默认路径
 
+补充现实边界：
+
+- 当前本机 OpenClaw 2026.3.23 上，`agent:twinbox:main` 也存在主会话复用问题；自然话术 turn 可能出现 `assistant.content=[]`
+- `openclaw agent --agent twinbox --session-id ...` 与 `--to ...` 在这条 direct-agent 路径上也可能继续回落到同一个 `sessionKey=agent:twinbox:main`
+- 所以“skill/env 变更后直接新开 session”目前仍是目标策略，但在 twinbox agent 主路由上还缺平台级强隔离手段
+
 ### Track B 渐进式 skill 优化顺序
 
 - 第 1 步：先把 Markdown `SKILL.md` 做薄而准
@@ -645,6 +651,7 @@ twinbox/
   - [x] 真实 OpenClaw prompt 已验证 `twinbox task todo --json`
   - [x] 真实 OpenClaw prompt 已验证 `twinbox task progress QUERY --json`
   - [x] `twinbox task mailbox-status --json` 的参数漂移 bug 已修复，并由本地 CLI 复验
+  - [x] 已记录自然话术在 `agent:twinbox:main` 上出现空响应、且 `--session-id` / `--to` 仍回落主会话的现象
   - [ ] 平台自动消费 `preflightCommand` smoke
   - [ ] `schedules` 触发 smoke
   - [ ] stale / retry / audit 行为 smoke
@@ -687,6 +694,7 @@ twinbox/
 - [x] 当前 manifest-only `SKILL.md` 不足以支撑用户视角 prompt 测试；已补成更完整 skill 正文，但 `main` agent prompt 是否注入仍受平台选择策略影响
 - [x] `agent:twinbox:main` 下的真实 prompt 已经证实可显式触发 `latest-mail` / `todo` / `progress` 三条 task 路由
 - [x] chat-visible 定时推送当前落点是独立 `agent:twinbox:cron:<jobId>` session，而不是回写 `agent:twinbox:main`
+- [x] `agent:twinbox:main` 在自然话术下可能返回空响应；当前 `--session-id` / `--to` 也不能稳定绕开这条主会话
 
 ### 仍待验证
 

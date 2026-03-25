@@ -530,6 +530,10 @@ bash scripts/install_openclaw_twinbox_init.sh
 - 这些带明文命令的 prompt 是**探针式 smoke**，目标是确认 agent 有没有真的执行 Twinbox 命令
 - 更接近真实用户的话术仍应单独验证，例如“帮我查看下最新的邮件情况”“这个事情现在进展如何”
 - 当前本机实测里，自然话术“帮我查看下最新的邮件情况”也已经命中过一次 `twinbox task latest-mail --json`
+- 但 2026-03-25 继续实测时，`agent:twinbox:main` 上两条自然话术都出现了“turn completed 但 `assistant.content=[]`”的空响应现象
+- 该现象下 CLI `--json` 仍显示 `status=ok`、`summary=completed`、`usage.output>0`，说明不是超时，而是返回内容在当前主会话链路里丢失
+- 继续尝试 `openclaw agent --agent twinbox --session-id ...` 与 `--to +1555...` 也没有真正创建新的 Twinbox 对话；`meta.agentMeta.sessionId` 仍回到 `39149542-a32b-400d-a9c2-aa92d89b6f02`
+- 因此当前更准确的结论是：显式 task 探针已验证，但自然话术验收仍受 `agent:twinbox:main` 空响应 / session 复用问题影响
 
 ## 为什么会出现“缺少 env”回复
 
