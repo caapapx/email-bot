@@ -31,6 +31,11 @@
 twinbox                      # task-facing CLI 入口
   context                    # 用户上下文管理
     import-material
+    material
+      list
+      set-intent
+      remove
+      preview
     upsert-fact
     profile-set
     refresh
@@ -815,12 +820,15 @@ Important changes this week:
 **用法**：
 
 ```bash
-twinbox context import-material SOURCE
+twinbox context import-material SOURCE [--intent INTENT]
 ```
 
 **参数**：
 
 - `SOURCE`：材料文件路径（位置参数）
+- `--intent INTENT`：材料意图（可选，默认 `reference`）
+  - `reference`：参考数据，用于排序和判断提示；如标记为 synthetic 会隔离到 material_summary
+  - `template_hint`：输出格式参考，LLM 会按类似结构组织相关数据；忽略 synthetic 标记
 
 **输出**：
 
@@ -833,6 +841,88 @@ twinbox context import-material SOURCE
 对 `.csv`、`.xlsx` / `.xlsm`、`.docx`、`.pptx`、`.md`、`.txt` 会额外生成同目录下的 `*.extracted.md`（表格转 Markdown 表，Office 为 OOXML 内文本抽取）。`twinbox-orchestrate run --phase 4` 的 context-pack 会将这些抽取合并进 `human_context.material_extracts_notes`。旧版 `.doc` / `.ppt` 需先另存为 `.docx` / `.pptx`；`.xlsx` 需安装 `openpyxl`。
 
 > 注：当前不支持 `--json` 输出。
+
+### context material list
+
+列出所有已导入的材料及其 intent。
+
+**用法**：
+
+```bash
+twinbox context material list
+```
+
+**输出示例**：
+
+```text
+weekly-deployment-ledger-sample.md       intent=template_hint   imported=2026-03-24T18:18:28
+project-priorities.csv                   intent=reference       imported=2026-03-25T10:30:00
+```
+
+### context material set-intent
+
+修改材料的 intent 类型。
+
+**用法**：
+
+```bash
+twinbox context material set-intent FILENAME INTENT
+```
+
+**参数**：
+
+- `FILENAME`：材料文件名
+- `INTENT`：新的 intent 类型（`reference` 或 `template_hint`）
+
+**示例**：
+
+```bash
+twinbox context material set-intent weekly-deployment-ledger.md template_hint
+```
+
+### context material remove
+
+删除已导入的材料。
+
+**用法**：
+
+```bash
+twinbox context material remove FILENAME
+```
+
+**参数**：
+
+- `FILENAME`：材料文件名
+
+### context material preview
+
+预览材料对 Phase 4 输出的影响。
+
+**用法**：
+
+```bash
+twinbox context material preview FILENAME
+```
+
+**输出示例**：
+
+```text
+材料: weekly-deployment-ledger-sample.md
+Intent: template_hint
+导入时间: 2026-03-24T18:18:28
+
+表格结构: 7 列
+表头: | 资源/版本 | 产品 | 出库日 | 部署起止 | 结果 | 是否达预期 | 问题反馈 |
+
+本周线程分布:
+  LF1: 12
+  UNMODELED: 20
+
+预期影响:
+- 将作为输出格式参考注入 Phase 4
+- LLM 会尝试按类似结构组织相关数据
+- 不会被 synthetic 规则隔离
+```
 
 ### context upsert-fact
 
