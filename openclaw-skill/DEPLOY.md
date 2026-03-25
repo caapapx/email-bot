@@ -492,24 +492,28 @@ bash scripts/install_openclaw_twinbox_init.sh
 
 ## 部署前检查清单
 
-- [ ] `twinbox mailbox preflight --json` 本地成功
-- [ ] `twinbox-orchestrate run --phase 4` 本地成功
-- [ ] root `SKILL.md` 元数据与实现一致
-- [ ] schedule command 全部使用 `twinbox-orchestrate`
-- [ ] 未实现命令未出现在托管入口里
-- [ ] OpenClaw 宿主环境能拿到 Twinbox 需要的 env
-- [ ] `~/.config/twinbox/code-root` / `state-root` 已初始化
-- [ ] 如果走 native 安装，`~/.openclaw/openclaw.json` 已完成模型 / secret 迁移
+以下勾选以 2026-03-25 本机 native OpenClaw + Twinbox smoke 为准；未勾选表示“仍待验证/待补证据”，不等于“尚未开始”。
+
+- [x] `twinbox mailbox preflight --json` 本地成功
+- [x] `twinbox-orchestrate run --phase 4` 本地成功
+- [x] root `SKILL.md` 元数据与实现一致
+- [x] schedule command 全部使用 `twinbox-orchestrate`
+- [x] 未实现命令未出现在托管入口里
+- [x] OpenClaw 宿主环境能拿到 Twinbox 需要的 env
+- [x] `~/.config/twinbox/code-root` / `state-root` 已初始化
+- [x] 如果走 native 安装，`~/.openclaw/openclaw.json` 已完成模型 / secret 迁移
 - [ ] 如果从 Compose 迁来，旧 `agents/main/sessions/` 已单独备份，而不是直接恢复
 
 ## 托管接入检查清单
 
-- [ ] OpenClaw 能读取 skill manifest
-- [ ] OpenClaw 能展示 / 收集 `requires.env`
+- [x] OpenClaw 能读取 skill manifest
+- [x] `openclaw skills info twinbox` 能展示 `requires.env` gating
+- [ ] 平台交互层是否会自动收集 / 透传这些 env
 - [ ] OpenClaw 能调用 `preflightCommand`
 - [ ] preflight 失败时，平台能把 `missing_env` / `actionable_hint` 呈现出来
-- [ ] preflight 成功后，能进入 phase 运行验证
-- [ ] `openclaw skills info twinbox` 显示 `Ready`
+- [x] preflight 成功后，宿主侧已能进入 phase 运行验证
+- [x] `openclaw skills info twinbox` 显示 `Ready`
+- [x] 根 `SKILL.md` 已提供显式 `twinbox task ...` 入口
 - [ ] agent 对话层显式触发 Twinbox 命令的路径已验证，而不是仅靠 prompt 提示“自行执行”
 
 ## 为什么会出现“缺少 env”回复
@@ -541,26 +545,26 @@ bash scripts/install_openclaw_twinbox_init.sh
 - [x] OpenClaw Gateway 认证直连已通过：`openclaw health --url ... --token ...`
 - [x] OpenClaw `system-event` 能被 Gateway 接收：`openclaw system event --mode now --json`
 - [x] OpenClaw `cron` 能创建 / debug run `systemEvent` 类型 job
-- [ ] OpenClaw `system-event` 是否能稳定落到宿主机 service
+- [x] OpenClaw `system-event` 最小 smoke 已能稳定落到宿主机 service
 - [x] 宿主机 service 已有最小消费器实现：`scripts/twinbox_openclaw_bridge_poll.sh`
-- [ ] 用户态宿主 service 是否已实际安装 [twinbox-openclaw-bridge.timer](./twinbox-openclaw-bridge.timer)
-- [ ] 宿主机 poller 是否已在非 dry-run 下调用 `twinbox-orchestrate schedule --job daytime-sync --format json`
+- [x] 用户态宿主 service 已实际安装 [twinbox-openclaw-bridge.timer](./twinbox-openclaw-bridge.timer)
+- [x] 宿主机 poller 已在非 dry-run 下调用 `twinbox-orchestrate schedule --job daytime-sync --format json`
 - [ ] `metadata.openclaw.schedules` 是否已被平台解析
-- [ ] 定时任务是否真的触发了 `twinbox-orchestrate schedule --job daytime-sync`
+- [x] Gateway `cron -> system-event -> host poller -> schedule --job daytime-sync` 已真实触发一次
 - [ ] 失败后平台是否有重试 / 告警
 - [ ] stale surface 出现时，谁负责补刷
 - [ ] 平台是否有 heartbeat / worker / daemon 模型
 - [ ] Twinbox 是否需要实现自己的 listener manager
-- [ ] `daytime-sync` 是否仍在复用最近一次 `Phase 4` overlay，而不是轻量 attention 重算
+- [x] 当前已确认 `daytime-sync` 仍在复用最近一次 `Phase 4` overlay，而不是轻量 attention 重算
 
 ## 上线后验证清单
 
-- [ ] 每日 schedule 至少成功跑通一次
+- [x] 至少一次日内 schedule smoke 已跑通
 - [ ] weekly refresh 至少成功跑通一次
-- [ ] phase4 产物生成后，queue / digest 可被消费
+- [x] phase4 产物生成后，queue / digest 可被消费
 - [ ] preflight 错误能回显给平台用户
 - [ ] stale 队列能被识别并恢复
-- [ ] 没有自动发送 / destructive mailbox 操作
+- [x] 没有自动发送 / destructive mailbox 操作
 - [ ] 原生 OpenClaw 与 Compose 版的 managed skill / model config 没有漂移
 
 ## 当前建议

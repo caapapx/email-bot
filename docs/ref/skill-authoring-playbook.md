@@ -16,17 +16,28 @@
 | 命令 | 用途 | JSON 支持 | 示例 |
 |------|------|-----------|------|
 | `twinbox mailbox preflight --json` | 邮箱登录预检 | ✅ | `twinbox mailbox preflight --json` |
+| `twinbox task mailbox-status --json` | OpenClaw 侧邮箱状态 / env 诊断 | ✅ | `twinbox task mailbox-status --json` |
+| `twinbox task latest-mail --json` | OpenClaw 常见“最新邮件情况”入口 | ✅ | `twinbox task latest-mail --json` |
+| `twinbox task todo --json` | OpenClaw 常见“待办 / 待回复”入口 | ✅ | `twinbox task todo --json` |
+| `twinbox task progress QUERY --json` | OpenClaw 常见“某事进展如何”入口 | ✅ | `twinbox task progress 北京云平台部署资源申请 --json` |
+| `twinbox task weekly --json` | OpenClaw 常见周报入口 | ✅ | `twinbox task weekly --json` |
 | `twinbox queue list --json` | 列出全部队列概览 | ✅ | `twinbox queue list --json` |
 | `twinbox queue show TYPE --json` | 队列详情 | ✅ | `twinbox queue show urgent --json` |
 | `twinbox queue explain` | 队列投影说明（静态文本） | ❌ | `twinbox queue explain` |
 | `twinbox thread inspect ID --json` | 线程状态检视 | ✅ | `twinbox thread inspect thread-abc --json` |
 | `twinbox thread explain ID --json` | 线程状态推断 | ✅ | `twinbox thread explain thread-abc --json` |
 | `twinbox digest daily --json` | 每日摘要 | ✅ | `twinbox digest daily --json` |
+| `twinbox digest pulse --json` | 日内 pulse 投影 | ✅ | `twinbox digest pulse --json` |
 | `twinbox digest weekly --json` | 每周简报 | ✅ | `twinbox digest weekly --json` |
 | `twinbox action suggest --json` | 行动建议列表 | ✅ | `twinbox action suggest --json` |
 | `twinbox action materialize ID --json` | 行动详情 | ✅ | `twinbox action materialize action-urgent-1 --json` |
 | `twinbox review list --json` | 待审核项列表 | ✅ | `twinbox review list --json` |
 | `twinbox review show ID --json` | 审核项详情 | ✅ | `twinbox review show review-daily_urgent-1 --json` |
+
+补充约定：
+
+- OpenClaw 的自然语言高频请求，默认优先 `twinbox task ... --json`
+- `queue` / `thread` / `digest` / `review` 适合在意图已经足够具体时直接调用
 
 ### 写路径（有副作用，Skill 应二次确认）
 
@@ -56,7 +67,7 @@
 
 ## 2. OpenClaw Metadata 模板
 
-OpenClaw 解析器要求 **`metadata` 在 `SKILL.md` 里写成单行 JSON**（与多行 YAML 等价信息可读性较差，但可避免 frontmatter 解析失败）。仓库根 [SKILL.md](../SKILL.md) 为已上线的单行形式；下面 YAML 块仅用于人类编辑与文档说明，落地时请折叠为与根 `SKILL.md` 一致的单行 `metadata: {"openclaw":{...}}`。
+OpenClaw 解析器要求 **`metadata` 在 `SKILL.md` 里写成单行 JSON**（与多行 YAML 等价信息可读性较差，但可避免 frontmatter 解析失败）。仓库根 [SKILL.md](../../SKILL.md) 为已上线的单行形式；下面 YAML 块仅用于人类编辑与文档说明，落地时请折叠为与根 `SKILL.md` 一致的单行 `metadata: {"openclaw":{...}}`。
 
 ```yaml
 ---

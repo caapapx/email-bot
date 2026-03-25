@@ -7,20 +7,22 @@
 
 本文档定义 twinbox 如何与 OpenClaw 的定时调度功能集成，实现 cadence 运行策略中定义的预计算刷新。
 
+注意：截至 2026-03-25，本机 OpenClaw 仍没有“自动消费 `metadata.openclaw.schedules[].command` 并注册 job”的实测证据。当前已跑通的最小闭环是 `openclaw cron -> system-event -> 宿主 bridge/poller -> twinbox-orchestrate schedule --job ...`。因此本文档目前应读作“声明层与目标架构草案”，不是平台已完全接通的事实说明。
+
 **核心原则**：
 
-- 使用 OpenClaw 原生的 cron 调度能力
-- 配置集中在 SKILL.md 的 metadata 中
+- `SKILL.md` 里的 `metadata.openclaw.schedules` 先作为声明层 source of truth
+- 当前运行闭环优先走 OpenClaw Gateway `cron` + `system-event` + 宿主 bridge
 - 保持命令接口简单，便于手动触发和调试
-- 支持事件驱动的 listener 扩展
+- listener / event-driven 扩展仍属于后续演进面
 
 ---
 
-## OpenClaw Cron 配置
+## OpenClaw Schedules 声明与桥接配置
 
 ### 1. SKILL.md 元数据扩展
 
-在 `SKILL.md` 中添加 `schedules` 配置：
+在 `SKILL.md` 中声明 `schedules` 配置：
 
 ```yaml
 ---
@@ -97,8 +99,8 @@ metadata:
 
 **注意**：
 - Cron 表达式使用服务器本地时区
-- OpenClaw 会在指定时间触发命令
-- 命令在 skill 的工作目录中执行
+- 如果未来平台自动消费 `schedules`，应在指定时间触发命令
+- 在当前已验证路径里，真正执行命令的是宿主 bridge，而不是 manifest 自动导入
 
 ---
 
@@ -242,15 +244,21 @@ def _is_stale(generated_at_str: str, max_age_hours: int = 24) -> bool:
 
 ### 1. Skill 部署时
 
-OpenClaw 读取 `SKILL.md` 的 `metadata.openclaw.schedules`：
-1. 解析 cron 表达式
-2. 注册定时任务到调度器
-3. 验证命令可执行性
+当前可确认的是：
+1. OpenClaw 能读取 `SKILL.md` 中的 `metadata.openclaw.schedules` 声明
+2. 这些声明可作为 Twinbox 文档与部署面的 source of truth
+3. 是否自动注册为平台 cron job 仍待验证
+
+当前已实测的最小闭环是：
+1. 用 `openclaw cron` 创建 `system-event` job
+2. 宿主 poller 消费 Gateway `cron.runs`
+3. 由 `twinbox-orchestrate bridge` / `schedule --job ...` 执行对应刷新
 
 ### 2. 环境变量
 
 确保以下环境变量已设置：
-- `TWINBOX_CANONICAL_ROOT`：twinbox 工作目录
+- `TWINBOX_CODE_ROOT` / `TWINBOX_STATE_ROOT`：Twinbox 代码根与状态根
+- `TWINBOX_CANONICAL_ROOT`：legacy alias，仅兼容旧路径
 - `IMAP_*` / `SMTP_*`：邮箱凭证
 
 ### 3. 权限要求
@@ -287,8 +295,9 @@ twinbox queue show urgent --json | jq '.stale'
 # 查看最后刷新时间
 twinbox queue show urgent --json | jq '.generated_at'
 
-# 查看 orchestration 状态
-twinbox-orchestrate status
+# 查看 orchestration roots / contract
+twinbox-orchestrate roots
+twinbox-orchestrate contract --phase 4
 ```
 
 ---
@@ -330,12 +339,12 @@ WantedBy=timers.target
 
 ## 实现检查清单
 
-- [ ] 更新 SKILL.md 添加 schedules 配置
-- [ ] 验证 OpenClaw 能解析 schedules 元数据
-- [ ] 测试 cron 触发命令执行
+- [x] 更新 SKILL.md 添加 schedules 配置
+- [ ] 验证 OpenClaw 能解析 schedules 元数据并自动导入 job
+- [x] 测试 `openclaw cron -> system-event -> host bridge` 触发命令执行
 - [ ] 实现失败重试逻辑
 - [ ] 添加 stale 告警机制
-- [ ] 编写部署文档
+- [x] 编写部署文档
 - [ ] 实现 listener 事件驱动（未来）
 
 ---

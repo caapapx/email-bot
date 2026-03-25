@@ -27,26 +27,47 @@
 - 当前承载位置：
   - 根级 `SKILL.md` 的 `metadata.openclaw`
   - 新增开发目录：`openclaw-skill/`
-- 当前状态：以设计和契约为主，真正的托管接入工作基本还没开始
+- 当前状态：已完成官方文档调研、本机 native/Compose smoke 与最小宿主 bridge 闭环；但平台自动消费 metadata 与托管 runtime 扩展仍未闭环
 - 当前已具备的基础：
   - `twinbox mailbox preflight --json` 可作为 OpenClaw 登录预检接口
-  - `twinbox-orchestrate` 是稳定编排入口
-  - `SKILL.md` 已有 `requires.env`、`login`、`schedules` 元数据
-  - `docs/ref/scheduling.md`、`docs/ref/runtime.md` 已描述未来调度 / listener / action 边界
+  - `twinbox task latest-mail | todo | progress | weekly | mailbox-status --json` 已作为 OpenClaw 常见 prompt 的薄任务入口
+  - `twinbox-orchestrate run | schedule | bridge | bridge-poll` 已形成宿主执行面
+  - `SKILL.md` 已有与官方解析器对齐的单行 JSON `metadata.openclaw`
+  - `openclaw-skill/README.md`、`openclaw-skill/DEPLOY.md` 已单独承载托管部署、验证与桥接说明
 - 当前未完成或未验证的重点：
-  - OpenClaw 是否已经完整解析并执行 `metadata.openclaw.schedules`
-  - OpenClaw 的心跳、cron、后台任务与 Twinbox phase 刷新如何对接
+  - OpenClaw 是否会真实自动消费 `preflightCommand` 与 `metadata.openclaw.schedules`
+  - 宿主 service 的生产化安装、重试、告警与 stale fallback 责任边界
+  - `daytime-sync` 从 overlay 版推进到增量 truth / attention 重算的演进路径
   - listener / action / review runtime 如何挂入 OpenClaw 托管环境
   - skill 包的最终交付形态是“直接挂 repo 根”还是“导出独立 package”
-  - 部署、升级、回滚、观测、失败恢复还没有形成单独方案
 
-## Track B 调研分析（2026-03-24）
+## Track B 调研分析（2026-03-26）
 
 ### 从 `.claude` 已有 skill 得到的结论
 
 - Track A 已经形成四层拆分：`.claude/skills/twinbox/SKILL.md` 负责触发和边界，`references/` 承载按需契约，`.claude/commands/` 承载高频入口，`evals/` 承载回归验证
 - 这说明 repo 内已经验证过“薄 skill 入口 + 外置 reference + 单独验证面”这条组织方式，而不是把所有说明都塞进一个 `SKILL.md`
 - Track B 不必复制 slash command 形态，但应继承这种分层思路：manifest、运行时契约、部署/验证、平台待验证项分别归位
+
+### 新增的官方调研结论（docs.openclaw.ai）
+
+- 文档裁决顺序需要升级为：`docs.openclaw.ai` 当前页面 > 本仓库实现面文档与实测记录 > 社区样例；不再只靠仓库内旧草案互相引用
+- OpenClaw 解析器要求 `SKILL.md` 里的 `metadata` 使用单行 JSON；YAML 块只能保留做人类可读模板
+- 托管环境里的邮箱配置应优先来自 `skills.entries.twinbox.env`；`state root/.env` 是本地 fallback，不是托管主路径
+- 当前 OpenClaw cron 暴露的是 `message` / `system-event` 执行模型，而不是“manifest 里的 `command` 自动导入为 job”模型；`metadata.openclaw.schedules` 目前仍应视为声明层
+- `Polls` 指 IM 频道投票消息，不是宿主机轮询；Twinbox 的宿主轮询仍由 `twinbox-orchestrate bridge-poll` / `scripts/twinbox_openclaw_bridge_poll.sh` 承担
+- HTTP `Tools Invoke` 默认拒绝 `cron`；不能把它当成 `openclaw cron` CLI 的等价替代
+- Markdown `SKILL.md` 仍是当前默认交付面；只有当任务面已经稳定、需要确定性 schema 和更低的“只读 SKILL 不执行命令”风险时，才考虑升级到插件 `registerTool()`
+
+### Track B 的系统性默认架构
+
+- `source-of-truth` 层：OpenClaw 官方文档 + 本仓库 `SKILL.md` / `docs/ref/cli.md` / `docs/ref/orchestration.md`
+- `manifest / gating` 层：根级 `SKILL.md` 负责 `requires.env`、`login`、`schedules` 声明，不负责承诺平台一定会自动执行
+- `task` 层：OpenClaw 日常 prompt 默认先走 `twinbox task ... --json`，而不是依赖模型从长文 skill 中自己挑命令
+- `host execution` 层：当前权威刷新链路是 `OpenClaw cron -> system-event -> 宿主 poller/service -> twinbox-orchestrate bridge -> schedule --job ...`
+- `session` 层：`main` 会话不再视为 Twinbox 真相来源；Twinbox 问题优先走专用 `twinbox` agent，skill/env 变更后直接新开 session
+- `distribution` 层：多群/多渠道推送最终应落到显式 subscription registry，而不是继续依赖 session history
+- `extension` 层：插件是后续可选项，不是当前默认路径
 
 ### 基于根级 docs 的当前确定项
 
@@ -98,7 +119,11 @@
 - `docs/guide/openclaw-compose.md`：Twinbox 快速路径命令已写为 `twinbox-orchestrate run --phase 1`（与 `orchestration.py` 一致）
 - `docs/ref/cadence.md`：编排示例已改为 `twinbox-orchestrate run --phase 4` / 全量 `run`；`--background` 等仍属意图稿，不作执行事实
 - `docs/ref/scheduling.md` 虽然已经改用 `twinbox-orchestrate`，但其状态仍是 Draft，且其中 retry / stale / 平台行为仍是期望模型，不是已验证行为
-- 结论：Track B 研究应优先依赖 `SKILL.md`、`docs/ref/cli.md`、`docs/ref/orchestration.md`、`docs/ref/skill-authoring-playbook.md` 这些更接近实现面的文档；`cadence.md` 和部分 guide 文档应只作为补充线索
+- 结论：Track B 的 source-of-truth 优先级应收口为：
+  1. `docs.openclaw.ai` 当前页面
+  2. `SKILL.md`、`docs/ref/cli.md`、`docs/ref/orchestration.md`
+  3. `docs/ref/skill-authoring-playbook.md`、`openclaw-skill/README.md`、`openclaw-skill/DEPLOY.md`
+  4. `docs/ref/scheduling.md`、`docs/ref/cadence.md` 与社区样例只作草案和补充线索
 
 ### Track B 最小 Smoke 矩阵
 
@@ -120,7 +145,7 @@
 3. 然后决定 stale fallback、retry、audit、heartbeat 的平台责任边界
 4. 最后再确定 skill 包是 repo-root 直挂，还是独立导出
 
-### Track B 实测结果（2026-03-24，本机 OpenClaw 2026.3.23）
+### Track B 实测结果（2026-03-24 至 2026-03-25，本机 OpenClaw 2026.3.23）
 
 #### 1. 平台识别层：已能识别本地 managed skill
 
@@ -421,7 +446,7 @@ twinbox/
 - [x] 安装并验证官方 `openclaw-gateway.service` + Twinbox 用户态 bridge timer 最小闭环
 - [x] 验证非 dry-run `daytime-sync` 能由 bridge poller 实际触发并落审计
 - [ ] 固定白天小时级刷新、周五额外 refresh 与夜间全量的执行窗口
-- [ ] 统一权威执行入口为 `twinbox-orchestrate run --phase 4` / `run`
+- [x] 统一宿主权威执行入口为 `twinbox-orchestrate schedule --job ...`，再由 job 映射到 `run [--phase N]`
 - [x] 明确 bridge 的事件协议，至少覆盖 `daytime-sync` / `nightly-full` / `friday-weekly`
 
 当前补充结论：
@@ -536,46 +561,48 @@ twinbox/
 
 - [x] 建立 `openclaw-skill/` 开发目录
 - [x] 输出 OpenClaw skill 部署文档
-- [ ] 单独梳理 OpenClaw 方案，而不是继续混在 Claude 方案里
-  - [ ] skill 包边界
-  - [ ] 登录字段收集
-  - [ ] preflight 对接
-  - [ ] schedule / cron 对接
-  - [ ] heartbeat / background task 对接
-  - [ ] listener / action / review runtime 对接
-  - [ ] deployment / upgrade / rollback / observe
-- [ ] 梳理 OpenClaw 当前确定项
+- [x] 单独梳理 OpenClaw 方案，而不是继续混在 Claude 方案里
+  - [x] skill 包边界
+  - [x] 登录字段收集
+  - [x] preflight 对接
+  - [x] schedule / cron 对接
+  - [x] heartbeat / background task 对接范围
+  - [x] listener / action / review runtime 对接范围
+  - [x] deployment / upgrade / rollback / observe
+- [x] 梳理 OpenClaw 当前确定项
   - [x] `metadata.openclaw.requires.env`
   - [x] `metadata.openclaw.login`
   - [x] `metadata.openclaw.schedules`
   - [x] `twinbox mailbox preflight --json`
-  - [x] `twinbox-orchestrate run ...`
-- [ ] 梳理 OpenClaw 当前待验证项
-  - [ ] `schedules` 是否已被实际消费
-  - [ ] cron 任务的触发模型
-  - [ ] 失败重试 / stale fallback 的平台责任边界
-  - [ ] 是否有平台级 heartbeat / worker / daemon 机制
-  - [ ] 是否需要单独的 listener manager / action runner
-  - [ ] skill 更新后的热加载或重部署流程
-- [ ] 建立 Track B 能力分层表
-  - [ ] 已实现：manifest / preflight / `twinbox-orchestrate`
-  - [ ] 设计已定：login stages / schedule metadata / phase contract
-  - [ ] 待验证：OpenClaw schedule consumption / retry / stale fallback / audit 回流
-  - [ ] 未开始：listener runtime / action runner / hosted review flow
+  - [x] `twinbox task ...`
+  - [x] `twinbox-orchestrate run | schedule | bridge | bridge-poll`
+- [x] 建立 OpenClaw 当前待验证项清单
+  - [x] `preflightCommand` 是否已被平台自动消费
+  - [x] `schedules` 是否已被实际消费
+  - [x] cron 任务的触发模型
+  - [x] 失败重试 / stale fallback 的平台责任边界
+  - [x] 是否有平台级 heartbeat / worker / daemon 机制
+  - [x] 是否需要单独的 listener manager / action runner
+  - [x] skill 更新后的热加载或重部署流程
+- [x] 建立 Track B 能力分层表
+  - [x] 已实现：manifest / task CLI / `twinbox-orchestrate` / host bridge
+  - [x] 设计已定：login stages / schedule metadata / phase contract / session strategy
+  - [x] 待验证：OpenClaw 自动消费 `preflightCommand` / `schedules`、retry / stale fallback / audit 回流
+  - [x] 未开始：listener runtime / action runner / hosted review flow
 - [ ] 设计托管验证面
   - [x] Gateway 宿主内真实跑通 `twinbox mailbox preflight --json`
   - [ ] 平台自动消费 `preflightCommand` smoke
   - [ ] `schedules` 触发 smoke
   - [ ] stale / retry / audit 行为 smoke
-  - [ ] 明确每个 smoke 的“成功证据”与“失败证据”
+  - [x] 明确每个 smoke 的“成功证据”与“失败证据”
 - [ ] 清理 OpenClaw 接入相关文档漂移
   - [ ] 清理仍引用 `twinbox orchestrate ...` 的旧示例
   - [ ] 明确 `docs/ref/cadence.md` 只作策略草案，不作托管事实来源
   - [ ] 对齐 `SKILL.md`、`openclaw-skill/`、`docs/guide/openclaw-compose.md` 的说法
-- [ ] 建立 Track B source-of-truth 优先级
-  - [ ] 第一优先级：`SKILL.md`、`docs/ref/cli.md`、`docs/ref/orchestration.md`
-  - [ ] 第二优先级：`docs/ref/skill-authoring-playbook.md`、`openclaw-skill/DEPLOY.md`
-  - [ ] 仅作草案参考：`docs/ref/scheduling.md`、`docs/ref/cadence.md`
+- [x] 建立 Track B source-of-truth 优先级
+  - [x] 第一优先级：`docs.openclaw.ai` 当前页面 + `SKILL.md`、`docs/ref/cli.md`、`docs/ref/orchestration.md`
+  - [x] 第二优先级：`docs/ref/skill-authoring-playbook.md`、`openclaw-skill/README.md`、`openclaw-skill/DEPLOY.md`
+  - [x] 仅作草案参考：`docs/ref/scheduling.md`、`docs/ref/cadence.md`、社区样例
 - [ ] 评估是否需要统一 OpenClaw 消费协议
   - [ ] 当前只有 `mailbox preflight` 具备 `status / actionable_hint / next_action` 外壳
   - [ ] 队列 / digest / review 是否需要补统一 envelope
@@ -590,21 +617,29 @@ twinbox/
   - [x] 明确 Twinbox runtime 如何进入 Gateway 宿主环境
   - [ ] 评估是否需要 `metadata.openclaw.install`
   - [x] 评估是否需要把 repo-root manifest 导出为真正可注入的 OpenClaw skill 正文
-  - [ ] 确认为何 `Ready` skill 仍不进入 `agent:main:main` prompt
+  - [x] 确认为何 `Ready` skill 仍不进入 `agent:main:main` prompt
 
 ## OpenClaw 专项问题清单
 
-这些问题目前不应假装“已经定了”，应单独跟踪：
+以下问题需要分成“已经回答”和“仍待验证”两类，避免继续把已收口结论写成开放问题。
 
-- [ ] OpenClaw 对 `SKILL.md` 中 login / env / schedule 元数据的展示与执行边界到底在哪一层
+### 已回答
+
+- [x] `SKILL.md` 的 `metadata` 要求单行 JSON；YAML 只作为文档模板
+- [x] `openclaw skills info twinbox = Ready` 不等于当前会话 prompt 已注入 Twinbox；`skillsSnapshot` 会冻结注入结果
+- [x] 当前 OpenClaw cron 暴露的是 `message` / `system-event` 模型，不是 manifest `command` 自动导入模型
+- [x] `Polls` 是 IM 频道投票，不是宿主机轮询；Twinbox host poller 仍需自建
+- [x] 当前默认交付形态仍是 Markdown `SKILL.md` + CLI；插件只在确定性工具面需要时再评估
+- [x] 当前 manifest-only `SKILL.md` 不足以支撑用户视角 prompt 测试；已补成更完整 skill 正文，但 `main` agent prompt 是否注入仍受平台选择策略影响
+
+### 仍待验证
+
+- [ ] 平台交互层是否会真实自动消费 `preflightCommand`
 - [ ] OpenClaw 对 `metadata.openclaw.schedules` 的消费是否已跑通过
-- [ ] schedule 是平台主动 cron 触发，还是由 Twinbox 自带心跳 / worker 接收后再执行
-- [ ] 如果 Queue / Digest stale，后台补刷是 OpenClaw 负责任务调度，还是 Twinbox 自带 runtime 负责
+- [ ] Queue / Digest stale 时，后台补刷由宿主调度层还是 OpenClaw 平台负责
 - [ ] listener/event-driven 模式是否属于本仓库后续实现，还是由 OpenClaw 提供宿主能力
 - [ ] action/review 的人工审批面是平台托管，还是 Twinbox 只提供 CLI / JSON contract
 - [ ] 托管环境里的审计日志、失败通知、任务重试怎么回流
-- [x] 当前 manifest-only `SKILL.md` 是否足以支撑用户视角 prompt 测试，还是需要单独的 OpenClaw skill 正文
-  - 结论：仅 manifest stub 不足；已补成更完整 skill 正文，但 `main` agent prompt 仍未自动注入，说明问题还在平台选择策略层
 
 ## 完成标准
 
@@ -618,8 +653,8 @@ twinbox/
 
 ### Track B 完成标准
 
-- [ ] `openclaw-skill/` 成为独立开发入口
-- [ ] OpenClaw 部署文档单独存在，不再散落在 README / 零散 ref 里
-- [ ] OpenClaw 的“已实现 / 已验证 / 待验证 / 未开始”边界清楚
-- [ ] schedule / heartbeat / listener / action runtime 的平台职责被单独追踪
+- [x] `openclaw-skill/` 成为独立开发入口
+- [x] OpenClaw 部署文档单独存在，不再散落在 README / 零散 ref 里
+- [x] OpenClaw 的“已实现 / 已验证 / 待验证 / 未开始”边界清楚
+- [x] schedule / heartbeat / listener / action runtime 的平台职责被单独追踪
 - [ ] OpenClaw 至少真实跑通一次 `preflightCommand` 与一次 schedule 触发
