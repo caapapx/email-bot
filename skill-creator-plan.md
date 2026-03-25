@@ -258,6 +258,253 @@ twinbox/
   - [ ] `twinbox` task-facing CLI
   - [ ] `twinbox-orchestrate`
   - [ ] runtime / scheduling / review safety contract
+
+## Track B 决策清单（2026-03-24 Draft）
+
+这部分只收口当前已经确认的实现边界与仍待拍板的分叉，避免把 Draft 契约误写成既成事实。
+
+### 已确认的实现事实
+
+- `twinbox-orchestrate run [--phase N]` 是当前唯一稳定编排入口；仓库内没有常驻 listener / worker / daemon 自动按天刷新
+- 当前 phase 产物默认写入 `runtime/validation/phase-*` 并覆盖上次结果；没有内建 per-run 快照归档
+- `twinbox queue list/show --json`、`twinbox digest daily --json`、`twinbox digest weekly --json` 已可作为 OpenClaw 读侧投影
+- `twinbox context import-material / upsert-fact / profile-set` 会写本地 state，但当前不会自动触发局部重算
+- `metadata.openclaw.schedules` 在本机 OpenClaw 2026.3.23 上仍缺少“自动导入并执行 command”的实测证据
+- 当前实现没有内建 `flock` / 运行锁、append-only run log、`runtime/archive/` 快照归档、`notify-pack` 聚合命令
+
+### 待拍板决策
+
+#### D1. 定时触发宿主
+
+- 备选 A：宿主 `systemd timer` / `cron` 直接执行 `twinbox-orchestrate`
+- 备选 B：OpenClaw cron 只发 `message` / `system-event`，再由宿主适配层执行 twinbox
+- 备选 C：双轨冗余，systemd 负责权威刷新，OpenClaw cron 只做提醒或健康探针
+
+当前选择：
+
+- 选择 B：由 OpenClaw cron 发事件，再由宿主适配层执行 twinbox
+
+仍待细化：
+
+- 事件类型是 `message` 还是 `system-event`
+- 宿主适配层落在 Gateway 容器、宿主机，还是独立 sidecar
+- 事件如何映射到唯一权威执行入口，避免 agent session 差异导致漂移
+
+当前补充选择：
+
+- OpenClaw cron 使用 `system-event`
+- 宿主适配层落在宿主机 service，而不是 Gateway agent session
+
+#### D2. 调度粒度
+
+- 最小方案：工作日 `Phase 4` 快刷 + 夜间全量 `run`
+- 扩展方案：额外保留 weekly refresh 与 `context_updated` 触发局部重算
+
+当前选择：
+
+- 先做“白天 `Phase 4` + 夜间全量”；weekly refresh 不单列为独立调度
+
+仍待细化：
+
+- 白天 `Phase 4` 的具体时间点与频率
+- 周报是直接复用最近一次 nightly / weekday `Phase 4`，还是周五额外触发一次专门刷新
+
+补充结论：
+
+- 日内交互目标并不等价于当前 `weekly-brief` / `daily-urgent` 产物
+- 仅靠现有 `Phase 4` 不足以支撑“今天发生了什么 / 待我回复 / 某事进展如何 / 每小时一次且不重复推送”
+- 需要新增一个独立的日内投影视图，暂称 `daytime-slice` 或 `activity-pulse`
+
+#### D3. 并发语义
+
+- 备选 A：严格串行，所有 orchestrate 入口前加锁
+- 备选 B：接受 `last-write-wins`，但每次运行写 `run_id` / `run_source`
+- 备选 C：分 phase 细粒度锁
+
+当前选择：
+
+- 选择 A：所有 orchestrate 入口前统一加锁，先不接受并发覆盖
+
+#### D4. 存档与审计深度
+
+- 备选 A：仅保留最新工件 + append-only 运行日志
+- 备选 B：每次 `Phase 4` 都复制到 `runtime/archive/phase-4/<timestamp>/`
+- 备选 C：只对 nightly / weekly / 失败运行保留快照
+
+当前选择：
+
+- 选择 C：只对 nightly / weekly / 失败运行保留快照
+
+仍待细化：
+
+- 快照保留天数 / 数量上限
+- 失败运行是否保留 loading 中间产物，还是只保留 run log + 失败 phase 输出目录
+
+当前补充选择：
+
+- 默认保留 7 天
+
+#### D5. OpenClaw 推送契约
+
+- 最小载荷：`generated_at`、`stale`、`urgent_top_k`、`pending_count`、一句 `summary`
+- 扩展载荷：附 `sla_risks`、`recent_activity_window`、`why` / `evidence_refs`
+
+当前选择：
+
+- 先做最小载荷，不在 OpenClaw 侧重新分类，只读 twinbox 投影
+
+仍待细化：
+
+- `urgent_top_k` 的默认 K 值
+- `summary` 是纯文本一句话，还是固定 schema 字段组合后由 OpenClaw 渲染
+
+当前选择补充：
+
+- `urgent_top_k = 3`
+- 首版推送对象优先覆盖：
+  - 今日新增或有推进的线程
+  - 当前待我回复 / 待我拍板的线程
+  - 指定线程的最新进展
+- 推送频率：每小时一次
+- 去重要求：同一线程 / 同一变动不应重复推送
+
+#### D6. 失败恢复责任边界
+
+- 备选 A：宿主调度层负责重试与告警，Twinbox 只返回退出码并保留旧产物
+- 备选 B：OpenClaw 负责看到 stale 后提醒用户手动刷新
+- 备选 C：双层都有，但需避免重复重试
+
+推荐默认值：
+
+- 先把责任放在宿主调度层；OpenClaw 先只做状态展示与提醒
+
+当前补充选择：
+
+- 自动重试 1 次；再次失败后告警，不自动补偿
+
+#### D7. `context_updated` 产品语义
+
+- 备选 A：写入事实/材料后立即同步重算受影响 phase
+- 备选 B：先写事件标记，下一次调度或手动 refresh 再消费
+- 备选 C：只提供显式 `twinbox context refresh`
+
+当前选择：
+
+- 选择 B：先写事件标记，下一次调度或手动 refresh 再消费
+
+附加约束：
+
+- `refresh` 不能只打印提示语，必须变成真实执行入口
+- 方案目标应写成“刷新失败可见、可重试、可回退到最近成功结果”，而不是绝对成功承诺
+
+## 新一轮优化计划（Draft）
+
+### P0. 决策收口
+
+- [x] 确认 D1 定时触发宿主：OpenClaw cron -> 宿主适配层执行
+- [x] 确认 D2 调度粒度：白天 `Phase 4` + 夜间全量
+- [x] 确认 D3 并发语义：统一串行加锁
+- [x] 确认 D4 存档与审计深度：nightly / weekly / 失败运行保留快照
+- [x] 确认 D5 OpenClaw 推送最小载荷
+- [x] 确认 D7 `context_updated` 的即时性预期：事件标记 + 手动/定时消费
+- [ ] 收口 D1/D2/D4/D5 的次级参数
+- [ ] 明确“刷新失败可见、可重试、可回退”的 SLA 语义
+
+### P1. 宿主调度最小闭环
+
+- [x] 验证 OpenClaw authenticated `cron -> system-event` 最小链路可用
+- [x] 产出调度 smoke checklist，并补进 `openclaw-skill/DEPLOY.md`
+- [x] 设计 OpenClaw cron 事件 -> 宿主适配层 -> `twinbox-orchestrate` 的桥接路径
+- [x] 明确 `TWINBOX_CODE_ROOT` / `TWINBOX_STATE_ROOT`、env 注入方式与工作目录
+- [x] 增加宿主轮询器：通过 Gateway `cron.list` / `cron.runs` 消费新的 Twinbox `systemEvent` 运行记录
+- [x] 落地宿主 wrapper 与用户态 systemd 样例：`scripts/twinbox_openclaw_bridge_poll.sh` + `openclaw-skill/twinbox-openclaw-bridge.*`
+- [x] 安装并验证官方 `openclaw-gateway.service` + Twinbox 用户态 bridge timer 最小闭环
+- [x] 验证非 dry-run `daytime-sync` 能由 bridge poller 实际触发并落审计
+- [ ] 固定白天小时级刷新、周五额外 refresh 与夜间全量的执行窗口
+- [ ] 统一权威执行入口为 `twinbox-orchestrate run --phase 4` / `run`
+- [x] 明确 bridge 的事件协议，至少覆盖 `daytime-sync` / `nightly-full` / `friday-weekly`
+
+当前补充结论：
+
+- 2026-03-25 已实测通过：`openclaw health --url ... --token ...`、`openclaw system event --mode now`、`openclaw cron add/run`
+- 当前 OpenClaw `cron add` 只支持 agent message 或 `system-event` payload，不支持直接执行宿主机命令
+- 因此 `system-event -> 宿主机 service -> twinbox-orchestrate bridge --event-text ... -> schedule --job ...` 不是优化项，而是当前方案的必要桥接层
+- Twinbox 已新增 `twinbox-orchestrate bridge` dispatcher，并固定了两种事件协议：JSON `{"kind":"twinbox.schedule","job":"daytime-sync"}` 与紧凑文本 `twinbox.schedule:daytime-sync`
+- Twinbox 已新增宿主 wrapper `scripts/twinbox_openclaw_bridge.sh`，统一 `TWINBOX_CODE_ROOT`、`TWINBOX_STATE_ROOT` 与工作目录，方便 systemd/service 直接挂载
+- Twinbox 已新增 `twinbox-orchestrate bridge-poll` 与宿主 wrapper `scripts/twinbox_openclaw_bridge_poll.sh`，通过 Gateway `cron.list` / `cron.runs` 轮询新完成的 `systemEvent` run，再转发到 `bridge`
+- 2026-03-25 已 dry-run 验证：`bridge-poll` 能识别历史 Twinbox `systemEvent` run，并产出 `dispatched_count`
+- 2026-03-25 已转为“官方 `openclaw gateway install --force` + Twinbox 用户态 bridge timer”的默认安装模型，不再以 `/etc/default/...` 为主路径
+- 2026-03-25 已真实验证：临时 OpenClaw `systemEvent` cron job 可经由用户态 bridge poller 触发 `daytime-sync`，并写入 `openclaw-bridge-state.json`、`openclaw-bridge-polls.jsonl`、`schedule-runs.jsonl`
+- 这次 smoke 也确认了当前去重语义：同一 `cron run` 不会重复消费；同一线程若 `fingerprint` 未变会被抑制，但 `urgent_top_k` 仍可能被其他尚未通知过的线程补位
+- `preflightCommand` 仍未获得平台真实消费证据，不能因为 skill `Ready` 或 agent 能对话就视为已闭环
+
+### P2. 完整性与审计最小闭环
+
+- [x] 为每次 orchestrate 运行写 append-only 运行日志
+- [x] 加入外层串行锁，并定义锁冲突时的返回码与日志
+- [x] 对 nightly / weekly / 失败运行保留 `runtime/archive/phase-4/`
+- [ ] 明确 stale 恢复责任边界与人工介入方式
+- [ ] 定义 refresh 失败后的重试、降级和最近成功结果回退语义
+
+当前补充结论：
+
+- Twinbox 已显式区分 `TWINBOX_CODE_ROOT` 与 `TWINBOX_STATE_ROOT`
+- `TWINBOX_CANONICAL_ROOT` 已降级为 legacy state-root alias，不再作为唯一标准入口
+- `scripts/install_openclaw_twinbox_init.sh` 现已写入 `~/.config/twinbox/code-root`、`state-root` 与 legacy `canonical-root`
+- mailbox preflight 现已显式输出 `code_root`、`state_root`、`env_file` 与 `env_sources`，便于区分 OpenClaw process env 与本地 `.env` fallback
+
+### P3. OpenClaw 薄通知层
+
+- [ ] 为“日内新增/进展/待回复”定义新的 `daytime-slice` 最小 payload
+- [ ] 明确 OpenClaw 只负责路由与渲染，不重复做 phase 推理
+- [ ] 定义失败/过期时的展示话术：`stale`、`last_success_at`、`next_action`
+- [ ] 设计每小时一次且不重复推送的去重状态
+- [ ] 把 Track B smoke 矩阵 S4-S6 改成可执行 checklist
+
+### P3.1 日内投影层
+
+- [ ] 明确 `daytime-slice` 与 `daily-urgent` / `pending-replies` / `weekly-brief` 的边界
+- [ ] 定义日内视图的三个核心对象：
+  - `new_or_changed_threads`
+  - `waiting_on_me_now`
+  - `thread_progress`
+- [ ] 决定这层是复用现有 Phase 1 truth + 新 projection，还是引入增量 truth refresh
+- [ ] 定义“不重复推送”的去重键与已推送游标
+
+当前补充选择：
+
+- “有推进”定义为：线程出现新邮件即视为推进，不要求先发生状态跃迁
+- “不重复推送”定义为：同一线程在没有新邮件、也没有状态变化时不重复推送
+- “看某个事情进展如何”同时支持：
+  - 按 thread key / 邮件主题检索
+  - 按项目名 / 资源名等业务关键词检索
+
+实现含义：
+
+- `daytime-slice` 需要显式维护至少一份去重状态，例如 `last_notified_message_id` / `last_notified_state`
+- 关键词检索不能只靠 OpenClaw prompt，需要 twinbox 侧提供稳定映射或检索投影
+- 首版按“轻量规则映射 + thread 索引”落地，不引入更重的语义检索层
+
+当前阶段性结论：
+
+- 已完成的最小闭环可以先接受“`Phase 1` truth + `activity-pulse` overlay 最近一次 `Phase 4` 队列”的实现
+- 这能先覆盖“日内新增/进展/关键词查进展/不重复推送”的第一版，不要求同步重跑完整 `Phase 4`
+- 该实现不应被误写为终态；`waiting_on_me_now` / `needs_attention` 的语义新鲜度仍部分依赖最近一次重型刷新
+
+后续最值钱的下一刀（Deferred）：
+
+- [ ] 把 `daytime-sync` 从“复用最近一次 `Phase 4` 结果做 overlay”推进到“增量 truth + 轻量 `needs-attention` 重算”
+- [ ] 为这条演进单独补成功标准：
+  - [ ] 白天小时级刷新不依赖前一晚 `Phase 4` 才能判断 `waiting_on_me_now`
+  - [ ] 新邮件进入后，轻量重算能直接更新日内 attention 投影
+  - [ ] 不引入完整周报链路或全量 LLM 成本
+
+### P4. `context_updated` 增量闭环
+
+- [ ] `context` 写命令产出事件标记或 run request
+- [ ] `twinbox context refresh` 从提示语升级为真实执行入口
+- [ ] 明确受影响对象范围：queue / digest / thread 投影
+- [ ] 验证写入事实后不必手工跑整条 pipeline
 - [ ] 把“已实现能力”和“未来能力”分开
   - [ ] 已实现：preflight / queue / thread inspect-explain / digest / action suggest-materialize / review list-show / context writes
   - [ ] 未实现：thread summarize / action apply / review approve-reject / long-running listener runtime

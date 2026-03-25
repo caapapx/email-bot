@@ -56,6 +56,8 @@
 
 ## 2. OpenClaw Metadata 模板
 
+OpenClaw 解析器要求 **`metadata` 在 `SKILL.md` 里写成单行 JSON**（与多行 YAML 等价信息可读性较差，但可避免 frontmatter 解析失败）。仓库根 [SKILL.md](../SKILL.md) 为已上线的单行形式；下面 YAML 块仅用于人类编辑与文档说明，落地时请折叠为与根 `SKILL.md` 一致的单行 `metadata: {"openclaw":{...}}`。
+
 ```yaml
 ---
 name: <skill-name>

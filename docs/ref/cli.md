@@ -45,12 +45,21 @@ twinbox                      # task-facing CLI 入口
 
   thread                     # 线程检视
     inspect
+    progress
     summarize                # 🚧 未实现
     explain
 
   digest                     # 摘要视图
     daily
+    pulse
     weekly
+
+  task                       # OpenClaw-facing thin task routes
+    latest-mail
+    todo
+    progress
+    weekly
+    mailbox-status
 
   action                     # 动作建议
     suggest
@@ -67,6 +76,9 @@ twinbox-orchestrate          # 编排 CLI 入口（独立二进制）
   roots
   contract
   run [--phase N]            # 省略 --phase = 跑满 Phase 1–4
+  schedule --job NAME        # 直接执行一个已解析的宿主调度作业
+  bridge --event-text TEXT   # 解析 OpenClaw/system-event 文本并转发到 schedule
+  bridge-poll                # 轮询 OpenClaw cron runs，并消费新的 Twinbox bridge 事件
 ```
 
 ## 分层语义
@@ -78,6 +90,9 @@ twinbox-orchestrate          # 编排 CLI 入口（独立二进制）
 - 保留给开发、调试、批处理和兼容旧脚本
 - 直接操作 phase contract 和 step execution
 - **`run` 子命令**：`twinbox-orchestrate run [--phase N]`，`N` 为 `1`–`4`。省略 `--phase` 时按契约顺序执行 Phase 1→4 全部步骤。示例：仅刷新 Phase 4 投影用 `twinbox-orchestrate run --phase 4`。
+- **`schedule` 子命令**：执行已经确定好的宿主作业，例如 `twinbox-orchestrate schedule --job daytime-sync --format json`。
+- **`bridge` 子命令**：解析 `system-event` 文本协议，再转发到 `schedule`。适合宿主 bridge/service 在拿到事件文本后调用，例如 `twinbox-orchestrate bridge --event-text '{"kind":"twinbox.schedule","job":"daytime-sync"}' --format json`。
+- **`bridge-poll` 子命令**：轮询 OpenClaw Gateway 的 `cron.list` / `cron.runs`，识别新产生的 Twinbox `systemEvent` 运行记录，再转发到 `bridge`。适合用户态 systemd/service 定时调用，例如 `twinbox-orchestrate bridge-poll --format json`。
 
 ### 任务层（mailbox/context/queue/thread/digest/action/review）
 
@@ -120,7 +135,7 @@ stale: bool
 摘要的结构化视图。
 
 ```yaml
-digest_type: string  # daily | weekly
+digest_type: string  # daily | pulse | weekly
 sections: dict[string, object]
 generated_at: string  # ISO 8601
 stale: bool
@@ -158,9 +173,16 @@ login_stage: string  # unconfigured | validated | mailbox-connected
 status: string  # success | warn | fail
 error_code: string | null
 exit_code: int
+code_root: string
+state_root: string
+env_file: string | null
 missing_env: list[string]
 defaults_applied: dict[string, string]
 effective_account: string
+env_sources:
+  mode: string
+  state_root_env_file: string | null
+  state_root_env_present: string
 checks:
   env:
     status: string
@@ -200,12 +222,19 @@ twinbox mailbox preflight [--json] [--account NAME] [--folder INBOX] [--page-siz
 - `--folder INBOX`：用于只读 envelope list 的文件夹（默认 `INBOX`）
 - `--page-size 5`：只读拉取条数（默认 `5`）
 - `--state-root PATH`：覆盖 twinbox state root
+- 默认 state root 解析顺序：`TWINBOX_STATE_ROOT` / `~/.config/twinbox/state-root` / legacy `TWINBOX_CANONICAL_ROOT` / `~/.config/twinbox/canonical-root` / 当前 code root
 
 **状态语义**：
 
 - `unconfigured`：缺少运行所需邮箱配置；不会尝试渲染 config 或连接 IMAP
 - `validated`：env 已齐全且 himalaya config 已生成，但 IMAP 仍未通过
 - `mailbox-connected`：IMAP 只读验证成功
+
+**配置来源语义**：
+
+- process env 优先，其次才是 `state root/.env`
+- OpenClaw-native 部署推荐把邮箱配置注入 skill process env
+- repo `.env` / `state root/.env` 主要作为本地开发或自托管 fallback
 
 **只读边界**：
 
@@ -500,6 +529,27 @@ Alternative interpretations:
 }
 ```
 
+### thread progress
+
+从 `activity-pulse` 中按线程 key、主题片段或业务关键词查询当前进展。
+
+**用法**：
+
+```bash
+twinbox thread progress QUERY [--limit 5] [--json]
+```
+
+**参数**：
+
+- `QUERY`：线程 key、主题片段或业务关键词
+- `--limit 5`：最多返回 5 条匹配
+- `--json`：输出 JSON 格式
+
+**实现映射**：
+
+- 读取 `runtime/validation/phase-4/activity-pulse.json`
+- 在 `thread_index` 中做轻量规则匹配，不依赖额外语义检索
+
 ### digest daily
 
 显示每日摘要。
@@ -509,6 +559,105 @@ Alternative interpretations:
 ```bash
 twinbox digest daily [--json]
 ```
+
+### digest pulse
+
+显示小时级日内脉冲，用于“今天发生了什么 / 哪些线程有推进 / 哪些待我跟进”的最小推送载荷。
+
+**用法**：
+
+```bash
+twinbox digest pulse [--json]
+```
+
+**参数**：
+
+- `--json`：输出 JSON 格式
+
+**实现映射**：
+
+- 读取 `runtime/validation/phase-4/activity-pulse.json`
+- 返回 `notifiable`、`recent_activity`、`needs_attention` 三段视图
+- 同时带上最小推送载荷 `notify_payload`
+
+> 注：`activity-pulse.json` 不会由 `digest pulse` 现算；需先运行 `twinbox-orchestrate schedule --job daytime-sync`。
+
+### task latest-mail
+
+为 OpenClaw / skill 场景提供的稳定任务入口，对“帮我看下最新邮件情况 / 今天发生了什么”这类提问返回统一投影。
+
+**用法**：
+
+```bash
+twinbox task latest-mail [--json]
+```
+
+**实现语义**：
+
+- 薄包装 `digest pulse`
+- 返回 `summary`、`urgent_top_k`、`recent_activity`、`needs_attention`
+- 不新增推理链路，不直接访问邮箱
+
+### task todo
+
+为“我有哪些待办 / 待回复 / 最值得关注的线程”提供统一任务入口。
+
+**用法**：
+
+```bash
+twinbox task todo [--json]
+```
+
+**实现语义**：
+
+- 薄包装 `queue urgent` + `queue pending`
+- 同时附带现有 `action suggest` 与 `review list` 投影
+- 不新增动作生成能力
+
+### task progress
+
+为“某个事情进展如何”提供统一任务入口。
+
+**用法**：
+
+```bash
+twinbox task progress QUERY [--limit 5] [--json]
+```
+
+**实现语义**：
+
+- 薄包装 `thread progress`
+- 按 thread key、主题片段或业务关键词匹配
+
+### task weekly
+
+为“看当前周报/周简报”提供统一任务入口。
+
+**用法**：
+
+```bash
+twinbox task weekly [--json]
+```
+
+**实现语义**：
+
+- 薄包装 `digest weekly`
+- 不新增周报推理逻辑
+
+### task mailbox-status
+
+为“邮箱配好没 / preflight 状态如何”提供统一任务入口。
+
+**用法**：
+
+```bash
+twinbox task mailbox-status [--json]
+```
+
+**实现语义**：
+
+- 薄包装 `mailbox preflight`
+- 保留原有 `login_stage` / `status` / `missing_env` 语义
 
 **参数**：
 

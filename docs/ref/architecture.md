@@ -75,16 +75,24 @@
 
 解析顺序：
 
-- `TWINBOX_CANONICAL_ROOT`
-- `~/.config/twinbox/canonical-root`
-- 当前 checkout，但仅限普通仓库 checkout
+- `code root`
+  - `TWINBOX_CODE_ROOT`
+  - `~/.config/twinbox/code-root`
+  - 当前 checkout
+- `state root`
+  - `TWINBOX_STATE_ROOT`
+  - `~/.config/twinbox/state-root`
+  - 兼容层：`TWINBOX_CANONICAL_ROOT`
+  - 兼容层：`~/.config/twinbox/canonical-root`
+  - 默认回退到 `code root`
 
 运行规则：
 
-- linked worktree 在未配置 canonical root 时必须快速失败
+- linked worktree 在未配置共享 `state root` 时必须快速失败
 - 并行 worker 可以从不同的 `code root` 路径执行，但必须读写同一个 `state root`
 - 实例本地工件保留在 state root 中，不复制到每个 worker checkout
 - 这一模式适用于 Phase 1-5；在 Phase 4-5 中尤其明显，因为 `loading`、`urgent/pending`、`sla-risks`、`weekly-brief`、`merge` 与 draft gating 都需要共享同一份 context pack 和原始输出
+- 当前自托管默认布局仍允许 `code root == state root`，但这只是兼容的默认值，不是唯一部署形态
 
 ## 人类上下文平面（Human Context Plane）
 

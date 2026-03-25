@@ -57,6 +57,34 @@ bash scripts/twinbox_orchestrate.sh contract
 bash scripts/twinbox_orchestrate.sh contract --format json
 ```
 
+宿主调度桥接使用同一个入口：
+
+```bash
+bash scripts/twinbox_orchestrate.sh schedule --job daytime-sync --format json
+```
+
+如果宿主侧拿到的是 OpenClaw `system-event` 文本，而不是已经解析好的作业 id，则先走 bridge dispatcher：
+
+```bash
+bash scripts/twinbox_orchestrate.sh bridge \
+  --event-text '{"kind":"twinbox.schedule","job":"daytime-sync","event_source":"openclaw.system-event"}' \
+  --format json
+```
+
+宿主机 service 更推荐直接挂这个 wrapper，而不是自己拼环境变量：
+
+```bash
+scripts/twinbox_openclaw_bridge.sh \
+  --event-text '{"kind":"twinbox.schedule","job":"daytime-sync"}' \
+  --format json
+```
+
+如果宿主机 service 需要自己去 Gateway 拉取 OpenClaw cron history，而不是被动接收事件文本，则走 poller：
+
+```bash
+scripts/twinbox_openclaw_bridge_poll.sh --format json
+```
+
 ## Phase Surface
 
 | Phase | 依赖 | Loading | Thinking | 关键产物 |
@@ -76,6 +104,40 @@ bash scripts/twinbox_orchestrate.sh contract --format json
 当前路径：
 
 - CLI -> shell -> Python core
+- Host service / OpenClaw system-event -> `scripts/twinbox_openclaw_bridge.sh` -> `twinbox-orchestrate bridge --event-text ...` -> `twinbox-orchestrate schedule --job ...`
+- User-level host poller -> `scripts/twinbox_openclaw_bridge_poll.sh` -> `twinbox-orchestrate bridge-poll` -> `gateway call cron.list` / `cron.runs` -> `bridge` -> `schedule`
+
+根路径约束：
+
+- `twinbox-orchestrate` 现在显式区分 `TWINBOX_CODE_ROOT` 与 `TWINBOX_STATE_ROOT`
+- 兼容层仍接受 `TWINBOX_CANONICAL_ROOT`，但仅作为 legacy state-root alias
+- 当前自托管默认仍允许两者相同；更通用的部署应把“代码 checkout”和“实例状态目录”分开
+
+## Scheduled Jobs
+
+为宿主机 service 和 OpenClaw `system-event` 增加的稳定作业面：
+
+| Job | 目的 | 默认步骤 | 关键产物 |
+|-----|------|----------|----------|
+| `daytime-sync` | 小时级日内刷新与去重推送 | `phase1_loading --sample-body-count 0` + `activity-pulse` 投影 | `runtime/validation/phase-4/activity-pulse.json`、`runtime/context/activity-pulse-state.json` |
+| `nightly-full` | 夜间全量校正 | Phase 1→4 全量 | Phase 1-4 全套产物 + 归档快照 |
+| `friday-weekly` | 周五正式周报刷新 | Phase 1→4 全量 | Phase 1-4 全套产物 + 周报归档快照 |
+
+调度侧约束：
+
+- 所有 `schedule` 作业通过单一锁文件串行化：`runtime/tmp/schedule.lock`
+- 每次非 dry-run 追加运行日志：`runtime/audit/schedule-runs.jsonl`
+- 归档策略：默认归档 `nightly-full`、`friday-weekly`、以及所有失败运行到 `runtime/archive/phase-4/`
+- `daytime-sync` 成功后会刷新 `activity-pulse`，并更新去重状态，保证“同线程无新邮件且无状态变化则不重复推送”
+- `bridge` 当前支持两种事件文本：JSON `{"kind":"twinbox.schedule","job":"daytime-sync"}`，或紧凑文本 `twinbox.schedule:daytime-sync`
+- `bridge-poll` 通过 OpenClaw Gateway 的 `cron.list` / `cron.runs` 公开 RPC 轮询新完成的 `systemEvent` 运行记录，并用 `jobId|runAtMs|ts` 做用户态宿主侧去重
+- OpenClaw 平台当前没有“直接执行宿主命令”的现成入口；因此宿主适配层要么显式拿到事件文本走 `bridge`，要么定时轮询 `cron.runs` 走 `bridge-poll`
+- 推荐安装方式是用户态 systemd：
+  - `openclaw gateway install --force`
+  - `bash scripts/install_openclaw_bridge_user_units.sh`
+- 线程去重语义属于 `daytime-sync` / `activity-pulse`，不是 `bridge-poll` 本身：
+  - `bridge-poll` 负责避免同一 `cron run` 被重复消费
+  - `activity-pulse` 负责避免同一线程在 `fingerprint` 未变化时重复进入通知载荷
 
 ## 最小验证要求
 
@@ -84,6 +146,7 @@ bash scripts/twinbox_orchestrate.sh contract --format json
 ```bash
 bash scripts/twinbox_orchestrate.sh contract --format json
 bash scripts/twinbox_orchestrate.sh run --dry-run
+bash scripts/twinbox_orchestrate.sh bridge-poll --dry-run --format json
 bash scripts/run_pipeline.sh --dry-run
 pytest tests/
 ```
