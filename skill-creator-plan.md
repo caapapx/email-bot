@@ -69,6 +69,24 @@
 - `distribution` 层：多群/多渠道推送最终应落到显式 subscription registry，而不是继续依赖 session history
 - `extension` 层：插件是后续可选项，不是当前默认路径
 
+### Track B 渐进式 skill 优化顺序
+
+- 第 1 步：先把 Markdown `SKILL.md` 做薄而准
+  - 强化 `twinbox task ...` 入口
+  - 写清 `skills.entries.twinbox.env`、`skillsSnapshot`、专用 `twinbox` agent 与当前 bridge 调度链
+- 第 2 步：补强验证面而不是急着扩能力
+  - prompt smoke 固定验证 `latest-mail`、`todo`、`progress`、`mailbox-status`
+  - 部署文档和 checklist 只记录已证实行为
+- 第 3 步：把宿主执行面稳定下来
+  - bridge / poller / timer 先形成最小可靠闭环
+  - 再讨论 retry、告警、stale fallback 的责任边界
+- 第 4 步：当任务面与 JSON shape 稳定后，再挑少数高频入口升级为插件工具
+  - 目标是减少“只读 SKILL 不执行命令”
+  - 不是一开始就把整个 Twinbox 迁到 plugin SDK
+- 第 5 步：最后再做分发层
+  - 多渠道订阅 registry
+  - 选择性停推 / 周报订阅 / 去重游标
+
 ### 基于根级 docs 的当前确定项
 
 - 登录预检已经闭环：根级 `SKILL.md` 暴露 `metadata.openclaw.login.preflightCommand`，而 `docs/ref/cli.md` 已定义 `MailboxPreflightResult`、`login_stage`、退出码和只读边界
