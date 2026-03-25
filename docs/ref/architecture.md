@@ -224,12 +224,13 @@
 
 当大量重复线程本身具有流程形状时，这一层往往就是系统真正的中心。
 
-### 3.5. 注意力闸门（Attention Gate）
+### 3.5. 注意力闸门（Attention Gate）与语义规则 (Routing Rules)
 
 用途：
 
 - 在各个 phase 之间渐进式过滤线程，让下游层只把 token 花在真正重要的线程上
-- 每个 phase 都进一步收窄注意力窗口：全量 envelope 集合 → intent 过滤 → profile 过滤 → lifecycle 建模 → actionable 集合
+- **执行用户定义的语义分拣规则 (`routing-rules.yaml`)**，结合硬边界与软语义，强制干预邮件流向（如：将群组告警邮件强制降级为 `monitor_only`）
+- 每个 phase 都进一步收窄注意力窗口：全量 envelope 集合 → intent 过滤 → profile 过滤 → lifecycle 建模 → 规则拦截 → actionable 集合
 
 工作方式：
 
@@ -520,7 +521,7 @@ mail sync
 -> normalize context facts with provenance
 -> reconstruct thread
 -> infer workflow and state
--> apply attention gate (read previous budget, classify focus/deprioritize/skip)
+-> apply attention gate & routing rules (read previous budget, evaluate routing-rules.yaml, classify focus/deprioritize/skip)
 -> attach evidence and confidence (focus set only for deep analysis)
 -> generate user-visible queues
 -> output updated attention-budget.yaml
