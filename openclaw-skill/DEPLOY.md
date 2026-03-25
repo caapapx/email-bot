@@ -533,7 +533,10 @@ bash scripts/install_openclaw_twinbox_init.sh
 - 但 2026-03-25 继续实测时，`agent:twinbox:main` 上两条自然话术都出现了“turn completed 但 `assistant.content=[]`”的空响应现象
 - 该现象下 CLI `--json` 仍显示 `status=ok`、`summary=completed`、`usage.output>0`，说明不是超时，而是返回内容在当前主会话链路里丢失
 - 继续尝试 `openclaw agent --agent twinbox --session-id ...` 与 `--to +1555...` 也没有真正创建新的 Twinbox 对话；`meta.agentMeta.sessionId` 仍回到 `39149542-a32b-400d-a9c2-aa92d89b6f02`
-- 因此当前更准确的结论是：显式 task 探针已验证，但自然话术验收仍受 `agent:twinbox:main` 空响应 / session 复用问题影响
+- 进一步改用 `openclaw cron add --agent twinbox --session isolated --no-deliver ...` 手动触发后，确实生成了独立 `agent:twinbox:cron:<jobId>` 会话
+- 在这些 isolated cron session 中，显式探针已再次验证可执行 `twinbox task latest-mail --json` 与 `twinbox task progress ... --json`，并能正常回正文
+- 但自然话术在 isolated cron session 中仍会退化成只读 `SKILL.md` / memory，最后同样出现 `assistant.content=[]`
+- 因此当前更准确的结论是：显式 task 探针已验证；自然话术问题不只在 `agent:twinbox:main` 复用，也涉及当前 OpenClaw 对 Twinbox 自然任务的路由 / 执行策略
 
 ## 为什么会出现“缺少 env”回复
 
