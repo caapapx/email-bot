@@ -148,6 +148,7 @@
 - 通用 profile config 可以影响排序、队列成员资格与呈现方式，但不应静默改写邮箱事实
 - 只有显式的用户确认事实，才可以重标记 `cc_only`、`waiting_on_me`、`monitor_only` 这类 thread-state 结论，而且这种 override 必须保持可见
 - recipient routing 必须区分 `direct`、`cc_only`、`group_only`：`cc_only` 只表示邮箱 owner 显式出现在 `Cc` 且不在 `To`；`group_only` 表示 owner 不在 `To/Cc`，但邮件通过邮件组或别名送达。默认只对 `cc_only` 做“仅抄送”降权，不能把 `group_only` 静默当成 `cc_only`
+- phase 级上下文构建在解析 recipient routing 时，必须与 mailbox/preflight 使用同一 owner 解析顺序：process env 优先，缺失时回退到 `state_root/.env` 的 `MAIL_ADDRESS`，避免脚本刷新与前台 OpenClaw 会话看到不同的收件角色
 
 ## 七层模型（Seven-Layer Model）
 

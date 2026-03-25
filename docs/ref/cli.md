@@ -662,6 +662,8 @@ twinbox task progress QUERY [--limit 5] [--json]
 
 - 薄包装 `thread progress`
 - 按 thread key、主题片段或业务关键词匹配
+- JSON 输出会额外补 `recipient_role` 与 `thread_key_display`
+- 当线程在 Phase 3 已被识别为 `cc_only` / `group_only` / `indirect` 时，`thread_key_display` 会带 `[CC]` 或 `[GRP]` 前缀，避免 hosted skill 在“查进展”问法下丢失收件角色信号
 
 ### task weekly
 
