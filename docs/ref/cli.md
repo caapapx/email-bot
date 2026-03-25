@@ -117,6 +117,11 @@ context_refs: list[string]
 why: string  # 简短解释
 ```
 
+说明：
+- `thread_id` 在 `task todo --json` 这类薄路由里，可能带有 `[CC]` 或 `[GROUP]` 前缀，用来显式暴露 recipient routing 信号
+- `[CC]` 表示邮箱 owner 显式只在 `Cc`
+- `[GROUP]` 表示邮箱 owner 不在 `To/Cc`，而是通过邮件组或别名收到该线程
+
 ### QueueView
 
 队列的稳定视图。
