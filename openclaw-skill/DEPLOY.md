@@ -9,7 +9,7 @@
 | 你想做的事 | 阅读章节 |
 |------------|----------|
 | 理解「聊天里配 Twinbox」和「后台跑 phase」怎么分工 | **§2** |
-| 按顺序从零接好 Twinbox × OpenClaw | **§3** |
+| 按顺序从零接好 Twinbox × OpenClaw（含 Gateway 会话级 smoke） | **§3**（**§3.6.1**） |
 | 升级 skill / CLI / 插件后怎么热更新 | **§4** |
 | 模型总不执行 CLI，要确定性工具 | **§5** |
 | `skills.entries.twinbox.env` 与 session 快照为何不一致 | **§7** |
@@ -161,6 +161,8 @@ bash scripts/install_openclaw_twinbox_init.sh
 - 写入 `~/.config/twinbox/code-root`、`state-root`（及兼容的 `canonical-root`）。
 - 默认会从 workspace 视角尝试验证 `twinbox mailbox preflight --json` 链路（以脚本实现为准）。
 
+**路径注意**：验证阶段会 `cd` 到 **`$OPENCLAW_WORKSPACE`**（未设置时默认为 `~/.openclaw/workspace`）。若你在 `openclaw.json` 里给 **`twinbox` agent** 单独配置了 `workspace`（常见为 `~/.openclaw/workspaces/twinbox`），那是 **会话工作区**，与上述验证目录 **可以不同**。只要 `~/.config/twinbox/code-root` 指向 Twinbox 仓库根，CLI 仍会解析到正确 state root；若默认 workspace 目录不存在，验证会失败——可创建该目录，或改用 `bash scripts/install_openclaw_twinbox_init.sh --no-verify`，随后在 code root 下手工执行 `twinbox mailbox preflight --json`。
+
 语义：
 
 - **`skills.entries.twinbox.env`**：OpenClaw agent run 侧的一等邮箱配置源（见 **§7**）。
@@ -204,6 +206,8 @@ cp /path/to/twinbox/SKILL.md ~/.openclaw/skills/twinbox/SKILL.md
 }
 ```
 
+**安全**：`~/.openclaw/openclaw.json` 中的 `skills.entries.*.env`、Gateway `token` 等为敏感信息，**勿提交到 git**；若文件曾泄露，应轮换邮箱凭据与 Gateway token。
+
 然后 **重启 Gateway**，并用 **新会话** 起 agent turn，再检查该会话的 `systemPromptReport.skills.entries` 或 `skillsSnapshot`（见 **§7**）。
 
 ### 3.6 最小验证（宿主）
@@ -216,6 +220,24 @@ openclaw tui
 
 本仓库曾实测：`openclaw skills info twinbox` 显示 `Ready` **不等于** 当前会话 prompt 已包含 `twinbox`；**env 未注入 run 时 skill 会在 run 级被过滤**（**§7**）。
 
+### 3.6.1 Gateway 与会话级 smoke（`openclaw agent`）
+
+在 Gateway 已运行（`openclaw gateway status` 中 **RPC probe** 为 ok）时，可用 **单次 agent turn** 验证 `twinbox` agent 侧 skill / 工具是否注入：
+
+```bash
+openclaw agent --agent twinbox --message "Acknowledge if twinbox skill is available." --json --timeout 120
+```
+
+在输出 JSON 的 `result.meta.systemPromptReport` 中核对：
+
+- `sessionKey` 一般为 `agent:twinbox:main`（以你配置为准）。
+- `skills.entries` 中应出现 **`twinbox`**。
+- `workspaceDir` 对应该 agent 在 `agents.list` 里配置的 **专用 workspace**（可与默认 `~/.openclaw/workspace` 不同，与 **§3.4** 中 init 脚本使用的目录也可不同）。
+
+**平台行为**：部分版本上 `openclaw agent --json` 的 `result.payloads` 可能为空，非 JSON 模式终端可能只打印 `completed`；这 **不表示** turn 失败。若要阅读助手正文，用 `openclaw tui` 或渠道侧历史；**要以机器可读输出验收 Twinbox 时，仍以宿主 shell 的 `twinbox … --json` 为准**（见 **§3.8**）。
+
+`openclaw gateway status` 可能附带 systemd PATH、Node 来源等维护性建议（如 `openclaw doctor`）；与 Twinbox 无关时可择期处理。
+
 ### 3.7 推荐使用方式
 
 - 为 Twinbox 使用 **专用 `twinbox` agent**；通用聊天用 `main`。
@@ -225,6 +247,15 @@ openclaw tui
 ### 3.8 在 OpenClaw 里完成对话引导（推荐）
 
 在 **`twinbox` agent**、且已确认 skill 进入当前会话 prompt（**§7**）后：
+
+**可观测性（推荐）**：需要 **可靠 JSON** 验收或排障时，在宿主终端执行（依赖 **§3.4** 已写入的 `code-root`）：
+
+```bash
+cd "$(tr -d '\n' < ~/.config/twinbox/code-root)"
+twinbox onboarding status --json
+```
+
+在 TUI / 聊天里仍可由模型按 [SKILL.md](../SKILL.md) 调用相同 CLI；以 **shell 输出** 为准，避免依赖模型是否完整粘贴 JSON。
 
 1. 让 agent 执行 `twinbox onboarding start --json`，按返回的 `prompt` 与用户多轮对话收集信息；需要探测服务器时可配合 `twinbox mailbox detect EMAIL --json`（见 [docs/ref/cli.md](../docs/ref/cli.md)）。
 2. 阶段完成后执行 `twinbox onboarding next --json`，重复直到 `current_stage` 为 `completed`；中途可用 `twinbox onboarding status --json` 查看进度。
@@ -248,7 +279,7 @@ openclaw tui
 3. 使 Gateway 重新加载：  
    `openclaw gateway restart`（或你环境中的等价操作）。
 
-变更后按 **§3.6–§3.8** 用新会话做一次 smoke（至少 `skills info` + 一条 `task` 或 onboarding `status`）。
+变更后按 **§3.6–§3.8**（含 **§3.6.1** 可选）用新会话做一次 smoke：至少 `skills info`、一条 `task` 或 `onboarding status --json`（宿主 shell），以及按需一次 `openclaw agent --agent twinbox … --json` 看 `systemPromptReport`。
 
 ---
 
@@ -341,6 +372,18 @@ openclaw tui
 ### 9.2 成因 B：state root 漂移到 workspace
 
 未配置 `~/.config/twinbox/state-root` 等时，在 workspace cwd 下可能回落到 `~/.openclaw/workspace/.env`。请执行 **§3.4** 并核对 **§7**。
+
+### 9.3 `openclaw skills info` 前缀告警
+
+若出现 `[skills] Skipping skill path that resolves outside its configured root.`，多为 **其他** skill 的路径越出 OpenClaw 配置的 skill 根目录，**未必**与 twinbox 有关。以 `openclaw skills info twinbox` 是否 `Ready`、以及 **`openclaw agent … --json` 中 `systemPromptReport.skills.entries` 是否含 `twinbox`** 为准。
+
+### 9.4 Gateway 未运行或 RPC 失败
+
+`openclaw gateway status` 中 **RPC probe** 非 ok 时，`openclaw agent` 无法完成 turn。先按输出中的 systemd / 端口 / `openclaw doctor` 建议处理。
+
+### 9.5 `openclaw agent --json` 看不到助手正文
+
+见 **§3.6.1**：`result.payloads` 可能为空。验收 Twinbox 逻辑请使用宿主 **`twinbox … --json`**。
 
 ---
 
@@ -436,6 +479,7 @@ openclaw tui
 
 ### B.2 托管接入
 
+- [x] `openclaw agent --agent twinbox … --json` 中 `systemPromptReport.skills.entries` 含 `twinbox`（2026-03-26 本机复验）
 - [x] OpenClaw 能读取 skill manifest
 - [x] `openclaw skills info twinbox` 展示 `requires.env`
 - [ ] 平台是否自动收集 / 透传 env
