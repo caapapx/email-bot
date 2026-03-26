@@ -7,7 +7,7 @@
 
 本文档定义 twinbox 如何与 OpenClaw 的定时调度功能集成，实现 cadence 运行策略中定义的预计算刷新。
 
-注意：截至 2026-03-25，本机 OpenClaw 仍没有“自动消费 `metadata.openclaw.schedules[].command` 并注册 job”的实测证据。当前已跑通的最小闭环是 `openclaw cron -> system-event -> 宿主 bridge/poller -> twinbox-orchestrate schedule --job ...`。因此本文档目前应读作“声明层与目标架构草案”，不是平台已完全接通的事实说明。
+注意：截至 2026-03-26，本机 OpenClaw 仍没有“自动消费 `metadata.openclaw.schedules[].command` 并注册 job”的实测证据。当前已跑通的最小闭环是 `openclaw cron -> system-event -> 宿主 bridge/poller -> twinbox-orchestrate schedule --job ...`。因此本文档目前应读作“声明层与目标架构草案”，不是平台已完全接通的事实说明。
 
 **核心原则**：
 
@@ -15,6 +15,22 @@
 - 当前运行闭环优先走 OpenClaw Gateway `cron` + `system-event` + 宿主 bridge
 - 保持命令接口简单，便于手动触发和调试
 - listener / event-driven 扩展仍属于后续演进面
+
+### 0. 2026-03-26 复核结论
+
+本机再次做了两层复核：
+
+1. 真实执行 `openclaw cron list --all --json`，Gateway 里只看到一个 Twinbox 相关 cron job：`twinbox-daily-refresh`
+2. 该 job 的 payload 是 `systemEvent`，文本为 `{"kind":"twinbox.schedule","job":"daytime-sync","event_source":"openclaw.system-event"}`
+3. `weekly-refresh` / `nightly-full-refresh` 并没有因为 `SKILL.md` 里的 metadata 声明而自动出现
+4. 该现存 job 与 `src/twinbox_core/schedule_override.py` 里的 `platform_name` / `scheduled_job` 绑定完全一致，说明它来自 Twinbox 的主动 bridge cron 同步逻辑，不是平台自动从 metadata 导入
+5. 在本机 OpenClaw 安装包中未检索到 `metadata.openclaw.schedules` 的消费实现；当前可见的是通用 cron store / cron CLI 能力
+
+因此，当前结论应视为：
+
+- `metadata.openclaw.schedules` 仍是声明层
+- 平台原生自动导入 cron job 仍未证实
+- 生产可依赖路径仍是 Twinbox 主动维护 bridge cron job
 
 ---
 
@@ -247,7 +263,7 @@ def _is_stale(generated_at_str: str, max_age_hours: int = 24) -> bool:
 当前可确认的是：
 1. OpenClaw 能读取 `SKILL.md` 中的 `metadata.openclaw.schedules` 声明
 2. 这些声明可作为 Twinbox 文档与部署面的 source of truth
-3. 是否自动注册为平台 cron job 仍待验证
+3. 当前本机实测未见平台自动把这些声明注册为 cron job；至少在 2026-03-26 的 `cron list` 里，没有自动出现 metadata 中声明的 `weekly-refresh` / `nightly-full-refresh`
 
 当前已实测的最小闭环是：
 1. 用 `openclaw cron` 创建 `system-event` job
@@ -341,7 +357,7 @@ WantedBy=timers.target
 ## 实现检查清单
 
 - [x] 更新 SKILL.md 添加 schedules 配置
-- [ ] 验证 OpenClaw 能解析 schedules 元数据并自动导入 job
+- [ ] 验证 OpenClaw 能解析 schedules 元数据并自动导入 job（截至 2026-03-26，本机复核仍未得到正面证据）
 - [x] 测试 `openclaw cron -> system-event -> host bridge` 触发命令执行
 - [ ] 实现失败重试逻辑
 - [ ] 添加 stale 告警机制
