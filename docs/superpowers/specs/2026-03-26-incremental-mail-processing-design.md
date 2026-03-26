@@ -111,7 +111,9 @@ completed:
 
 **说明**：
 - 使用 `thread_key`（与 `daytime_slice.py`、Phase 4 artifacts 一致）
-- `fingerprint` 格式与 `daytime_slice.py` 的 `_state_marker()` 输出一致：`{latest_message_ref}|{queue_tags}|{waiting_on}|{flow}|{stage}`
+- `fingerprint` 格式与 `daytime_slice.py` 一致：完整格式为 `{latest_message_ref}|{queue_tags}|{waiting_on}|{flow}|{stage}`
+- 其中 `queue_tags` 为按字母排序后用逗号连接的列表，例如 `pending` 或 `pending,urgent`；当没有 tag 时该段为空字符串
+- 等价关系：`fingerprint = {latest_message_ref} + "|" + _state_marker(queue_state)`，而 `_state_marker()` 输出 `{queue_tags}|{waiting_on}|{flow}|{stage}`
 
 **区别**：
 - `dismissed`：暂时忽略，有新回复时智能重新激活
