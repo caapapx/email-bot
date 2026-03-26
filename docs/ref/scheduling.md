@@ -7,11 +7,11 @@
 
 本文档定义 twinbox 如何与 OpenClaw 的定时调度功能集成，实现 cadence 运行策略中定义的预计算刷新。
 
-注意：截至 2026-03-26，本机 OpenClaw 仍没有“自动消费 `metadata.openclaw.schedules[].command` 并注册 job”的实测证据。当前已跑通的最小闭环是 `openclaw cron -> system-event -> 宿主 bridge/poller -> twinbox-orchestrate schedule --job ...`。因此本文档目前应读作“声明层与目标架构草案”，不是平台已完全接通的事实说明。
+注意：截至 2026-03-26，本机 OpenClaw 仍没有“自动消费 skill schedule metadata 并注册 job”的实测证据。当前已跑通的最小闭环是 `openclaw cron -> system-event -> 宿主 bridge/poller -> twinbox-orchestrate schedule --job ...`。因此本文档目前应读作“Twinbox 默认 schedule 配置 + bridge cron 集成说明”，不是平台已完全接通的事实说明。
 
 **核心原则**：
 
-- `SKILL.md` 里的 `metadata.openclaw.schedules` 先作为声明层 source of truth
+- `config/schedules.yaml` 是 Twinbox 默认 schedule 配置的 source of truth
 - 当前运行闭环优先走 OpenClaw Gateway `cron` + `system-event` + 宿主 bridge
 - 保持命令接口简单，便于手动触发和调试
 - listener / event-driven 扩展仍属于后续演进面
@@ -22,88 +22,47 @@
 
 1. 真实执行 `openclaw cron list --all --json`，Gateway 里只看到一个 Twinbox 相关 cron job：`twinbox-daily-refresh`
 2. 该 job 的 payload 是 `systemEvent`，文本为 `{"kind":"twinbox.schedule","job":"daytime-sync","event_source":"openclaw.system-event"}`
-3. `weekly-refresh` / `nightly-full-refresh` 并没有因为 `SKILL.md` 里的 metadata 声明而自动出现
-4. 该现存 job 与 `src/twinbox_core/schedule_override.py` 里的 `platform_name` / `scheduled_job` 绑定完全一致，说明它来自 Twinbox 的主动 bridge cron 同步逻辑，不是平台自动从 metadata 导入
-5. 在本机 OpenClaw 安装包中未检索到 `metadata.openclaw.schedules` 的消费实现；当前可见的是通用 cron store / cron CLI 能力
+3. `weekly-refresh` / `nightly-full-refresh` 并没有因为 skill metadata 而自动出现
+4. 该现存 job 与 `src/twinbox_core/schedule_override.py` 里的 `platform_name` / `scheduled_job` 绑定完全一致，说明它来自 Twinbox 的主动 bridge cron 同步逻辑，不是平台自动从 skill metadata 导入
+5. 在本机 OpenClaw 安装包中未检索到 schedule metadata 的消费实现；当前可见的是通用 cron store / cron CLI 能力
 
 因此，当前结论应视为：
 
-- `metadata.openclaw.schedules` 仍是声明层
+- skill schedule metadata 仍未见平台消费证据
 - 平台原生自动导入 cron job 仍未证实
 - 生产可依赖路径仍是 Twinbox 主动维护 bridge cron job
 
 ---
 
-## OpenClaw Schedules 声明与桥接配置
+## Twinbox 默认 Schedule 与桥接配置
 
-### 1. SKILL.md 元数据扩展
+### 1. Twinbox 默认 Schedule 配置
 
-在 `SKILL.md` 中声明 `schedules` 配置：
+Twinbox 默认 schedule 现在定义在 [`config/schedules.yaml`](../../config/schedules.yaml)：
 
 ```yaml
----
-name: twinbox
-description: Thread-centric email copilot for OpenClaw
-metadata:
-  openclaw:
-    requires:
-      env:
-        - IMAP_HOST
-        - IMAP_PORT
-        - IMAP_LOGIN
-        - IMAP_PASS
-        - SMTP_HOST
-        - SMTP_PORT
-        - SMTP_LOGIN
-        - SMTP_PASS
-    primaryEnv: IMAP_LOGIN
-    login:
-      mode: password-env
-      runtimeRequiredEnv:
-        - IMAP_HOST
-        - IMAP_PORT
-        - IMAP_LOGIN
-        - IMAP_PASS
-        - SMTP_HOST
-        - SMTP_PORT
-        - SMTP_LOGIN
-        - SMTP_PASS
-        - MAIL_ADDRESS
-      optionalDefaults:
-        MAIL_ACCOUNT_NAME: myTwinbox
-        MAIL_DISPLAY_NAME: "{MAIL_ACCOUNT_NAME}"
-        IMAP_ENCRYPTION: tls
-        SMTP_ENCRYPTION: tls
-      stages:
-        - unconfigured
-        - validated
-        - mailbox-connected
-      preflightCommand: "twinbox mailbox preflight --json"
-    schedules:
-      - name: daily-refresh
-        cron: "30 8 * * *"
-        command: "twinbox-orchestrate run --phase 4"
-        description: "每日 8:30 刷新队列和摘要"
-        enabled: true
-      - name: weekly-refresh
-        cron: "30 17 * * 5"
-        command: "twinbox-orchestrate run --phase 4"
-        description: "每周五 17:30 刷新周报"
-        enabled: true
-      - name: nightly-full-refresh
-        cron: "0 2 * * *"
-        command: "twinbox-orchestrate run"
-        description: "夜间全量校正，修正漂移"
-        enabled: true
----
+timezone: Asia/Shanghai
+schedules:
+  - name: daily-refresh
+    cron: "30 8 * * *"
+    command: "twinbox-orchestrate run --phase 4"
+    description: "每日 8:30 刷新队列和摘要"
+  - name: weekly-refresh
+    cron: "30 17 * * 5"
+    command: "twinbox-orchestrate run --phase 4"
+    description: "每周五 17:30 刷新周报"
+  - name: nightly-full-refresh
+    cron: "0 2 * * *"
+    command: "twinbox-orchestrate run"
+    description: "夜间全量校正，修正漂移"
 ```
 
 登录预检契约说明：
 
-- `requires.env`：OpenClaw 表单最小登录集
-- `login.runtimeRequiredEnv`：twinbox 实际运行与只读 preflight 所需字段
-- `login.optionalDefaults`：OpenClaw 未显式收集时由 twinbox 自动补全
-- `login.preflightCommand`：OpenClaw 在收集字段后调用的稳定 JSON 接口
+- `SKILL.md` 的 `metadata.openclaw.requires.env`：OpenClaw 表单最小登录集
+- `SKILL.md` 的 `metadata.openclaw.login.runtimeRequiredEnv`：twinbox 实际运行与只读 preflight 所需字段
+- `SKILL.md` 的 `metadata.openclaw.login.optionalDefaults`：OpenClaw 未显式收集时由 twinbox 自动补全
+- `SKILL.md` 的 `metadata.openclaw.login.preflightCommand`：OpenClaw 在收集字段后调用的稳定 JSON 接口
 
 ### 2. Cron 表达式说明
 
@@ -115,8 +74,7 @@ metadata:
 
 **注意**：
 - Cron 表达式使用服务器本地时区
-- 如果未来平台自动消费 `schedules`，应在指定时间触发命令
-- 在当前已验证路径里，真正执行命令的是宿主 bridge，而不是 manifest 自动导入
+- 在当前已验证路径里，真正执行命令的是 Twinbox 维护的 bridge cron job，而不是 skill metadata 自动导入
 
 ---
 
@@ -261,9 +219,9 @@ def _is_stale(generated_at_str: str, max_age_hours: int = 24) -> bool:
 ### 1. Skill 部署时
 
 当前可确认的是：
-1. OpenClaw 能读取 `SKILL.md` 中的 `metadata.openclaw.schedules` 声明
-2. 这些声明可作为 Twinbox 文档与部署面的 source of truth
-3. 当前本机实测未见平台自动把这些声明注册为 cron job；至少在 2026-03-26 的 `cron list` 里，没有自动出现 metadata 中声明的 `weekly-refresh` / `nightly-full-refresh`
+1. Twinbox 当前默认 schedule 定义来自 `config/schedules.yaml`
+2. `twinbox schedule list/update/reset` 与 OpenClaw bridge cron 同步都以该配置为默认值来源
+3. 当前本机实测未见平台自动把 skill metadata 注册为 cron job；至少在 2026-03-26 的 `cron list` 里，删除 bridge job 后它们不会自动重建
 
 当前已实测的最小闭环是：
 1. 用 `openclaw cron` 创建 `system-event` job
@@ -356,8 +314,8 @@ WantedBy=timers.target
 
 ## 实现检查清单
 
-- [x] 更新 SKILL.md 添加 schedules 配置
-- [ ] 验证 OpenClaw 能解析 schedules 元数据并自动导入 job（截至 2026-03-26，本机复核仍未得到正面证据）
+- [x] 将 Twinbox 默认 schedule 配置独立到 `config/schedules.yaml`
+- [ ] 验证 OpenClaw 能解析 skill schedule metadata 并自动导入 job（截至 2026-03-26，本机复核仍未得到正面证据）
 - [x] 测试 `openclaw cron -> system-event -> host bridge` 触发命令执行
 - [ ] 实现失败重试逻辑
 - [ ] 添加 stale 告警机制

@@ -110,7 +110,7 @@ flowchart LR
 | 1 | 是否需要 **日内多次** 刷新 Phase 4 产物？ | 必须落实 **§3.9** 宿主调度或等价的 `schedule` 调用面，不能只依赖用户手动在聊天里跑 orchestrate。 |
 | 2 | 推送是否要 **稳定到达** 某一 OpenClaw session？ | 对话阶段完成 `push subscribe` + 后台 `daytime-sync` 成功；核对 [docs/ref/orchestration.md](../docs/ref/orchestration.md) 与审计日志。 |
 | 3 | 团队是否多人使用同一 state root？ | 共享 **单一** `state root`；调度去重见 orchestration 中 `schedule.lock` 与 `activity-pulse` 说明。 |
-| 4 | 是否允许依赖 OpenClaw **自动消费** `metadata.openclaw.schedules`？ | 当前仍属 **声明层/待验**；生产路径以 **bridge + 显式 cron** 为准，见 **§11**。 |
+| 4 | 是否允许依赖 OpenClaw **自动消费** skill schedule metadata？ | 当前仍属 **待验/未见正面证据**；生产路径以 **bridge + 显式 cron** 为准，见 **§11**。 |
 
 ---
 
@@ -171,7 +171,7 @@ bash scripts/install_openclaw_twinbox_init.sh
 
 ### 3.5 安装托管 skill 文件
 
-Manifest 的单一事实源是仓库根 [SKILL.md](../SKILL.md)。部署前核对其中 `metadata.openclaw`（如 `requires.env`、`login`、`schedules`）；**`schedules` 目前仍属设计契约**，是否被平台自动消费见 **§11**。
+Manifest 的单一事实源是仓库根 [SKILL.md](../SKILL.md)。部署前核对其中 `metadata.openclaw`（如 `requires.env`、`login`）。Twinbox 默认 schedule 现定义在 [`config/schedules.yaml`](../config/schedules.yaml)；平台是否自动消费 skill schedule metadata 见 **§11**。
 
 安装到 OpenClaw skills 目录，例如：
 
@@ -404,7 +404,7 @@ twinbox onboarding status --json
 
 ### 11.2 仍未闭环或未验证（摘录）
 
-- 平台是否自动消费 `metadata.openclaw.schedules`。
+- 平台是否自动消费 skill schedule metadata。
 - OpenClaw cron / heartbeat 与 Twinbox phase 刷新的完整责任边界。
 - listener / action / review 在托管环境中的运行方式。
 - 部署后日志、通知、失败重试、stale fallback 的归属。
@@ -412,7 +412,7 @@ twinbox onboarding status --json
 ### 11.3 当前建议（摘要）
 
 - 不把方案写成「完整托管已结束」；以 **manifest + CLI + bridge** 为实，托管调度与平台预检消费为待验项。
-- 优先：**§3** / **§4** 的稳定部署面；宿主 **poller + bridge** 闭环；再验证 `preflightCommand` 与 `metadata.openclaw.schedules` 的真实消费或明确其为声明层。
+- 优先：**§3** / **§4** 的稳定部署面；宿主 **poller + bridge** 闭环；再验证 `preflightCommand` 与 skill schedule metadata 的真实消费或明确其为非平台路径。
 
 更细的排期与历史实测段落见 **附录 B** 检查清单中的勾选与备注。
 
@@ -445,7 +445,7 @@ twinbox onboarding status --json
 |---------------|----------------|
 | `skills.entries.<name>.env` | 邮箱与宿主 env；§7 |
 | `metadata.openclaw.requires.env` / `login.preflightCommand` | [SKILL.md](../SKILL.md)、[docs/ref/cli.md](../docs/ref/cli.md) |
-| `metadata.openclaw.schedules` | 声明层；[docs/ref/scheduling.md](../docs/ref/scheduling.md) |
+| `config/schedules.yaml` + Twinbox bridge cron sync | 当前默认 schedule 来源与平台同步路径；[docs/ref/scheduling.md](../docs/ref/scheduling.md) |
 | Gateway `cron` + `system-event` | [scripts/twinbox_openclaw_bridge.sh](../scripts/twinbox_openclaw_bridge.sh)、poller、[openclaw_bridge.py](../src/twinbox_core/openclaw_bridge.py) |
 | `openclaw skills list` / `info` | 部署验证；≠ 当前 session 已注入 |
 | 插件 `registerTool()` | §5；缓解「只读 SKILL」 |
@@ -497,7 +497,7 @@ twinbox onboarding status --json
 - [x] `cron` 创建 / debug `systemEvent` job
 - [x] 宿主机 poller：`scripts/twinbox_openclaw_bridge_poll.sh`
 - [x] 用户态 timer 样例安装与 `daytime-sync` 触发（以你环境日志为准）
-- [ ] `metadata.openclaw.schedules` 是否被平台解析
+- [ ] skill schedule metadata 是否被平台解析
 - [ ] 失败重试 / 告警 / stale 恢复责任
 - [x] 已确认 `daytime-sync` 与 Phase 4 overlay 等行为边界（见调度文档）
 

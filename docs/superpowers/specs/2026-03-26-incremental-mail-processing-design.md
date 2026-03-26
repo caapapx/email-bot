@@ -132,7 +132,7 @@ overrides:
 ```
 
 **规则**：
-- SKILL.md 的 `metadata.openclaw.schedules` 保持不变（默认值）
+- 默认值由独立配置维护；当前实现位于 `config/schedules.yaml`
 - 此文件为用户级覆盖，优先级高于默认值
 - 修改后需通知 OpenClaw 重新注册 cron
 
