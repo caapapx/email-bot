@@ -42,6 +42,17 @@ twinbox                      # task-facing CLI 入口
 
   mailbox                    # 邮箱登录与只读预检
     preflight
+    detect                   # 邮件服务器自动探测
+
+  onboarding                 # 对话式引导配置
+    start
+    status
+
+  push                       # 推送通知订阅
+    subscribe
+    unsubscribe
+    list
+    dispatch
 
   queue                      # 队列视图
     list
@@ -285,6 +296,97 @@ twinbox mailbox preflight [--json] [--account NAME] [--folder INBOX] [--page-siz
 - 渲染 `runtime/himalaya/config.toml`
 - 执行 `himalaya envelope list --output json`
 - 写入 `runtime/validation/preflight/mailbox-smoke.json`
+
+### mailbox detect
+
+自动探测邮件服务器配置（IMAP/SMTP 主机和端口）。
+
+**用法**：
+
+```bash
+twinbox mailbox detect EMAIL [--json]
+```
+
+**参数**：
+
+- `EMAIL`：邮箱地址（必需）
+- `--json`：输出 JSON 格式
+
+**探测逻辑**：
+
+1. TCP 连接测试
+2. TLS 握手验证
+3. 协议 banner 验证（IMAP/SMTP）
+4. 智能选择：优先 mail.* 统一主机，其次 imap.*/smtp.* 分离主机
+
+**输出字段**（JSON）：
+
+- `IMAP_HOST`、`IMAP_PORT`、`IMAP_ENCRYPTION`
+- `SMTP_HOST`、`SMTP_PORT`、`SMTP_ENCRYPTION`
+- `_confidence`：high | medium | low
+- `_note`：探测说明
+
+### onboarding start
+
+启动对话式引导配置流程。
+
+**用法**：
+
+```bash
+twinbox onboarding start [--json]
+```
+
+**阶段**：mailbox_login → profile_setup → material_import → routing_rules → push_subscription
+
+### onboarding status
+
+查看当前引导进度。
+
+**用法**：
+
+```bash
+twinbox onboarding status [--json]
+```
+
+### push subscribe
+
+订阅推送通知。
+
+**用法**：
+
+```bash
+twinbox push subscribe SESSION_ID [--min-urgency high|medium|low] [--json]
+```
+
+### push unsubscribe
+
+取消订阅。
+
+**用法**：
+
+```bash
+twinbox push unsubscribe SESSION_ID [--json]
+```
+
+### push list
+
+列出所有订阅。
+
+**用法**：
+
+```bash
+twinbox push list [--json]
+```
+
+### push dispatch
+
+手动触发推送分发（测试用）。
+
+**用法**：
+
+```bash
+twinbox push dispatch [--openclaw-bin PATH] [--json]
+```
 
 ### queue list
 
