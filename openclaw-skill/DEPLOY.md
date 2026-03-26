@@ -11,11 +11,21 @@
 - **覆盖**：Twinbox 作为 OpenClaw **托管 Markdown skill**（及可选 **插件工具**）的安装路径、`openclaw.json` 配置、roots 初始化、验证与常见误判。
 - **不覆盖**：OpenClaw 本体的安装与升级（以 [docs.openclaw.ai](https://docs.openclaw.ai) 与你选用的发行方式为准）；Claude Code / Opencode 本地 `.claude/` skill。
 
-### 1.2 「人性化引导」与本文的关系
+### 1.2 对话引导 + 后台执行（设计分层）
 
-- **应用内配置**：`twinbox onboarding` 等对话式流程覆盖邮箱探测、画像、路由规则等 **用户态配置**，详见 [docs/ref/cli.md](../docs/ref/cli.md)。**这不等于** OpenClaw Gateway、skill 文件、宿主 env 会自动配好。
-- **宿主部署**：OpenClaw 安装、skill 同步、`skills.entries.twinbox.env`、Gateway 重启、bridge/systemd 等 **必须由运维按本文或脚本执行**；仓库内 **没有** 统一的「一键向导」或聊天内闭环部署产品。
-- 目录说明 [README.md](./README.md) 中的策略与 smoke 摘要仍有效；**逐步命令以本文 §2 为准**（避免与 README 中「从 `openclaw-skill/` 相对路径」混用时的 cwd 歧义）。
+架构上把三件事拆开写清楚（与 [docs/ref/architecture.md](../docs/ref/architecture.md) 一致）：
+
+| 层次 | 做什么 | 典型入口 |
+|------|--------|----------|
+| **宿主态接线** | OpenClaw 安装、Twinbox CLI、`code-root`/`state-root`、把根 [SKILL.md](../SKILL.md) 装进 `~/.openclaw/skills/twinbox/`、`skills.entries.twinbox.env`、Gateway 重启、可选 bridge/timer | 本文 **§2.1–§2.5**、**§2.9** |
+| **用户态对话引导** | 在 **`twinbox` agent 会话**里，由模型按 [SKILL.md](../SKILL.md) 调用 CLI，分阶段完成邮箱探测、preflight、画像、材料、路由规则、推送订阅 | `twinbox onboarding start|status|next --json`，辅以 `mailbox detect`、`task mailbox-status` 等；契约见 [docs/ref/cli.md](../docs/ref/cli.md) |
+| **后台刷新与推送** | 长耗时 phase 刷新 **不占用** 聊天 turn；由定时任务驱动 `twinbox-orchestrate schedule --job …`，`daytime-sync` 等成功后可按订阅触发推送 | [docs/ref/orchestration.md](../docs/ref/orchestration.md)（`daytime-sync` 与 `push_dispatch`） |
+
+**实现记录**：对话式 onboarding 阶段机与 `onboarding next` 推进、以及 `daytime-sync` 后触发订阅推送等，见仓库提交 `93e50b5`、`07b13b4` 及后续相关改动。
+
+**常见误解**：对话引导 **不能** 代替宿主接线（例如无法仅靠聊天就写入 `~/.openclaw/openclaw.json` 或替你执行 `cp SKILL.md`）；但一旦托管侧 env 与 skill 就绪，**推荐把 Twinbox 用户配置主路径放在 OpenClaw 对话里走 onboarding**，而不是要求用户只 SSH 手改文件。
+
+目录说明 [README.md](./README.md) 中的策略与 smoke 摘要仍有效；**宿主 shell 命令的路径约定以本文 §1.4 为准**。
 
 ### 1.3 你该先看哪一节
 
@@ -23,6 +33,7 @@
 |------|--------|
 | 还没有 OpenClaw 服务 | 先按官方文档完成安装并使 Gateway 可用 |
 | 全新 **原生 npm** OpenClaw，要接 Twinbox | **§2 从零部署（主路径）** |
+| 宿主已接线，要在聊天里做邮箱/画像/规则/推送引导 | **§2.8**（`onboarding`） |
 | 只更新仓库或改了 CLI / Tool | **§3 维护与升级** |
 | 希望确定性工具而非「只读 SKILL」 | **§4 可选：`plugin-twinbox-task`** |
 
@@ -35,7 +46,9 @@
 
 ## 2. 从零部署（主路径）
 
-按顺序执行；任一步失败先排障，不要跳到 OpenClaw 托管验证。
+**推荐整体顺序**：先完成 **§2.1–§2.5（宿主接线）** → **§2.6–§2.7（验证与专用 agent）** → **§2.8（在 Claw 里跑 onboarding）** → 需要定时刷新时再 **§2.9（bridge/timer）**。
+
+任一步失败先排障；没有完成宿主接线时，不要在 OpenClaw 里假设 skill 已注入或 onboarding 能代替 env。
 
 ### 2.1 前置：OpenClaw 可用
 
@@ -46,25 +59,22 @@
 
 - 在仓库根按项目惯例安装 editable / 包，使宿主机上 `twinbox`、`twinbox-orchestrate` 可执行。
 
-### 2.3 邮箱与本地运行面
+### 2.3 邮箱连通与首次 phase（门槛）
 
-- 配置邮箱相关环境变量（或 state root 下的 `.env`），直到：
+在接 OpenClaw 托管之前，必须有一种方式让 **宿主上的** `twinbox` 能读齐邮箱配置并跑通预检，二选一或组合：
 
-```bash
-twinbox mailbox preflight --json
-```
+- **A. 先配 `state root/.env`（或等价 process env）**，在仓库根或已 init 的 roots 下执行，直到 `twinbox mailbox preflight --json` 成功。
+- **B. 仅依赖托管**：把完整 IMAP/SMTP 等写入 **`skills.entries.twinbox.env`**（§2.5）并重启 Gateway 后，在 **`twinbox` agent** 里执行 `twinbox task mailbox-status --json` / `twinbox mailbox preflight --json` 确认（仍要求 Gateway run 已注入 env，见 §5）。
 
-返回结构化成功结果。
-
-- 可选：用 `twinbox onboarding` 完成画像与规则等 **应用内** 配置（与 OpenClaw 无关）。
-
-- 至少手动跑通一次：
+至少手动跑通一次完整产物链（可在宿主 shell，不必在聊天里）：
 
 ```bash
 twinbox-orchestrate run --phase 4
 ```
 
-若本地 CLI 与 phase 未跑通，**不要**先接 OpenClaw 托管。
+若本地 CLI 与 phase 未跑通，不要宣称托管侧已可用。
+
+**说明**：画像、材料、路由规则、推送订阅等 **渐进配置** 的主路径是 **§2.8** 的 `onboarding`，不是本节的手改文件。
 
 ### 2.4 初始化 code root / state root（强烈建议）
 
@@ -142,7 +152,17 @@ openclaw tui
 - 常见只读任务优先 **显式** `twinbox task ...`（或 §4 插件工具），减少对「模型自己选命令」的依赖。
 - **skill / env 变更后**：开 **新 session** 验证，勿复用可能冻结旧 `skillsSnapshot` 的会话。
 
-### 2.8 可选：调度与宿主桥接
+### 2.8 在 OpenClaw 里完成对话引导（推荐）
+
+在 **`twinbox` agent**、且已确认 skill 进入当前会话 prompt（§5）后：
+
+1. 让 agent 执行 `twinbox onboarding start --json`，按返回的 `prompt` 与用户多轮对话收集信息；需要探测服务器时可配合 `twinbox mailbox detect EMAIL --json`（见 [docs/ref/cli.md](../docs/ref/cli.md)）。
+2. 阶段完成后执行 `twinbox onboarding next --json`，重复直到 `current_stage` 为 `completed`；中途可用 `twinbox onboarding status --json` 查看进度。
+3. 阶段顺序与语义以 CLI 文档与 `runtime/onboarding-state.json` 为准：`mailbox_login` → `profile_setup` → `material_import` → `routing_rules` → `push_subscription`。
+
+推送订阅（`twinbox push subscribe SESSION_ID --json` 等）与 **后台** `daytime-sync` 刷新配合：编排侧在 `daytime-sync` 成功且存在启用订阅时会触发推送分发（详见 [docs/ref/orchestration.md](../docs/ref/orchestration.md)）。因此 **长耗时 pipeline 在后台跑**，聊天里主要负责引导、确认与读 JSON 摘要。
+
+### 2.9 可选：调度与宿主桥接
 
 若需 `OpenClaw cron → system-event → 宿主机 → twinbox-orchestrate`，见 **§6** 与目录内 `twinbox-openclaw-bridge.service` / `.timer`、`scripts/install_openclaw_bridge_user_units.sh`。
 
@@ -158,7 +178,7 @@ openclaw tui
 3. 使 Gateway 重新加载：  
    `openclaw gateway restart`（或你环境中的等价操作）。
 
-变更后按 **§2.6–2.7** 用新会话做一次 smoke。
+变更后按 **§2.6–§2.8** 用新会话做一次 smoke（至少 `skills info` + 一条 `task` 或 onboarding `status`）。
 
 ---
 
