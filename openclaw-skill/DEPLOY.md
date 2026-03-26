@@ -1,151 +1,106 @@
-# OpenClaw Skill Deployment
+# Twinbox × OpenClaw 部署指南
 
-目的：说明如何把 Twinbox 作为 `OpenClaw` 托管 skill 来准备、接入、验证，并明确当前哪些环节已经有基础、哪些仍处于待验证状态。
+本文档是 **Twinbox 在 OpenClaw 托管环境下的正式部署说明**：前置条件、从零安装顺序、配置要点、可选迁移与插件、验证清单、排障与回滚。与仓库根 [SKILL.md](../SKILL.md)（manifest / 运行时契约）分工为：**SKILL.md 面向 agent 行为；本文面向运维与集成。**
 
-## 适用范围
+---
 
-这份文档关注的是“Twinbox skill 如何进入 OpenClaw 托管环境”。
+## 1. 导读
 
-不覆盖：
+### 1.1 适用范围
 
-- OpenClaw 本体 Docker/Compose 安装细节
-- Claude Code / Opencode 本地代理 skill
+- **覆盖**：Twinbox 作为 OpenClaw **托管 Markdown skill**（及可选 **插件工具**）的安装路径、`openclaw.json` 配置、roots 初始化、验证与常见误判。
+- **不覆盖**：OpenClaw 本体 Docker/Compose 的逐步安装（见下文外链）；Claude Code / Opencode 本地 `.claude/` skill。
 
-如果你还没把 OpenClaw 服务本身搭起来，先看：
+### 1.2 「人性化引导」与本文的关系
 
-- [../docs/guide/openclaw-compose.md](../docs/guide/openclaw-compose.md)
+- **应用内配置**：`twinbox onboarding` 等对话式流程覆盖邮箱探测、画像、路由规则等 **用户态配置**，详见 [docs/ref/cli.md](../docs/ref/cli.md)。**这不等于** OpenClaw Gateway、skill 文件、宿主 env 会自动配好。
+- **宿主部署**：OpenClaw 安装、skill 同步、`skills.entries.twinbox.env`、Gateway 重启、bridge/systemd 等 **必须由运维按本文或脚本执行**；仓库内 **没有** 统一的「一键向导」或聊天内闭环部署产品。
+- 目录说明 [README.md](./README.md) 中的策略与 smoke 摘要仍有效；**逐步命令以本文 §2 为准**（避免与 README 中「从 `openclaw-skill/` 相对路径」混用时的 cwd 歧义）。
 
-如果你要把已经验证过的 Compose 部署迁到原生 npm OpenClaw，优先看下文的“Native npm 迁移路径（已实测）”。
+### 1.3 你该先看哪一节
 
-## 当前成熟度判断
+| 情况 | 下一步 |
+|------|--------|
+| 还没有 OpenClaw 服务 | [docs/guide/openclaw-compose.md](../docs/guide/openclaw-compose.md) 或官方文档，先把 Gateway 跑起来 |
+| 全新 **原生 npm** OpenClaw，要接 Twinbox | **§2 从零部署（主路径）** |
+| 从 **Docker Compose** 迁到 `~/.openclaw` | **§5 Compose → 原生 npm 迁移** |
+| 只更新仓库或改了 CLI / Tool | **§3 维护与升级** |
+| 希望确定性工具而非「只读 SKILL」 | **§4 可选：`plugin-twinbox-task`** |
 
-### 已经有基础的部分
+### 1.4 路径约定
 
-- 根级 [../SKILL.md](../SKILL.md) 已提供 `metadata.openclaw`
-- `twinbox mailbox preflight --json` 已可作为登录预检接口
-- `twinbox-orchestrate` 已是稳定的 phase 编排入口
-- [../docs/ref/scheduling.md](../docs/ref/scheduling.md) 已定义 `schedules` 元数据和未来调度方向
-- [../docs/ref/runtime.md](../docs/ref/runtime.md) 已定义 listener / action 的未来边界
+- 文中 `bash scripts/...` 默认在 **Twinbox 仓库根目录** 执行。
+- 若你当前在 `openclaw-skill/` 下，请使用 `bash ../scripts/...`。
 
-### 仍未闭环或未验证的部分
+---
 
-- OpenClaw 是否已实际消费 `metadata.openclaw.schedules`
-- OpenClaw 的 cron / heartbeat / background task 与 Twinbox phase 刷新如何对接
-- listener / action / review runtime 如何在托管环境里运行
-- 部署后的日志、通知、失败重试、stale fallback 责任边界
-- 最终 skill 包是直接指向 repo 根，还是导出独立 package
+## 2. 从零部署（主路径）
 
-## Native npm 迁移路径（已实测）
+按顺序执行；任一步失败先排障，不要跳到 OpenClaw 托管验证。
 
-这条路径适用于：
+### 2.1 前置：OpenClaw 可用
 
-- 之前已用 Docker Compose 跑通过 OpenClaw
-- 已经在 Compose 版里验证过 Twinbox managed skill / xfyun 模型配置
-- 现在希望切到官方默认的原生安装目录 `~/.openclaw`
+- 已安装并可执行 `openclaw`（原生示例：`npm install -g openclaw@latest`）。
+- 至少能完成：`openclaw config validate`、按需启动 Gateway（以你环境为准）。
 
-### 1. 先停掉 Compose 版
+### 2.2 安装 Twinbox CLI
 
-在原 Compose 项目目录执行：
+- 在仓库根按项目惯例安装 editable / 包，使宿主机上 `twinbox`、`twinbox-orchestrate` 可执行。
 
-```bash
-docker compose down
-```
+### 2.3 邮箱与本地运行面
 
-### 2. 备份 Compose 部署根
-
-至少备份这三部分：
-
-- Compose 项目目录本身
-- `config/`
-- `workspace/`
-
-推荐做法是直接备份整个部署根，再迁移需要保留的状态。
-
-### 3. 安装原生 npm 版 OpenClaw
+- 配置邮箱相关环境变量（或 state root 下的 `.env`），直到：
 
 ```bash
-npm install -g openclaw@latest
+twinbox mailbox preflight --json
 ```
 
-当前已实测可用版本：
+返回结构化成功结果。
 
-- `openclaw 2026.3.23-2`
+- 可选：用 `twinbox onboarding` 完成画像与规则等 **应用内** 配置（与 OpenClaw 无关）。
 
-### 4. 迁到官方默认目录
-
-原生目录默认使用：
-
-- `~/.openclaw/openclaw.json`
-- `~/.openclaw/skills/`
-- `~/.openclaw/workspace/`
-
-建议迁移：
-
-- `config/openclaw.json`
-- `config/skills/twinbox/SKILL.md`
-- `config/identity/`
-- `config/devices/`
-- `config/memory/`
-- `workspace/`
-
-建议只备份、不直接恢复：
-
-- `config/agents/main/sessions/`
-
-原因：
-
-- 该目录里的 `skillsSnapshot` 可能把旧的 skill 注入结果冻结住
-- 之前的渐进式实测已经证明：旧 session snapshot 会影响 managed skill 是否进入 prompt
-- 迁到 native 时，如果把这层状态原样恢复，容易误判成“skill 没迁成功”
-
-### 5. 讯飞 MaaS / LLM key 迁移
-
-Compose 版里如果使用了：
-
-- `models.providers.xfyun-mass`
-- `agents.defaults.model.primary = xfyun-mass/astron-code-latest`
-
-则迁 native 时不能只复制 `openclaw.json`，还要把 `LLM_API_KEY` 一并迁走。
-
-至少要保证二选一：
-
-- native `openclaw.json` 中已经能解析到实际 key
-- 或 native 启动环境稳定提供 `LLM_API_KEY`
-
-否则 Gateway 会在启动期直接因为 secret 缺失失败。
-
-### 6. Native 侧最小验证
+- 至少手动跑通一次：
 
 ```bash
-openclaw config validate
-openclaw skills info twinbox
-openclaw tui
+twinbox-orchestrate run --phase 4
 ```
 
-当前本机实测结论：
+若本地 CLI 与 phase 未跑通，**不要**先接 OpenClaw 托管。
 
-- `openclaw config validate` 已通过
-- `openclaw skills info twinbox` 已显示 `Ready`
-- `openclaw tui` 已成功连上 Gateway
-- `openclaw agent --agent main --message "Reply with exactly: native-openclaw-ok"` 已成功完成原生模型调用
-- `twinbox mailbox preflight --json` 已在宿主机直接跑通，当前返回 read-only `warn`
+### 2.4 初始化 code root / state root（强烈建议）
 
-补充边界：
+避免从 `~/.openclaw/workspace` 执行命令时把 workspace 误当作 state root、去读错误的 `.env`。
 
-- 让 agent 在对话里“自行执行 Twinbox preflight”仍不能视为已验证
-- 当前实测里，agent 在提示下返回了错误的 preflight 结论，说明 managed skill 已挂载，不等于 `preflightCommand` 或显式命令执行链已经由平台可靠消费
+在 **仓库根**：
 
-### 6.5 OpenClaw-native env 注入与 session 快照
+```bash
+bash scripts/install_openclaw_twinbox_init.sh
+```
 
-这是当前 native 部署里最容易误判的一层。
+作用概要：
 
-实测结论：
+- 写入 `~/.config/twinbox/code-root`、`state-root`（及兼容的 `canonical-root`）。
+- 默认会从 workspace 视角尝试验证 `twinbox mailbox preflight --json` 链路（以脚本实现为准）。
 
-- `openclaw skills info twinbox` 显示 `Ready`，不等于当前 agent 会话一定已经把 `twinbox` 注入到系统提示词
-- Skills 是否真正进入 prompt，取决于当前 run 的 eligibility 和该会话的 `skillsSnapshot`
-- 如果 Gateway 运行时拿不到 Twinbox 所需的邮箱 env，`twinbox` 会在 run 级被过滤掉，即使 `~/.openclaw/skills/twinbox/SKILL.md` 已安装
+语义：
 
-当前推荐做法不是继续依赖 repo 根 `.env` 被“碰巧读到”，而是把邮箱配置显式写进 OpenClaw config：
+- **`skills.entries.twinbox.env`**：OpenClaw agent run 侧的一等邮箱配置源（见 §6）。
+- **`state root/.env`**：本地开发与自托管 fallback。
+- 不推荐依赖「当前 shell cwd 碰巧是仓库根」。
+
+### 2.5 安装托管 skill 文件
+
+Manifest 的单一事实源是仓库根 [SKILL.md](../SKILL.md)。部署前核对其中 `metadata.openclaw`（如 `requires.env`、`login`、`schedules`）；**`schedules` 目前仍属设计契约**，是否被平台自动消费见 **§11**。
+
+安装到 OpenClaw skills 目录，例如：
+
+```bash
+cp /path/to/twinbox/SKILL.md ~/.openclaw/skills/twinbox/SKILL.md
+```
+
+（路径按你的克隆位置替换。）
+
+在 `~/.openclaw/openclaw.json` 中启用 twinbox，并写入 **完整** 邮箱相关 env（字段需与 [SKILL.md](../SKILL.md) 中 `metadata.openclaw.requires.env` 一致），示例结构：
 
 ```json
 {
@@ -170,455 +125,274 @@ openclaw tui
 }
 ```
 
-然后：
+然后 **重启 Gateway**，并用 **新会话** 起 agent turn，再检查该会话的 `systemPromptReport.skills.entries` 或 `skillsSnapshot`（见 §6）。
 
-1. 重启 Gateway
-2. 用一个**新会话**重新起 agent turn
-3. 再检查该会话的 `systemPromptReport.skills.entries` 或 `skillsSnapshot`
-
-2026-03-25 本机实测结果：
-
-- 在 `skills.entries.twinbox.env` 写入邮箱 env 之前
-  - `twinbox` 虽然 `Ready`
-  - 但 `agent:main:main` 和新建的 `agent:twinbox:main` session 都没有把 `twinbox` 注入 prompt
-- 写入 `skills.entries.twinbox.env`、重启 Gateway、清掉旧 `agent:twinbox:main` 快照后
-  - 新 session 的 `systemPromptReport.skills.entries` 已明确出现 `twinbox`
-  - 这才算真正完成 OpenClaw-native skill 注入验证
-
-因此：
-
-- `state root/.env` 解决的是 Twinbox CLI 自己怎么找配置
-- `skills.entries.twinbox.env` 解决的是 OpenClaw agent run 怎么让 `twinbox` 成为有资格的 skill
-- 这两层不能互相替代
-
-## 推荐部署路径
-
-### 1. 先把 Twinbox 本地运行面跑通
-
-最低要求：
-
-- Twinbox 代码可安装 / 可执行
-- 邮箱 env 已配置
-- `twinbox mailbox preflight --json` 能返回结构化结果
-- 至少能手动运行一次：
+### 2.6 最小验证（宿主）
 
 ```bash
-twinbox-orchestrate run --phase 4
+openclaw config validate
+openclaw skills info twinbox
+openclaw tui
 ```
 
-如果连本地 CLI 和 phase 刷新都没跑通，不要先上 OpenClaw 托管。
+本仓库曾实测：`openclaw skills info twinbox` 显示 `Ready` **不等于** 当前会话 prompt 已包含 `twinbox`；**env 未注入 run 时 skill 会在 run 级被过滤**。
 
-### 1.5 初始化 Twinbox code root / state root
+### 2.7 推荐使用方式
 
-这是当前 native OpenClaw 部署里最容易遗漏、但影响很大的初始化步骤。
+- 为 Twinbox 使用 **专用 `twinbox` agent**；通用聊天用 `main`。
+- 常见只读任务优先 **显式** `twinbox task ...`（或 §4 插件工具），减少对「模型自己选命令」的依赖。
+- **skill / env 变更后**：开 **新 session** 验证，勿复用可能冻结旧 `skillsSnapshot` 的会话。
 
-原因：
+### 2.8 可选：调度与宿主桥接
 
-- Twinbox 的 `mailbox preflight`、`task_cli`、`daytime-slice` 默认都依赖 `state root`
-- 如果命令是在 `~/.openclaw/workspace` 下执行，且没有 `TWINBOX_STATE_ROOT`
-- Twinbox 会把 `~/.openclaw/workspace` 当成 state root，并尝试读取那里的 `.env`
-- 你的真实邮箱配置通常在 Twinbox 仓库根 `.env`
+若需 `OpenClaw cron → system-event → 宿主机 → twinbox-orchestrate`，见 **§7** 与目录内 `twinbox-openclaw-bridge.service` / `.timer`、`scripts/install_openclaw_bridge_user_units.sh`。
 
-结果就是：
+---
 
-- 宿主机直接在仓库根跑 `twinbox mailbox preflight --json` 可能成功
-- 但 agent / workspace 视角下的同一命令可能表现成“缺少 IMAP/SMTP env”
+## 3. 维护与升级
 
-当前推荐做法不是复制 secrets 到多个目录，而是一次性初始化 roots：
+与 [AGENTS.md](../AGENTS.md) 保持一致：
 
-```bash
-bash scripts/install_openclaw_twinbox_init.sh
-```
+1. 修改了 CLI 行为、根 [SKILL.md](../SKILL.md) 或 OpenClaw Tool / `register-twinbox-tools.mjs` 时，同步更新 [SKILL.md](../SKILL.md)（及 `.agents/skills/twinbox/SKILL.md` 等副本，若仓库内维护）。
+2. 将 skill 部署到本机 OpenClaw：  
+   `cp SKILL.md ~/.openclaw/skills/twinbox/SKILL.md`
+3. 使 Gateway 重新加载：  
+   `openclaw gateway restart`（或你环境中的等价操作）。
 
-它会：
+变更后按 **§2.6–2.7** 用新会话做一次 smoke。
 
-- 写入 `~/.config/twinbox/code-root`
-- 写入 `~/.config/twinbox/state-root`
-- 兼容写入 `~/.config/twinbox/canonical-root`
-- 默认再从 `~/.openclaw/workspace` 视角执行一次 `twinbox mailbox preflight --json` 验证链路
+---
 
-这个步骤完成后，即使命令从 OpenClaw workspace 发起，Twinbox 也会回到已配置的 `state root` 读取 `.env` 和 `runtime/`。
+## 4. 可选：`plugin-twinbox-task`
 
-当前实例的默认布局仍然是：
+当托管 agent 经常停在「Read `~/.openclaw/skills/twinbox/SKILL.md`」而不执行 CLI 时，可在 OpenClaw 侧注册 **确定性工具**，直接 `spawn` 宿主上的 `twinbox task … --json`。
 
-- `code root == state root == Twinbox 仓库根`
+| 项 | 说明 |
+|----|------|
+| 位置 | [plugin-twinbox-task/](./plugin-twinbox-task/) |
+| 入口 | [index.mjs](./plugin-twinbox-task/index.mjs)、[register-twinbox-tools.mjs](./plugin-twinbox-task/register-twinbox-tools.mjs) |
+| 清单 | [openclaw.plugin.json](./plugin-twinbox-task/openclaw.plugin.json) |
+| 配置 | `twinboxBin`：可执行名或绝对路径；`cwd`：Twinbox **code root**，默认回落 `TWINBOX_CODE_ROOT` 或 `~/.config/twinbox/code-root` |
+| 测试 | `node --test openclaw-skill/plugin-twinbox-task/register-twinbox-tools.test.mjs`（在仓库根或按包脚本执行） |
 
-但这只是当前自托管实例的默认值，不应再被写成唯一标准。新的正式入口是：
+插件与 Markdown skill **可并存**：skill 负责契约与文档；插件负责高频、只读、需稳定 schema 的调用面。安装方式以 OpenClaw 当前插件文档为准（参见 **附录 A** 插件链接）。
 
-- `TWINBOX_CODE_ROOT` / `~/.config/twinbox/code-root`
-- `TWINBOX_STATE_ROOT` / `~/.config/twinbox/state-root`
-- `TWINBOX_CANONICAL_ROOT` / `canonical-root` 仅保留为 legacy alias
+---
 
-配置源优先级也要分开写：
+## 5. Compose → 原生 npm 迁移
 
-- OpenClaw skill 注入的 process env 优先
-- `state root/.env` 次之
-- 不推荐继续依赖“当前工作目录碰巧就是 repo 根”
+适用于：Compose 已跑通 Twinbox skill / 模型，希望切到官方默认 `~/.openclaw`。
 
-补充边界：
+1. **停 Compose**：`docker compose down`。
+2. **备份** 部署根，至少包含 Compose 目录、`config/`、`workspace/`。
+3. **安装原生**：`npm install -g openclaw@latest`（本仓库曾测版本示例：`openclaw 2026.3.23-2`）。
+4. **迁移到默认目录**：将 `config/openclaw.json`、`config/skills/twinbox/SKILL.md`、`config/identity/`、`config/devices/`、`config/memory/`、`workspace/` 等迁入 `~/.openclaw/` 下对应位置。
+5. **不要直接恢复** `config/agents/main/sessions/`：旧 `skillsSnapshot` 可能冻结 skill 注入结果，导致误判「skill 未迁成功」。备份后留作排障即可。
+6. **LLM key**：若 Compose 使用 `models.providers.xfyun-mass` 等，确保 native `openclaw.json` 或进程环境能解析到真实 key（如 `LLM_API_KEY`），否则 Gateway 可能启动失败。
+7. **重新执行** 本文 **§2.4–2.7**（roots、`skills.entries.twinbox.env`、新会话验证）。
 
-- 这只能解决“路径和状态根漂移”
-- 不能证明 agent 自然语言一定会真实调用 `preflightCommand`
-- 如果 agent 没有真正执行命令，而只是根据 skill manifest 自由回答，仍可能给出错误的“缺 env”结论
+---
 
-### 2. 校准 OpenClaw skill manifest
+## 6. 配置深层说明：env 与会话快照
 
-当前 manifest source of truth 是：
+### 6.1 两层 env 不可互换
 
-- [../SKILL.md](../SKILL.md)
+- **`state root/.env`**：Twinbox CLI 自身解析配置。
+- **`skills.entries.twinbox.env`**：OpenClaw 在 **agent run** 中注入给 skill 的环境；缺省时 skill 可能被过滤，即使磁盘上已安装 `SKILL.md`。
 
-重点检查：
+### 6.2 本机曾观测（2026-03-25）
 
-- `metadata.openclaw.requires.env`
-- `metadata.openclaw.login`
-- `metadata.openclaw.schedules`
+- 写入 `skills.entries.twinbox.env` **之前**：`twinbox` 虽 `Ready`，`agent:main:main` 与新建 `agent:twinbox:main` 可能都 **未** 在 prompt 中出现 `twinbox`。
+- 写入 env、重启 Gateway、清理旧 `agent:twinbox:main` 快照后：新会话的 `systemPromptReport.skills.entries` 可出现 `twinbox`。
 
-至少确认这些字段与当前实现一致：
+操作建议：改 env 后 **重启 Gateway → 新会话 → 再查快照**。
 
-- `preflightCommand` 使用 `twinbox mailbox preflight --json`
-- schedule command 使用 `twinbox-orchestrate schedule --job ...` 或 `twinbox-orchestrate run ...`
-- 不再引用 `twinbox orchestrate ...`
+### 6.3 `preflightCommand` 与对话层
 
-补充说明：
+`openclaw skills info twinbox` 与「agent 在自然语言里真的执行了 `twinbox mailbox preflight`」**不是**同一回事；不要将模型口头结论当作 preflight 结果。
 
-- `metadata.openclaw.schedules` 目前仍只能当“设计契约 + manifest 声明”
-- 当前没有把它写成“平台已经自动消费”的证据
+---
 
-### 3. 决定 skill 包挂载方式
+## 7. 推荐 session / agent 与多渠道
 
-当前建议先按两种方式评估，不要过早锁死：
+### 7.1 Session 策略
 
-#### 方案 A：直接使用仓库根
+- **`main`**：通用对话。
+- **`twinbox`**：邮件、队列、产物、preflight、`twinbox task` 相关。
+- **`system-event` / cron**：只驱动宿主 bridge，不把系统任务写进人工聊天 session。
 
-适合：
+原因：`session` 会冻结 `skillsSnapshot`；混合上下文下模型未必稳定命中 Twinbox。
 
-- 本地自托管
-- 开发期快速联调
-- manifest / docs / CLI 都还在快速变化
+### 7.2 多渠道时的边界
 
-优点：
+- **全局 truth**：单一 `state root`；`daytime-sync` / `nightly-full` / `friday-weekly` 只应有一套调度写产物。
+- **订阅 / 投递**：哪些渠道收推送应收口到配置或状态文件，由 bridge / notify 读取，而非分散在各 session 记忆。
+- **交互**：任意 session 可读同一 state；主动拉取优先 `twinbox task` / 插件工具。
 
-- 不需要额外导出包
-- root `SKILL.md` 就是 manifest source of truth
+### 7.3 为何有时只看到「Read SKILL.md」
 
-风险：
+用户问「最新邮件」时，模型可能只读 `SKILL.md` 而不执行 CLI。**更稳**的映射是显式 `twinbox task latest-mail --json` 等（或 §4 插件）。详见 [SKILL.md](../SKILL.md) 中的 task 入口说明。
 
-- 仓库内容较多，不够像最终交付物
-- `.claude/`、测试、文档会一起暴露到包视角
+### 7.4 宿主桥接与 systemd 样例
 
-## 推荐 session / agent 策略
+- `scripts/twinbox_openclaw_bridge.sh`：已有 `system-event` 文本时转发。
+- `scripts/twinbox_openclaw_bridge_poll.sh`：轮询 Gateway `cron.list` / `cron.runs` 消费 Twinbox 相关 `systemEvent`。
+- 样例单元：[twinbox-openclaw-bridge.service](./twinbox-openclaw-bridge.service)、[twinbox-openclaw-bridge.timer](./twinbox-openclaw-bridge.timer)、[twinbox-openclaw-bridge.env.example](./twinbox-openclaw-bridge.env.example)；安装脚本：`scripts/install_openclaw_bridge_user_units.sh`。
 
-对 Twinbox 这类“固定状态根 + 固定 skill + 后台调度 + 人工查进展”场景，最稳的做法不是把所有交互都放进默认 `main` 会话。
+推荐组合（与历史实测一致）：`openclaw gateway install --force` 后安装用户态 timer/service。
 
-当前推荐策略：
+---
 
-- `main` agent：保留给通用对话
-- `twinbox` agent：专门处理 Twinbox 相关问题
-- `system-event / cron`：只走宿主 bridge，不写进人工会话
+## 8. Skill 交付形态（选型）
 
-原因：
+### 8.1 方案 A：直接使用仓库根
 
-- `session` 会冻结自己的 `skillsSnapshot`
-- `main` 会话容易携带历史 prompt、无关记忆和旧快照
-- Twinbox 需要稳定命中 `twinbox` skill，而不是依赖模型在混合上下文里“自己想到要去查产物”
-- 后台调度和人工聊天共用一个会话，会把“系统任务上下文”和“人工问题上下文”搅在一起
+适合自托管与快速迭代；根 [SKILL.md](../SKILL.md) 即 manifest。注意仓库体积大，`.claude/`、测试与文档会一同存在。
 
-推荐操作语义：
+### 8.2 方案 B：从 `openclaw-skill/` 导出独立包
 
-1. 日常聊天继续用 `main`
-2. 所有“看邮件 / 看产物 / 查进展 / 跑 preflight / 解释 queue”的问题，固定用 `twinbox` agent
-3. Twinbox skill 或 env 配置变更后，不复用旧 Twinbox 会话，直接起一个新 session
-4. `daytime-sync` / `nightly-full` / `friday-weekly` 只由 `system-event -> host service -> twinbox-orchestrate schedule --job ...` 驱动
+适合版本化发布与清晰交付边界；需额外维护导出流程（仓库内尚未定型为单一 build）。
 
-不推荐：
+---
 
-- 让 `main` 会话兼做 Twinbox 专用助手
-- 让 cron/system-event 把运行结果直接写回人工对话 session
-- 把“skill 已安装”和“skill 已进入该会话 prompt”混成一个概念
+## 9. 排障：「缺少 env」类回复
 
-## 多渠道 / 多 session 策略
+### 9.1 成因 A：未真实执行 preflight
 
-如果后面接入 Telegram、Discord、Slack 或多个群，不能把“每个 session 都自己跑 Twinbox”当成稳定架构。
+模型可能仅根据 `requires.env` **描述**「缺字段」，而非执行 `twinbox mailbox preflight --json`。以 CLI 在宿主上直接跑的结果为准。
 
-更稳的边界应该是三层：
+### 9.2 成因 B：state root 漂移到 workspace
 
-1. **全局 truth layer**
-   - 所有 Twinbox 事实只来自同一个 `state root`
-   - `daytime-sync` / `nightly-full` / `friday-weekly` 只跑一次
-   - 不允许每个群、每个聊天窗口各自维护一份 phase 产物
-2. **订阅 / 投递 layer**
-   - 哪些渠道接收推送、哪些群静默、哪些只收周报，不放在 session history 里
-   - 应放进显式配置或状态文件，由宿主 bridge / notify adapter 读取
-3. **交互 layer**
-   - 任意 session 都可以发起“看下邮件”“看某个事情进展”“有哪些待办”
-   - 但这些调用本质上都是读同一个 Twinbox truth，而不是读各自 session 的私有记忆
+未配置 `~/.config/twinbox/state-root` 等时，在 workspace cwd 下可能回落到 `~/.openclaw/workspace/.env`。请执行 **§2.4** 并核对 **§6**。
 
-因此：
+---
 
-- **推送类任务**应该是 `job -> 产物 -> 订阅路由 -> 投递`
-- **主动拉取类任务**应该是 `任意 session -> twinbox task CLI -> 同一 state root`
+## 10. 回滚与恢复
 
-不应该是：
+1. **配置**：保留备份的 `openclaw.json`、skills 目录与 Twinbox `state root`；回滚时恢复 **已知良好** 版本。
+2. **会话状态**：避免把含陈旧 `skillsSnapshot` 的 `sessions/` 直接当作「恢复即上线」；必要时删特定 agent session 或新建会话验证。
+3. **Compose 回迁**：若有 Compose 备份，可按备份目录 `docker compose up`；数据面以你当时的 volume 为准。
+4. **技能文件**：回滚 [SKILL.md](../SKILL.md) 后重复 **§3** 的复制与 Gateway 重启。
 
-- `每个 session 各自跑一遍 phase4`
-- `某个群里停推` 通过“让那个 session 自己少说话”来实现
-- `主会话记住我想推给哪个群`，再把它当成唯一真相
+---
 
-当前仓库已经有的基础：
+## 11. 成熟度与当前判断
 
-- 全局 truth / scheduler：`twinbox-orchestrate schedule --job ...`
-- 日内最小推送载荷：`twinbox digest pulse`
-- 某事进展查询：`twinbox thread progress QUERY`
+### 11.1 已有基础
 
-当前还没有做完的，是“订阅 / 投递 layer”的持久化选择器。也就是：
+- 根 [SKILL.md](../SKILL.md) 含 `metadata.openclaw`。
+- `twinbox mailbox preflight --json`、`twinbox-orchestrate`、调度契约文档（[docs/ref/scheduling.md](../docs/ref/scheduling.md)、[docs/ref/runtime.md](../docs/ref/runtime.md)）已形成。
 
-- 哪些 channel 开启 Twinbox 推送
-- 某个群是否只收 urgent，不收 weekly
-- 某个群是否暂停推送
+### 11.2 仍未闭环或未验证（摘录）
 
-这部分后续应该做成显式 registry，而不是继续依赖 session。
+- 平台是否自动消费 `metadata.openclaw.schedules`。
+- OpenClaw cron / heartbeat 与 Twinbox phase 刷新的完整责任边界。
+- listener / action / review 在托管环境中的运行方式。
+- 部署后日志、通知、失败重试、stale fallback 的归属。
 
-## 为什么会出现“Read ~/.openclaw/skills/twinbox/SKILL.md”而不是返回邮件
+### 11.3 当前建议（摘要）
 
-这是当前自然语言调用链的一个硬边界。
+- 不把方案写成「完整托管已结束」；以 **manifest + CLI + bridge** 为实，托管调度与平台预检消费为待验项。
+- 优先：**§2 / §3** 的稳定部署面；宿主 **poller + bridge** 闭环；再验证 `preflightCommand` 与 `metadata.openclaw.schedules` 的真实消费或明确其为声明层。
 
-`SKILL.md` 的作用是“教模型有哪些能力”，不是“替代命令执行结果”。所以当用户说：
+更细的排期与历史实测段落见 **附录 B** 检查清单中的勾选与备注。
 
-- “帮我查看下最新的邮件情况”
+---
 
-模型完全可能只做下面这件事：
+## 附录 A：OpenClaw 官方文档与 twinbox 映射
 
-1. 发现有个 `twinbox` skill
-2. 先去读 `~/.openclaw/skills/twinbox/SKILL.md`
-3. 但没有继续执行 `twinbox digest pulse` / `twinbox queue list` / `twinbox mailbox preflight`
+本节汇总 [docs.openclaw.ai](https://docs.openclaw.ai) 入口与本仓库契约的对应关系。权威顺序：**官方当前文档 > 本目录 [README.md](./README.md) 与本文实测 > 社区镜像**。
 
-于是你看到的就会是：
-
-- “Read with from ~/.openclaw/skills/twinbox/SKILL.md”
-
-而不是邮件结果。
-
-这说明：
-
-- skill 注入成功了
-- 但任务入口仍是**模型自由发挥**
-- 还没有变成**确定性命令面**
-
-更稳的做法应该是把常用 Twinbox 任务收成显式入口，而不是继续赌模型理解：
-
-- “看最新邮件 / 今天发生了什么” -> `twinbox task latest-mail --json`
-- “我有哪些待办 / 待回复” -> `twinbox task todo --json`
-- “某个事情进展如何” -> `twinbox task progress QUERY --json`
-- “邮箱有没有配好” -> `twinbox task mailbox-status --json`
-
-这类入口一旦固定，任意 session 都可以调用，因为它们读的是同一个 Twinbox state root，不依赖该 session 之前聊过什么。
-
-#### 方案 B：从 `openclaw-skill/` 导出独立 skill package
-
-适合：
-
-- 后续发布
-- 版本化部署
-- 限定 OpenClaw 只看到最小 skill 交付物
-
-优点：
-
-- 交付边界清楚
-- 更适合升级 / 回滚 / 发布管理
-
-风险：
-
-- 需要额外维护导出流程
-- 当前仓库还没把 package build 这件事真正做起来
-
-## OpenClaw 官方文档与 twinbox 映射（调研备忘）
-
-本节汇总 [docs.openclaw.ai](https://docs.openclaw.ai) 一手入口、社区参考与 twinbox 仓库契约的对应关系，便于后续扩展 skill / bridge / 插件时不偏离架构。权威顺序：官方当前文档 > 本仓库 [README.md](./README.md) 与本文实测记录 > 社区镜像站。
-
-### 官方文档索引与精读清单
+### A.1 官方文档索引与精读清单
 
 | 主题 | URL | 与 twinbox 的关系 |
 |------|-----|-------------------|
-| 全站索引（机器可读） | [llms.txt](https://docs.openclaw.ai/llms.txt) | 快速定位 skill / gateway / plugin / automation 页面 |
-| 编写 Skill | [Creating Skills](https://docs.openclaw.ai/tools/creating-skills) | `name` / `description`、`openclaw agent` 冒烟流程 |
-| 加载与优先级 | [Skills](https://docs.openclaw.ai/tools/skills) | `/skills` → `~/.openclaw/skills` → bundled；`metadata` 须单行 JSON；session 技能快照与 watcher |
-| 配置模式 | [Skills Config](https://docs.openclaw.ai/tools/skills-config) | `skills.entries.twinbox.env`；**sandbox 不继承宿主 env**（见 `agents.defaults.sandbox.docker.env`） |
-| CLI | [skills](https://docs.openclaw.ai/cli/skills.md) / [cron](https://docs.openclaw.ai/cli/cron.md) / [gateway](https://docs.openclaw.ai/cli/gateway.md) | 与托管安装、定时、Gateway 运维对齐 |
-| HTTP 调工具 | [Tools Invoke API](https://docs.openclaw.ai/gateway/tools-invoke-http-api) | 可信操作员用 Bearer 调 `POST /tools/invoke`；**默认 HTTP 拒绝列表含 `cron`**，勿假设可用其替代 `openclaw cron` CLI |
-| 定时 | [Cron Jobs](https://docs.openclaw.ai/automation/cron-jobs) | 任务存 `~/.openclaw/cron/`；`system-event` / isolated / main 等执行风格 |
-| Cron vs Heartbeat | [Cron vs Heartbeat](https://docs.openclaw.ai/automation/cron-vs-heartbeat) | 精确时刻用 cron；批量「收件箱类」巡检可考虑 Heartbeat + `HEARTBEAT.md`（与 twinbox 推送策略独立评估） |
-| 频道 Poll | [Polls](https://docs.openclaw.ai/automation/poll) | **指 IM 投票消息**，不是宿主机轮询 Gateway；twinbox poller 仍见 [scripts/twinbox_openclaw_bridge_poll.sh](../scripts/twinbox_openclaw_bridge_poll.sh) |
-| Hooks | [Hooks](https://docs.openclaw.ai/automation/hooks.md) | 与扩展事件面相关；当前 twinbox 闭环以 cron + 宿主 bridge 为主 |
-| 沙箱与策略 | [Sandboxing](https://docs.openclaw.ai/gateway/sandboxing.md) / [Sandbox vs Tool Policy](https://docs.openclaw.ai/gateway/sandbox-vs-tool-policy-vs-elevated.md) | 与 Phase 1–4 只读、限制 `exec` 面一致评估 |
-| 插件 | [Building Plugins](https://docs.openclaw.ai/plugins/building-plugins.md) / [SDK Entry Points](https://docs.openclaw.ai/plugins/sdk-entrypoints.md) / [Manifest](https://docs.openclaw.ai/plugins/manifest.md) | 见下文「何时升级到插件」 |
+| 全站索引（机器可读） | [llms.txt](https://docs.openclaw.ai/llms.txt) | 快速定位 skill / gateway / plugin / automation |
+| 编写 Skill | [Creating Skills](https://docs.openclaw.ai/tools/creating-skills) | `name` / `description`、`openclaw agent` 冒烟 |
+| 加载与优先级 | [Skills](https://docs.openclaw.ai/tools/skills) | `/skills` → `~/.openclaw/skills`；`metadata` 单行 JSON；session 快照 |
+| 配置模式 | [Skills Config](https://docs.openclaw.ai/tools/skills-config) | `skills.entries.twinbox.env`；sandbox 不继承宿主 env |
+| CLI | [skills](https://docs.openclaw.ai/cli/skills.md) / [cron](https://docs.openclaw.ai/cli/cron.md) / [gateway](https://docs.openclaw.ai/cli/gateway.md) | 安装、定时、Gateway 运维 |
+| HTTP 调工具 | [Tools Invoke API](https://docs.openclaw.ai/gateway/tools-invoke-http-api) | Bearer `POST /tools/invoke`；默认拒绝列表含 `cron` |
+| 定时 | [Cron Jobs](https://docs.openclaw.ai/automation/cron-jobs) | `~/.openclaw/cron/`；`system-event` 等 |
+| Cron vs Heartbeat | [Cron vs Heartbeat](https://docs.openclaw.ai/automation/cron-vs-heartbeat) | 精确时刻 vs 批量巡检 |
+| 频道 Poll | [Polls](https://docs.openclaw.ai/automation/poll) | IM 投票，非宿主机轮询 |
+| Hooks | [Hooks](https://docs.openclaw.ai/automation/hooks.md) | 事件扩展；twinbox 当前以 cron + bridge 为主 |
+| 沙箱与策略 | [Sandboxing](https://docs.openclaw.ai/gateway/sandboxing.md) 等 | 与 Phase 1–4 只读一致评估 |
+| 插件 | [Building Plugins](https://docs.openclaw.ai/plugins/building-plugins.md) 等 | 见本文 §4 |
 
-### OpenClaw 能力 ↔ twinbox 模块
+### A.2 OpenClaw 能力 ↔ twinbox 模块
 
 | OpenClaw 能力 | twinbox 侧落点 |
 |---------------|----------------|
-| `skills.entries.<name>.env` / `apiKey` | 邮箱与 Twinbox 宿主 env 的一等来源；见 [README.md](./README.md) |
-| `metadata.openclaw.requires.env` / `login.preflightCommand` | 与 [SKILL.md](../SKILL.md) 及 [docs/ref/cli.md](../docs/ref/cli.md) 预检契约一致 |
-| `metadata.openclaw.schedules` | 声明层；是否被平台自动消费需单独验证；调度契约见 [docs/ref/scheduling.md](../docs/ref/scheduling.md) |
-| Gateway `cron` + `system-event` | 与 [scripts/twinbox_openclaw_bridge.sh](../scripts/twinbox_openclaw_bridge.sh)、poller、[`openclaw_bridge.py`](../src/twinbox_core/openclaw_bridge.py) 消费逻辑衔接 |
-| `openclaw skills list` / `skills info` | 部署验证；不等于当前 session 已注入 skill |
-| 插件 `api.registerTool()` | 可选：将固定 CLI 调用做成确定性工具，缓解「只读 SKILL 不执行命令」问题（见本文「方案 B」上文与下节） |
+| `skills.entries.<name>.env` | 邮箱与宿主 env；§6 |
+| `metadata.openclaw.requires.env` / `login.preflightCommand` | [SKILL.md](../SKILL.md)、[docs/ref/cli.md](../docs/ref/cli.md) |
+| `metadata.openclaw.schedules` | 声明层；[docs/ref/scheduling.md](../docs/ref/scheduling.md) |
+| Gateway `cron` + `system-event` | [scripts/twinbox_openclaw_bridge.sh](../scripts/twinbox_openclaw_bridge.sh)、poller、[openclaw_bridge.py](../src/twinbox_core/openclaw_bridge.py) |
+| `openclaw skills list` / `info` | 部署验证；≠ 当前 session 已注入 |
+| 插件 `registerTool()` | §4；缓解「只读 SKILL」 |
 
-### 与根 `SKILL.md` / playbook 的对照要点
-
-- **Frontmatter**：官方要求 `metadata` 为单行 JSON；编写规范见 [docs/ref/skill-authoring-playbook.md](../docs/ref/skill-authoring-playbook.md) 第 2 节说明。
-- **Gating**：`requires.env` 与 `skills.entries.twinbox.env` 需同时满足，否则 skill 在 run 级被过滤（README 已述）。
-- **`schedules`**：SKILL 内嵌的 cron 声明与 OpenClaw Gateway 原生 `openclaw cron` 任务无自动等价关系；宿主 bridge 路径仍以 Gateway 实际 job 为准。
-
-### 何时保留 Markdown skill，何时考虑插件
+### A.3 Markdown skill 与插件
 
 | 方式 | 适用 | twinbox 现状 |
 |------|------|----------------|
-| Markdown `SKILL.md` + 模型选择 `exec` | 迭代快、依赖已有 `twinbox` CLI | **当前默认** |
-| 插件 `registerTool`（Node/TS） | 需要稳定 schema、减少「读 skill 不跑命令」、或与 HTTP/自动化强绑定 | **按需**：维护成本更高，适合确定性任务面固化之后 |
+| Markdown `SKILL.md` + exec | 迭代快 | **默认** |
+| 插件 `registerTool` | 稳定 schema、确定性任务 | **按需**，§4 |
 
-### ClawHub / 社区样例（写法模式，非业务复制）
+### A.4 ClawHub / 社区样例（结构参考）
 
-以下用于对照 **说明结构、凭据与前置条件**，安装第三方 skill 前仍须自行审代码（官方亦提示将第三方 skill 视为不可信）。
+第三方 skill 视为不可信代码，仅借鉴文档结构：如 [Ai Provider Bridge](https://clawhub.com/skills/ai-provider-bridge)、[summarize](https://clawhub.ai/skills/summarize)、[agent-zero-bridge](https://playbooks.com/skills/openclaw/skills/agent-zero-bridge)。
 
-1. **[Ai Provider Bridge](https://clawhub.com/skills/ai-provider-bridge)**：能力表格 + 分提供商 env；正文含用法片段与免责声明；与 twinbox「命令表 + 环境变量清单」式 SKILL 结构相近。
-2. **Summarize 类 skill**（如 [ClawHub: summarize](https://clawhub.ai/skills/summarize)）：依赖外部 CLI + `requires.bins` 思路；与「宿主必须安装 `twinbox` 且可执行」同一类部署约束（若要在 metadata 中声明二进制，可对照官方 [Skills](https://docs.openclaw.ai/tools/skills) gating）。
-3. **[agent-zero-bridge](https://playbooks.com/skills/openclaw/skills/agent-zero-bridge)**（playbooks）：委托外部 agent 的前置条件与网关配置说明；可借鉴「何时委托、写清依赖」，不等同于邮箱只读流水线。
+---
 
-### 裁决顺序（与官方冲突时）
+## 附录 B：验证检查清单
 
-1. [docs.openclaw.ai](https://docs.openclaw.ai) 当前页面。
-2. 本目录 [README.md](./README.md) 与本文档中的实测与清单。
-3. 社区镜像（openclawlab、howtouseopenclaw、clawdocs 等）仅作补充。
+以下勾选以仓库内 native + Twinbox smoke 为参考；未勾选表示待验证或待补证据。
 
-## 部署前检查清单
-
-以下勾选以 2026-03-25 本机 native OpenClaw + Twinbox smoke 为准；未勾选表示“仍待验证/待补证据”，不等于“尚未开始”。
+### B.1 部署前（宿主 / Twinbox）
 
 - [x] `twinbox mailbox preflight --json` 本地成功
 - [x] `twinbox-orchestrate run --phase 4` 本地成功
-- [x] root `SKILL.md` 元数据与实现一致
-- [x] schedule command 全部使用 `twinbox-orchestrate`
-- [x] 未实现命令未出现在托管入口里
-- [x] OpenClaw 宿主环境能拿到 Twinbox 需要的 env
+- [x] 根 [SKILL.md](../SKILL.md) 元数据与实现一致
+- [x] schedule 相关命令使用 `twinbox-orchestrate`
+- [x] OpenClaw 侧能拿到 Twinbox 所需 env（含 `skills.entries.twinbox.env`）
 - [x] `~/.config/twinbox/code-root` / `state-root` 已初始化
-- [x] 如果走 native 安装，`~/.openclaw/openclaw.json` 已完成模型 / secret 迁移
-- [ ] 如果从 Compose 迁来，旧 `agents/main/sessions/` 已单独备份，而不是直接恢复
+- [x] native：`~/.openclaw/openclaw.json` 模型与 secret 已就绪
+- [ ] 从 Compose 迁出时，旧 `agents/main/sessions/` 已备份且未盲目恢复
 
-## 托管接入检查清单
+### B.2 托管接入
 
 - [x] OpenClaw 能读取 skill manifest
-- [x] `openclaw skills info twinbox` 能展示 `requires.env` gating
-- [ ] 平台交互层是否会自动收集 / 透传这些 env
-- [ ] OpenClaw 能调用 `preflightCommand`
-- [ ] preflight 失败时，平台能把 `missing_env` / `actionable_hint` 呈现出来
-- [x] preflight 成功后，宿主侧已能进入 phase 运行验证
+- [x] `openclaw skills info twinbox` 展示 `requires.env`
+- [ ] 平台是否自动收集 / 透传 env
+- [ ] OpenClaw 是否调用 `preflightCommand`；失败时是否呈现 `missing_env` / `actionable_hint`
+- [x] preflight 成功后宿主可进入 phase 验证
 - [x] `openclaw skills info twinbox` 显示 `Ready`
-- [x] 根 `SKILL.md` 已提供显式 `twinbox task ...` 入口
-- [x] agent 对话层显式触发 Twinbox 命令的路径已验证，而不是仅靠 prompt 提示“自行执行”
+- [x] 根 SKILL 已提供 `twinbox task ...` 入口
+- [x] 显式探针可触发 `twinbox task`（不等于自然话术已稳定）
 
-2026-03-25 至 2026-03-26 本机补充证据：
+**验证记录（摘录）**：2026-03-25 起，本机曾用 `openclaw agent --agent twinbox` 对 `latest-mail`、`todo`、`progress` 等做探针；曾暴露 `mailbox-status` 参数问题（已修复为 `account_override`）。自然话术与空 `assistant.content`、isolated cron session 行为等仍属平台与路由层待观察项，**不应**将单次探针等同于产品级 SLA。
 
-- 已通过真实 `openclaw agent --agent twinbox ...` prompt 验证 `twinbox task latest-mail --json`
-- 已通过真实 `openclaw agent --agent twinbox ...` prompt 验证 `twinbox task todo --json`
-- 已通过真实 `openclaw agent --agent twinbox ...` prompt 验证 `twinbox task progress QUERY --json`
-- `twinbox task mailbox-status --json` 在真实 prompt 中暴露了参数漂移 bug：`run_preflight() got an unexpected keyword argument 'account'`
-- 该 bug 已在仓库内修复为 `account_override=...`，并已通过本地 `twinbox task mailbox-status --json` 复验返回结构化 preflight 结果
-- 上述证据只证明“显式 task 路由可被对话层触发”；**不等于** 平台已经自动消费 `metadata.openclaw.login.preflightCommand`
+### B.3 调度与桥接
 
-补充测试口径：
+- [x] Gateway 健康检查与 `system-event` smoke
+- [x] `cron` 创建 / debug `systemEvent` job
+- [x] 宿主机 poller：`scripts/twinbox_openclaw_bridge_poll.sh`
+- [x] 用户态 timer 样例安装与 `daytime-sync` 触发（以你环境日志为准）
+- [ ] `metadata.openclaw.schedules` 是否被平台解析
+- [ ] 失败重试 / 告警 / stale 恢复责任
+- [x] 已确认 `daytime-sync` 与 Phase 4 overlay 等行为边界（见调度文档）
 
-- 这些带明文命令的 prompt 是**探针式 smoke**，目标是确认 agent 有没有真的执行 Twinbox 命令
-- 更接近真实用户的话术仍应单独验证，例如“帮我查看下最新的邮件情况”“这个事情现在进展如何”
-- 当前本机实测里，自然话术“帮我查看下最新的邮件情况”也已经命中过一次 `twinbox task latest-mail --json`
-- 但 2026-03-25 继续实测时，`agent:twinbox:main` 上两条自然话术都出现了“turn completed 但 `assistant.content=[]`”的空响应现象
-- 该现象下 CLI `--json` 仍显示 `status=ok`、`summary=completed`、`usage.output>0`，说明不是超时，而是返回内容在当前主会话链路里丢失
-- 继续尝试 `openclaw agent --agent twinbox --session-id ...` 与 `--to +1555...` 也没有真正创建新的 Twinbox 对话；`meta.agentMeta.sessionId` 仍回到 `39149542-a32b-400d-a9c2-aa92d89b6f02`
-- 进一步改用 `openclaw cron add --agent twinbox --session isolated --no-deliver ...` 手动触发后，确实生成了独立 `agent:twinbox:cron:<jobId>` 会话
-- 在这些 isolated cron session 中，显式探针已再次验证可执行 `twinbox task latest-mail --json` 与 `twinbox task progress ... --json`，并能正常回正文
-- 但自然话术在 isolated cron session 中仍会退化成只读 `SKILL.md` / memory，最后同样出现 `assistant.content=[]`
-- 因此当前更准确的结论是：显式 task 探针已验证；自然话术问题不只在 `agent:twinbox:main` 复用，也涉及当前 OpenClaw 对 Twinbox 自然任务的路由 / 执行策略
+### B.4 上线后
 
-## 为什么会出现“缺少 env”回复
+- [x] 至少一次日内 schedule smoke
+- [ ] weekly refresh 至少成功一次
+- [x] phase4 产物可被 queue / digest 消费
+- [x] 至少一次 chat-visible 定时推送类 smoke（独立 cron session）
+- [ ] preflight 错误对终端用户可见
+- [ ] stale 队列识别与恢复
+- [x] 无自动发送 / 破坏性邮箱操作
+- [ ] native 与 Compose 配置长期无漂移（若双轨）
 
-当前已验证，至少有两种完全不同的成因：
+---
 
-### 成因 A：agent 没有真实执行 `preflight`
-
-- `openclaw skills info twinbox` 只能证明 skill metadata 已挂载
-- 不能证明 agent 在自然语言对话里真的执行了 `twinbox mailbox preflight --json`
-- 如果只是根据 `SKILL.md` 的 `requires.env` / `login.runtimeRequiredEnv` 自由发挥，就可能把“需要这些字段”说成“当前缺这些字段”
-
-这也是为什么当前文档一直把“agent 在对话里自己执行 Twinbox preflight”标成未验证。
-
-### 成因 B：state root 漂移到 `~/.openclaw/workspace`
-
-- Twinbox 会优先从 `TWINBOX_STATE_ROOT` 或 `~/.config/twinbox/state-root` 解析 state root
-- 兼容层才会再回退到 `TWINBOX_CANONICAL_ROOT` / `~/.config/twinbox/canonical-root`
-- 如果两者都没有，默认就会把当前工作目录当作 state root
-- 在 OpenClaw agent / workspace 场景下，这通常意味着去找 `~/.openclaw/workspace/.env`
-- 而不是你的 Twinbox 仓库根 `.env`
-
-所以初始化部署时，必须把“初始化 code root / state root”当成一等步骤，而不是可选优化。
-
-## 调度与心跳专项检查清单
-
-这部分当前是重点待梳理区，不应默认视为已完成。
-
-- [x] OpenClaw Gateway 认证直连已通过：`openclaw health --url ... --token ...`
-- [x] OpenClaw `system-event` 能被 Gateway 接收：`openclaw system event --mode now --json`
-- [x] OpenClaw `cron` 能创建 / debug run `systemEvent` 类型 job
-- [x] OpenClaw `system-event` 最小 smoke 已能稳定落到宿主机 service
-- [x] 宿主机 service 已有最小消费器实现：`scripts/twinbox_openclaw_bridge_poll.sh`
-- [x] 用户态宿主 service 已实际安装 [twinbox-openclaw-bridge.timer](./twinbox-openclaw-bridge.timer)
-- [x] 宿主机 poller 已在非 dry-run 下调用 `twinbox-orchestrate schedule --job daytime-sync --format json`
-- [x] 一次性 `agentTurn` cron job 已能生成独立 Twinbox cron session，并产出可查看摘要
-- [ ] `metadata.openclaw.schedules` 是否已被平台解析
-- [x] Gateway `cron -> system-event -> host poller -> schedule --job daytime-sync` 已真实触发一次
-- [ ] 失败后平台是否有重试 / 告警
-- [ ] stale surface 出现时，谁负责补刷
-- [ ] 平台是否有 heartbeat / worker / daemon 模型
-- [ ] Twinbox 是否需要实现自己的 listener manager
-- [x] 当前已确认 `daytime-sync` 仍在复用最近一次 `Phase 4` overlay，而不是轻量 attention 重算
-
-## 上线后验证清单
-
-- [x] 至少一次日内 schedule smoke 已跑通
-- [ ] weekly refresh 至少成功跑通一次
-- [x] phase4 产物生成后，queue / digest 可被消费
-- [x] 至少一次 chat-visible timed push smoke 已生成独立 cron session 摘要
-- [ ] preflight 错误能回显给平台用户
-- [ ] stale 队列能被识别并恢复
-- [x] 没有自动发送 / destructive mailbox 操作
-- [ ] 原生 OpenClaw 与 Compose 版的 managed skill / model config 没有漂移
-
-## 当前建议
-
-现阶段不要把 OpenClaw 方案写成“已具备完整托管能力”。
-
-更准确的状态是：
-
-- Twinbox 已经准备好了 `manifest + preflight + orchestration CLI + scheduling contract`
-- OpenClaw native 安装、managed skill 迁移、TUI 连通性已经有了实测基础
-- OpenClaw 的 `cron -> system-event` 这半段已经有 authenticated smoke 证据
-- chat-visible 定时推送当前更准确地说是“生成独立 cron session + summary”，而不是“把摘要直接回写 `agent:twinbox:main`”
-- 但 OpenClaw 托管接入，尤其是 `schedule / heartbeat / listener / action runtime`，仍然需要单独推进和验证
-- 当前 `cron add` 只支持 agent message 或 `system-event` payload，没有“直接执行宿主命令”的现成入口，所以 `system-event -> 宿主机 service -> twinbox-orchestrate bridge --event-text ...` 的 bridge 仍然是刚需
-- `openclaw cron add --announce` 对 `system-event` 不适合直接投到 `agent:twinbox:main`；当前实测要求非 main 的 agentTurn session，且在未配置 channel 时会报 `Channel is required`
-- Twinbox 侧已经补出 bridge dispatcher：宿主 service 在拿到事件文本后，可以稳定调用 `scripts/twinbox_openclaw_bridge.sh --event-text ... --format json`；wrapper 会统一 `TWINBOX_CODE_ROOT`、`TWINBOX_STATE_ROOT` 和工作目录，再由它转发到 `schedule --job ...`
-- Twinbox 侧也已经补出 host poller：宿主 service 可直接调用 `scripts/twinbox_openclaw_bridge_poll.sh --format json`，由它轮询 Gateway `cron.list` / `cron.runs`，识别新完成的 Twinbox `systemEvent` run，再转发到 `schedule`
-- 本仓库已提供最小用户态 systemd 样例：
-  - [twinbox-openclaw-bridge.service](./twinbox-openclaw-bridge.service)
-  - [twinbox-openclaw-bridge.timer](./twinbox-openclaw-bridge.timer)
-  - [twinbox-openclaw-bridge.env.example](./twinbox-openclaw-bridge.env.example)
-  - [../scripts/install_openclaw_bridge_user_units.sh](../scripts/install_openclaw_bridge_user_units.sh)
-- 当前推荐安装路径：
-  - `openclaw gateway install --force`
-  - `bash scripts/install_openclaw_bridge_user_units.sh`
-- 日内链路当前仍处于“`Phase 1` truth + `activity-pulse` overlay 最近一次 `Phase 4` 队列”的阶段，不应误写成终态
-
-下一步建议优先级：
-
-1. 跑通 OpenClaw 对 `preflightCommand` 的真实消费
-2. 把用户态宿主 service 真正安装为 [twinbox-openclaw-bridge.timer](./twinbox-openclaw-bridge.timer)，形成 `OpenClaw cron -> Gateway cron.runs -> host poller -> bridge -> schedule` 最小闭环
-3. 再验证 `metadata.openclaw.schedules` 是否会被真实执行，或明确继续只把它当声明层
-4. 再决定是直接用 repo 根，还是从 `openclaw-skill/` 导出独立包
+**文档版本说明**：本文由 `openclaw-skill/DEPLOY.md` 演进而来，合并原「推荐部署路径 / 迁移 / 清单 / 官方映射」等章节，主路径以 **§2** 为准。
