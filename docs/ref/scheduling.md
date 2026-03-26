@@ -253,6 +253,7 @@ def _is_stale(generated_at_str: str, max_age_hours: int = 24) -> bool:
 1. 用 `openclaw cron` 创建 `system-event` job
 2. 宿主 poller 消费 Gateway `cron.runs`
 3. 由 `twinbox-orchestrate bridge` / `schedule --job ...` 执行对应刷新
+4. 当执行的是 `daytime-sync` 且存在启用订阅时，Twinbox 会在刷新成功后自动调用 push dispatcher，通过 `openclaw sessions send` 向已订阅 session 分发摘要；分发结果会写入 `schedule` 返回载荷和 `runtime/audit/schedule-runs.jsonl` 的 `push_dispatch` 字段，分发异常不会让整个调度 job 失败
 
 ### 2. 环境变量
 

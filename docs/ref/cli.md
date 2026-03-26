@@ -47,6 +47,7 @@ twinbox                      # task-facing CLI 入口
   onboarding                 # 对话式引导配置
     start
     status
+    next
 
   push                       # 推送通知订阅
     subscribe
@@ -347,6 +348,23 @@ twinbox onboarding start [--json]
 ```bash
 twinbox onboarding status [--json]
 ```
+
+### onboarding next
+
+完成当前阶段并推进到下一阶段，用于对话式渐进配置流程。
+
+**用法**：
+
+```bash
+twinbox onboarding next [--json]
+```
+
+**输出字段**（JSON）：
+
+- `completed_stage`：本次刚完成的阶段（首次从未开始推进时为 `mailbox_login`）
+- `current_stage`：推进后的当前阶段（可能为 `completed`）
+- `completed_stages`：已完成阶段列表
+- `prompt`：下一阶段提示文案
 
 ### push subscribe
 

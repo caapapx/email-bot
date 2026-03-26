@@ -64,6 +64,12 @@
 
 这三种模式最终都应收敛到同一套标准化上下文工件（normalized context artifacts）和同一条下游推断流水线。
 
+当前已验证的实践边界：
+
+- 用户态初始化（邮箱地址探测、画像、材料、路由规则、推送订阅）可以通过对话式渐进流程完成
+- 宿主态部署（OpenClaw skill 文件同步、Gateway reload、`skills.entries.twinbox.env` 注入、bridge/poller/systemd 安装）仍属于外部运行时接线，不能假设只靠渠道消息框就能自动闭环
+- 因此“对话式初始化”与“宿主级部署”应在架构上明确分层：前者写入 Twinbox 的标准化 context / profile / rule / subscription 状态，后者负责把这些能力接到 OpenClaw 宿主执行面
+
 ## 共享状态根（Shared State Root）
 
 系统将可执行代码与实例本地状态分离。
