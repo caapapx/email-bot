@@ -360,9 +360,10 @@ def write_activity_pulse(state_root, *, window_hours=24, top_k=3):
 
 - 读取 `runtime/context/schedule-overrides.yaml`
 - 合并 SKILL.md 默认值
-- **OpenClaw 集成**：当前 OpenClaw 没有 `skills reload` API。实现分两步：
-  1. **短期**：`twinbox schedule update` 修改 override 文件后，输出提示用户手动在 OpenClaw 中重新部署 skill
-  2. **长期**：等 OpenClaw 提供 schedule 动态更新 API 后，自动调用
+- **OpenClaw 集成**：当前 OpenClaw 没有 `skills reload` API。短期实现为：
+  1. `twinbox schedule update/reset` 先写 `runtime/context/schedule-overrides.yaml`
+  2. 然后通过 `openclaw cron list/edit/add` 同步 Twinbox 自己的 bridge jobs（`daytime-sync` / `friday-weekly` / `nightly-full`）
+  3. 如果 Gateway 不可达或出现重复 Twinbox cron job，则保留 runtime override，并在 JSON 返回中暴露 `platform_sync.status=error`
 - **本地模式**：如果用户通过 `twinbox-orchestrate schedule --job ...` 手动触发，override 文件直接生效（不依赖 OpenClaw）
 
 ---

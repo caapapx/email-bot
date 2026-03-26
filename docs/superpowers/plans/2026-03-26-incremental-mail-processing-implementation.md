@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3, `pytest`, `imaplib`, existing YAML/JSON runtime artifacts, shell orchestration scripts
 
-**Execution Status (2026-03-26):** Task 1-4 are implemented in repo. `daytime-sync` now enters through `scripts/phase1_incremental.sh`, which calls the Python incremental driver and falls back to `phase1_loading.sh` when `UIDVALIDITY` requires a full rescan. Focused regression coverage has been added for driver behavior, merge stability, no-op handling, runtime artifact writes, and runtime schedule override commands (`twinbox schedule list/update/reset`).
+**Execution Status (2026-03-26):** Task 1-4 are implemented in repo. `daytime-sync` now enters through `scripts/phase1_incremental.sh`, which calls the Python incremental driver and falls back to `phase1_loading.sh` when `UIDVALIDITY` requires a full rescan. Focused regression coverage has been added for driver behavior, merge stability, no-op handling, runtime artifact writes, and runtime schedule override commands (`twinbox schedule list/update/reset`), including platform-side OpenClaw cron sync for the Twinbox bridge jobs.
 
 ---
 
