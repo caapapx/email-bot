@@ -3,6 +3,7 @@
 > 设计日期：2026-03-26
 > 方案：C1（渐进式增量）
 > 状态：设计中
+> Spec Review: Round 1 — 修复 2 critical + 4 major + 3 minor
 
 ---
 
@@ -87,26 +88,30 @@ Phase 1-4 处理层
 
 ```yaml
 dismissed:
-  - thread_id: "thread-123"
+  - thread_key: "Re: Q2 budget review"
     dismissed_at: "2026-03-26T10:00:00+08:00"
     reason: "已回复"
     dismissed_from_queue: "urgent"
     snapshot:
-      last_message_id: "msg-456"
+      latest_message_ref: "msg-456"
       message_count: 5
-      fingerprint: "msg-456|urgent"
+      fingerprint: "msg-456|urgent,pending|waiting_on_them||approval"
       last_activity_at: "2026-03-26T09:30:00+08:00"
 
 completed:
-  - thread_id: "thread-789"
+  - thread_key: "Invoice #2026-003"
     completed_at: "2026-03-26T11:00:00+08:00"
     action_taken: "已归档"
     snapshot:
-      last_message_id: "msg-999"
+      latest_message_ref: "msg-999"
       message_count: 3
-      fingerprint: "msg-999|pending"
+      fingerprint: "msg-999|pending|waiting_on_me||billing"
       last_activity_at: "2026-03-26T10:00:00+08:00"
 ```
+
+**说明**：
+- 使用 `thread_key`（与 `daytime_slice.py`、Phase 4 artifacts 一致）
+- `fingerprint` 格式与 `daytime_slice.py` 的 `_state_marker()` 输出一致：`{latest_message_ref}|{queue_tags}|{waiting_on}|{flow}|{stage}`
 
 **区别**：
 - `dismissed`：暂时忽略，有新回复时智能重新激活
@@ -186,17 +191,70 @@ UIDVALIDITY 变化
 5. 用 himalaya 采样新邮件的 body（保持现有逻辑）
 ```
 
-### 4.4 orchestration.py 改造
+### 4.4 Context 合并模块：`src/twinbox_core/merge_context.py`
 
-`daytime-sync` job 改为调用增量脚本：
+**职责**：将增量拉取的新 envelope 合并到现有 `phase1-context.json`
+
+**核心函数**：
 
 ```python
-# daytime-sync: 增量
-("phase1-incremental", ["bash", "scripts/phase1_incremental.sh"])
+def merge_incremental_context(
+    existing_path: Path,
+    new_envelopes: list[dict],
+    new_bodies: dict[str, dict],
+) -> dict:
+    """
+    合并增量 envelope 到现有 context-pack。
 
-# nightly-full: 保持全量
-("phase1-full", ["bash", "scripts/phase1_loading.sh"])
+    去重策略：以 envelope.id + folder 为唯一键。
+    如果新 envelope 的 id 已存在，用新的覆盖（可能 flags 变了）。
+
+    Returns: 合并后的完整 context-pack
+    """
 ```
+
+**合并规则**：
+
+1. **Envelope 去重**：`(id, folder)` 为唯一键，新覆盖旧
+2. **Body 合并**：新 body 追加到 `sampled_bodies`，已有的不覆盖
+3. **Stats 更新**：重新计算 `total_envelopes` 和 `sampled_bodies` 计数
+4. **时间戳更新**：`generated_at` 更新为当前时间
+5. **Lookback 裁剪**：合并后仍按 `lookback_days` 裁剪过期 envelope
+
+**Envelope Schema 标准化**：
+
+imaplib 返回的 ENVELOPE 需要转换为 himalaya 兼容格式：
+
+```python
+def normalize_imap_envelope(imap_envelope: tuple, folder: str) -> dict:
+    """
+    将 imaplib FETCH (ENVELOPE FLAGS) 转换为 himalaya 兼容 schema。
+
+    himalaya 格式:
+        {"id": "123", "folder": "INBOX", "subject": "...",
+         "from": {"name": "...", "addr": "..."}, "date": "...",
+         "has_attachment": false, "flags": ["Seen"]}
+
+    imaplib ENVELOPE 格式:
+        (date, subject, from, sender, reply_to, to, cc, bcc, in_reply_to, message_id)
+    """
+```
+
+### 4.5 orchestration.py 改造
+
+`daytime-sync` job 改为调用增量脚本（仅替换 Phase 1，Phase 3/4 保持不变）：
+
+```python
+# daytime-sync 步骤（当前 4 步，只替换第 1 步）:
+# 1. Phase 1 Loading → Phase 1 Incremental（替换）
+# 2. Phase 3 Loading（保持不变）
+# 3. Phase 4 Loading（保持不变）
+# 4. Phase 4 Thinking（保持不变，增加用户状态过滤）
+
+# nightly-full: 全部保持全量
+```
+
+**注意**：Phase 2-3 的 thinking 脚本仍然处理完整 context，不做增量改造。增量收益主要来自 Phase 1 的 IMAP 拉取减少。
 
 ---
 
@@ -207,9 +265,9 @@ UIDVALIDITY 变化
 **核心函数**：
 
 ```python
-def dismiss_thread(state_root, thread_id, reason, queue, snapshot) -> None
-def complete_thread(state_root, thread_id, action_taken, snapshot) -> None
-def restore_thread(state_root, thread_id) -> None
+def dismiss_thread(state_root, thread_key, reason, queue, snapshot) -> None
+def complete_thread(state_root, thread_key, action_taken, snapshot) -> None
+def restore_thread(state_root, thread_key) -> None
 def check_reactivation(dismissed, current_thread) -> bool
 def filter_dismissed(snapshots, user_state) -> (filtered, reactivated)
 ```
@@ -235,10 +293,12 @@ def check_reactivation(dismissed: dict, current_thread: dict) -> bool:
 
 | 命令 | 作用 |
 |------|------|
-| `twinbox queue dismiss THREAD_ID --reason "已处理"` | 标记为 dismissed |
-| `twinbox queue complete THREAD_ID --action "已回复"` | 标记为 completed |
-| `twinbox queue restore THREAD_ID` | 恢复到队列 |
+| `twinbox queue dismiss THREAD_KEY --reason "已处理" --json` | 标记为 dismissed |
+| `twinbox queue complete THREAD_KEY --action "已回复" --json` | 标记为 completed |
+| `twinbox queue restore THREAD_KEY --json` | 恢复到队列 |
 | `twinbox queue status --json` | 查看当前用户状态 |
+
+所有命令支持 `--json` 输出，供 OpenClaw 工具调用。
 
 ### 5.4 OpenClaw 工具
 
@@ -251,29 +311,31 @@ def check_reactivation(dismissed: dict, current_thread: dict) -> bool:
 
 ## 6. 推送过滤
 
-### 6.1 修改 `push_dispatcher.py`
+### 6.1 修改 `daytime_slice.py`（过滤点在生成阶段，不在推送阶段）
 
-在推送前增加过滤步骤：
+过滤应发生在 `write_activity_pulse()` 生成 `notify_payload` 之前，而不是在 `push_dispatcher.py` 里。
+原因：`push_dispatcher.py` 只接收 `notify_payload.urgent_top_k`（已经是精简后的列表），没有完整 snapshot 信息。
 
 ```python
-def dispatch_push(state_root, payload, ...):
-    # 1. 加载用户状态
-    user_state = load_user_state(state_root)
+# daytime_slice.py 的 write_activity_pulse() 中：
 
-    # 2. 过滤 dismissed + 检测重新激活
-    filtered, reactivated = filter_dismissed_threads(
-        payload["snapshots"], user_state
-    )
+def write_activity_pulse(state_root, *, window_hours=24, top_k=3):
+    # ... 现有逻辑生成 snapshots ...
 
-    # 3. 如果有重新激活，从 dismissed 移除
+    # 新增：加载用户状态，过滤 dismissed
+    user_state = load_user_state(resolved_root)
+    snapshots, reactivated = filter_dismissed_threads(snapshots, user_state)
+
+    # 如果有重新激活，更新 user-queue-state.yaml
     if reactivated:
-        remove_dismissed(state_root, reactivated)
+        remove_dismissed(resolved_root, reactivated)
 
-    # 4. 推送过滤后的队列
-    ...
+    # ... 继续现有的 _filter_notifiable() 和 payload 构建 ...
 ```
 
-### 6.2 推送内容变化
+### 6.2 `push_dispatcher.py` 不改
+
+`push_dispatcher.py` 保持现有逻辑不变。它只负责把 `notify_payload` 发送到订阅的 session，不做过滤。
 
 推送消息中增加：
 - 新增线程数
@@ -296,7 +358,10 @@ def dispatch_push(state_root, payload, ...):
 
 - 读取 `runtime/context/schedule-overrides.yaml`
 - 合并 SKILL.md 默认值
-- 通知 OpenClaw 重新注册 cron（`openclaw skills reload twinbox`）
+- **OpenClaw 集成**：当前 OpenClaw 没有 `skills reload` API。实现分两步：
+  1. **短期**：`twinbox schedule update` 修改 override 文件后，输出提示用户手动在 OpenClaw 中重新部署 skill
+  2. **长期**：等 OpenClaw 提供 schedule 动态更新 API 后，自动调用
+- **本地模式**：如果用户通过 `twinbox-orchestrate schedule --job ...` 手动触发，override 文件直接生效（不依赖 OpenClaw）
 
 ---
 
@@ -346,4 +411,5 @@ def dispatch_push(state_root, payload, ...):
 | UIDVALIDITY 频繁变化 | 自动回退窗口重扫，记录日志 |
 | 用户状态文件损坏 | 原子写入 + 备份，损坏时重置为空 |
 | 增量遗漏邮件 | nightly-full 全量对账，每 24 小时修正 |
-| imaplib 与 himalaya 数据格式不一致 | 统一到 canonical envelope schema |
+| imaplib 与 himalaya 数据格式不一致 | `merge_context.py` 的 `normalize_imap_envelope()` 统一到 himalaya schema |
+| user-queue-state 与 activity-pulse-state 状态冲突 | 两者职责不同：`activity-pulse-state.json` 控制推送去重（fingerprint 级），`user-queue-state.yaml` 控制用户可见性（thread_key 级）。dismiss 不修改 pulse state；restore 也不修改 pulse state。两者独立运作，过滤顺序：先 pulse 去重 → 再 user state 过滤 |
