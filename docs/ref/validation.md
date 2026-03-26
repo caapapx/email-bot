@@ -140,8 +140,8 @@
 
 当前唯一保留的实例级人工补充说明是：
 
-- `runtime/context/instance-calibration-notes.md`
-- 它属于 instance-local human context input，而不是 `docs/validation/` report artifact
+- `runtime/context/manual-facts.yaml` 和 `runtime/context/manual-habits.yaml`
+- 它们属于 instance-local human context input，而不是 `docs/validation/` report artifact
 - `docs/validation/` 现在应完全收敛为视图层，不再承担运行时输入
 
 ### 规则 3：`llm-response.json` 不是长期契约
