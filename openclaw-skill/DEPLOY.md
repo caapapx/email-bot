@@ -198,9 +198,14 @@ twinbox deploy openclaw --rollback --json
 ```json
 {
   "plugins": {
+    "load": {
+      "paths": [
+        "/abs/path/to/twinbox/openclaw-skill/plugin-twinbox-task"
+      ]
+    },
     "entries": {
       "twinbox-task-tools": {
-        "path": "/abs/path/to/twinbox/openclaw-skill/plugin-twinbox-task",
+        "enabled": true,
         "config": {
           "cwd": "/abs/path/to/twinbox",
           "twinboxBin": "/abs/path/to/twinbox/scripts/twinbox"
