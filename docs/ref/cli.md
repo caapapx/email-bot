@@ -71,7 +71,10 @@ twinbox                      # task-facing CLI 入口
     pulse
     weekly
 
-  deploy                     # OpenClaw 宿主接线（仅宿主机）
+  onboard                    # OpenClaw 安装总向导（宿主机；推荐）
+    openclaw [--dry-run] [--json] ...
+
+  deploy                     # OpenClaw 宿主接线（仅宿主机；高级入口）
     openclaw [--rollback] [--strict] [--fragment PATH] [--no-fragment] [--remove-config] [--dry-run] [--json] ...
 
   daemon                     # 后台 JSON-RPC（Unix socket；省 Python 冷启动）
@@ -249,9 +252,28 @@ next_action: string
 
 ## 命令规范
 
+### onboard openclaw
+
+OpenClaw 安装总向导。默认交互式，负责按顺序检查并补足邮箱/LLM 门槛、执行宿主接线，并把状态交接到现有对话 onboarding。
+
+**用法**：
+
+```bash
+twinbox onboard openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
+                         [--openclaw-bin NAME] [--json]
+```
+
+**说明**：
+
+- 这是默认推荐入口，面向人工操作员。
+- 会在缺少邮箱配置时提示录入邮箱地址和 app password，并写入 `state_root/.env`。
+- 会在缺少 LLM 配置时提示 provider 与 API key，并写入 `state_root/.env`。
+- 然后调用 `deploy openclaw` 的推荐策略：env sync + strict + gateway restart。
+- 完成后只把 onboarding 进度推进到下一对话阶段；不会替你采集 profile/material/rules/push 的业务内容。
+
 ### deploy openclaw
 
-宿主机上把 Twinbox 接到 OpenClaw：**roots 初始化**、合并 `~/.openclaw/openclaw.json` 的 `skills.entries.twinbox`、按 **`deploy_host_system` / `deploy_host_machine`** 做 **`ensure_himalaya`**（`PATH` → `state_root/runtime/bin/himalaya` → 内置 **Linux x86_64 / aarch64** 解压；其它平台为 `skipped` 并提示自行安装）、将仓库根 `SKILL.md` 写入 **state root** 根下的 `SKILL.md` 并对 `~/.openclaw/skills/twinbox/SKILL.md` **创建符号链接**（不支持时回退复制）、`openclaw gateway restart`。JSON 报告含 `skill_canonical_dest` / `skill_dest` 及宿主字段。实现：`src/twinbox_core/openclaw_deploy.py`。
+宿主机上把 Twinbox 接到 OpenClaw的高级/脚本化入口：**roots 初始化**、合并 `~/.openclaw/openclaw.json` 的 `skills.entries.twinbox`、按 **`deploy_host_system` / `deploy_host_machine`** 做 **`ensure_himalaya`**（`PATH` → `state_root/runtime/bin/himalaya` → 内置 **Linux x86_64 / aarch64** 解压；其它平台为 `skipped` 并提示自行安装）、将仓库根 `SKILL.md` 写入 **state root** 根下的 `SKILL.md` 并对 `~/.openclaw/skills/twinbox/SKILL.md` **创建符号链接**（不支持时回退复制）、`openclaw gateway restart`。JSON 报告含 `skill_canonical_dest` / `skill_dest` 及宿主字段。实现：`src/twinbox_core/openclaw_deploy.py`。
 
 **用法**：
 
@@ -371,7 +393,7 @@ twinbox mailbox detect EMAIL [--json]
 twinbox onboarding start [--json]
 ```
 
-**阶段**：mailbox_login → profile_setup → material_import → routing_rules → push_subscription
+**阶段**：mailbox_login → llm_setup → profile_setup → material_import → routing_rules → push_subscription
 
 ### onboarding status
 

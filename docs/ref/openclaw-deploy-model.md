@@ -13,7 +13,7 @@
 - **用户态初始化**：邮箱探测、画像、材料、路由规则、推送订阅等，通过**对话式渐进流程**完成，写入标准化 context / profile / rule / subscription 状态（同一 **state root**）。
 - **宿主态部署**：OpenClaw skill 文件同步、Gateway reload、`skills.entries.twinbox.env`、可选 bridge / poller / systemd，属于**宿主执行面**，不能假设仅靠渠道消息框自动闭环。
 
-因此：**操作文档 §3 前几步是「接线」；§3.8 起是「在已接线的 agent 里引导用户完成配置」**。
+因此：**操作文档 §3 前几步是「接线」；`twinbox onboard openclaw` 负责把这些宿主步骤串成默认路径；§3.8 起仍是「在已接线的 agent 里引导用户完成配置」**。
 
 ---
 
@@ -21,7 +21,7 @@
 
 | 层次 | 做什么 | 谁触发 | 典型入口 |
 |------|--------|--------|----------|
-| **宿主态接线** | OpenClaw 安装、Twinbox CLI、`code-root` / `state-root`、安装根 SKILL.md、`skills.entries.twinbox.env`、Gateway 重启、可选 bridge/timer | 运维 / 你在 shell | 操作文档 §3.1–§3.5、§3.9 |
+| **宿主态接线** | OpenClaw 安装、Twinbox CLI、`code-root` / `state-root`、安装根 SKILL.md、`skills.entries.twinbox.env`、Gateway 重启、可选 bridge/timer | 运维 / 你在 shell | `twinbox onboard openclaw`（默认总向导）或 `twinbox deploy openclaw`（高级入口）；操作文档 §3.1–§3.5、§3.9 |
 | **用户态对话引导** | 在 `twinbox` agent 会话中，由模型按 SKILL.md 调用 CLI，分阶段完成邮箱、画像、材料、路由、推送订阅 | 用户与 agent 多轮对话 | `twinbox onboarding start \| status \| next --json`，辅以 `mailbox detect`、`task mailbox-status` 等 |
 | **后台刷新与推送** | 长耗时 phase 流水线**不占用**聊天 turn；由宿主机调度驱动 `twinbox-orchestrate schedule --job …`；`daytime-sync` 成功且存在启用订阅时可触发推送分发 | systemd timer、或 OpenClaw `cron` → 宿主消费 | [orchestration.md](./orchestration.md)（`daytime-sync`、`push_dispatch`、`bridge` / `bridge-poll`） |
 
@@ -62,7 +62,7 @@ flowchart LR
 ## 4. 按时间顺序：「对话」与「后台」衔接
 
 1. **接线完成前**：不要指望在聊天里完成 `cp SKILL.md`、`openclaw.json` 编辑或 systemd 安装。
-2. **接线完成后**：在 `twinbox` agent、且 skill 已注入当前会话后，走 onboarding 流程（`onboarding start` → 多轮对话 → `onboarding next` 直到 `completed`）。
+2. **接线完成后**：在 `twinbox` agent、且 skill 已注入当前会话后，走 onboarding 流程（`onboarding start` → 多轮对话 → `onboarding next` 直到 `completed`）；`twinbox onboard openclaw` 只负责把宿主步骤与这个对话阶段交接起来，不替代业务信息采集本身。
 3. **需要定时刷新时**：启用宿主调度（bridge + systemd timer），使 `daytime-sync` 等 job 按钟点运行。
 4. **日常只读查询**：在 `twinbox` agent 用显式 `twinbox task …` 或插件工具，不要把长 `twinbox-orchestrate run` 塞进普通聊天 turn。
 

@@ -117,7 +117,7 @@ twinbox mailbox preflight --json
 
 #### Markdown skill
 
-**推荐**：用下方 `twinbox deploy openclaw`（会把真源写入 **state root** 根下的 `SKILL.md` 并尽量用软链接到 OpenClaw）。旧版曾使用 `state_root/skills/twinbox/SKILL.md`，升级后若存在该路径可手动删除以免混淆。
+**推荐**：优先使用 `twinbox onboard openclaw`，让向导按顺序检查邮箱/LLM 门槛、执行宿主接线，并在最后交接到对话 onboarding。`twinbox deploy openclaw` 保留为高级/脚本化入口。旧版曾使用 `state_root/skills/twinbox/SKILL.md`，升级后若存在该路径可手动删除以免混淆。
 
 仅手工时：
 
@@ -125,7 +125,24 @@ twinbox mailbox preflight --json
 cp /path/to/twinbox/SKILL.md ~/.openclaw/skills/twinbox/SKILL.md
 ```
 
-#### 一键宿主接线（推荐）
+#### 安装总向导（推荐）
+
+在仓库根、已激活 venv 的前提下，先走总向导：
+
+```bash
+cd /path/to/twinbox
+source .venv/bin/activate
+twinbox onboard openclaw --json
+```
+
+向导默认会：
+
+- 检查 `openclaw`、`code-root`、`state-root`、state `.env`、当前 onboarding stage
+- 在缺少邮箱或 LLM 配置时补做最小门槛配置
+- 调用宿主接线（见下方高级入口）
+- 把 onboarding 进度同步到下一个应进入的对话阶段，并给出后续动作
+
+#### 一键宿主接线（高级入口）
 
 在仓库根、已激活 venv 的前提下，可用 CLI 串行完成：**roots 初始化**、`~/.openclaw/openclaw.json` 中 `skills.entries.twinbox` 合并（默认从 **state root** 的 `.env` 同步邮箱相关键）、**按宿主 OS/CPU 检查或释放 `himalaya`**（`--json` 中 `ensure_himalaya` 步；Linux x86_64/aarch64 可自动从 twinbox 内置包解压到 `runtime/bin`，其它平台为 `skipped` 时需自行安装）、**同步 `SKILL.md`**（先写入 `$TWINBOX_STATE_ROOT/SKILL.md`，再对 `~/.openclaw/skills/twinbox/SKILL.md` **创建指向该文件的符号链接**；若宿主不支持软链则回退为复制）、**`openclaw gateway restart`**：
 
