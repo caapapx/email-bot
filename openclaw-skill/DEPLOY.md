@@ -131,7 +131,7 @@ source .venv/bin/activate
 twinbox deploy openclaw --json
 ```
 
-常用选项：`--dry-run`（只输出计划、不写盘）；`--no-restart`；`--no-env-sync`（仅 `enabled: true`，不覆盖已有 `env`）。若 state `.env` 尚未含完整邮箱字段，合并后 OpenClaw 仍可能缺键，需先完成 §3.4 或手改 JSON。
+常用选项：`--dry-run`（只输出计划、不写盘）；`--no-restart`；`--no-env-sync`（仅 `enabled: true`，不覆盖已有 `env`）；`--strict`（在默认从 state `.env` 同步邮箱键时，若缺任一 OpenClaw 必填键则**失败退出**、不写 `openclaw.json`、不复制 SKILL）。若未使用 `--strict` 且 state `.env` 尚未含完整邮箱字段，合并后 OpenClaw 仍可能缺键，需先完成 §3.4 或手改 JSON。
 
 ##### 撤销本次宿主接线（与 deploy 对称，非全量卸载）
 
