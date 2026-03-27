@@ -131,6 +131,16 @@ source .venv/bin/activate
 twinbox deploy openclaw --json
 ```
 
+##### 可选：并入 `openclaw.fragment.json`（插件路径等）
+
+需要把 **插件**、`twinboxBin` 绝对路径等一并写入宿主 `~/.openclaw/openclaw.json` 时，在仓库内维护片段文件（**先于** `skills.entries.twinbox` 做深度合并）：
+
+1. 复制示例：`cp openclaw-skill/openclaw.fragment.example.json openclaw-skill/openclaw.fragment.json`
+2. 将示例中的 `REPLACE_ME` 换成本机 **Twinbox 仓库绝对路径**（勿把含本机路径的 `openclaw.fragment.json` 提交到 git，见仓库根 `.gitignore`）。
+3. 照常执行 `twinbox deploy openclaw`；若该文件不存在则跳过此步。
+
+CLI：`--fragment PATH` 指定其它 JSON 片段；`--no-fragment` 不读默认路径 `openclaw-skill/openclaw.fragment.json`。
+
 常用选项：`--dry-run`（只输出计划、不写盘）；`--no-restart`；`--no-env-sync`（仅 `enabled: true`，不覆盖已有 `env`）；`--strict`（在默认从 state `.env` 同步邮箱键时，若缺任一 OpenClaw 必填键则**失败退出**、不写 `openclaw.json`、不复制 SKILL）。若未使用 `--strict` 且 state `.env` 尚未含完整邮箱字段，合并后 OpenClaw 仍可能缺键，需先完成 §3.4 或手改 JSON。
 
 ##### 撤销本次宿主接线（与 deploy 对称，非全量卸载）

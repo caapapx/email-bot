@@ -72,7 +72,7 @@ twinbox                      # task-facing CLI 入口
     weekly
 
   deploy                     # OpenClaw 宿主接线（仅宿主机）
-    openclaw [--rollback] [--strict] [--remove-config] [--dry-run] [--json] ...
+    openclaw [--rollback] [--strict] [--fragment PATH] [--no-fragment] [--remove-config] [--dry-run] [--json] ...
 
   task                       # OpenClaw-facing thin task routes
     latest-mail
@@ -250,7 +250,8 @@ next_action: string
 
 ```bash
 twinbox deploy openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run] [--no-restart]
-                        [--no-env-sync] [--strict] [--openclaw-bin NAME] [--json]
+                        [--no-env-sync] [--strict] [--fragment PATH] [--no-fragment]
+                        [--openclaw-bin NAME] [--json]
 twinbox deploy openclaw --rollback [--remove-config] [--dry-run] [--no-restart] [--json]
 ```
 
@@ -259,6 +260,7 @@ twinbox deploy openclaw --rollback [--remove-config] [--dry-run] [--no-restart] 
 - `--rollback`：撤销上述接线（删除 `skills.entries.twinbox`、`~/.openclaw/skills/twinbox/`），**不删除** `~/.twinbox`；全量卸载见 `openclaw-skill/DEPLOY.md` §5 `uninstall_openclaw_twinbox.sh`。
 - `--remove-config`：仅在与 `--rollback` 联用时删除 `~/.config/twinbox/`（code-root / state-root 指针）。
 - `--strict`：默认从 state `.env` 同步邮箱键时，若缺少 `SKILL.md` 声明的 `requires.env` 任一必填项，则失败并跳过后续写盘（与未加 `--strict` 时仅 warning 不同）。
+- `--fragment` / `--no-fragment`：可选将 JSON 片段深度合并进 `openclaw.json`（在写入 `skills.entries.twinbox` 之前）；默认若存在 `openclaw-skill/openclaw.fragment.json` 则读取。示例见 `openclaw-skill/openclaw.fragment.example.json`。
 - `scripts/reset_twinbox_state.sh` 只清 `runtime/` 与 twinbox 会话，不动 `openclaw.json` / skill 文件。
 
 操作主路径见 [openclaw-skill/DEPLOY.md](../../openclaw-skill/DEPLOY.md)。
