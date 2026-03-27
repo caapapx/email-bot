@@ -11,44 +11,49 @@
 
 | 能力 | 说明 |
 |------|------|
-| **Python 常驻 Daemon** | Unix socket + JSON-RPC 2.0（`ping`、`cli_invoke`），`twinbox_version` 字段；路径在 `$TWINBOX_STATE_ROOT/run/`、`logs/daemon.log` |
-| **CLI** | `twinbox daemon start\|stop\|status\|restart`（`task_cli_daemon.py`） |
-| **Go 薄客户端** | `cmd/twinbox-go/`：优先连 daemon，失败则 `exec` `python3 -m twinbox_core.task_cli`；见该目录 `README.md` |
-| **单测** | `tests/test_daemon_rpc.py`、`tests/test_modular_mail_sim.py`、`tests/test_vendor_install.py` |
-| **模组化模拟邮箱** | `twinbox_core.modular_mail_sim`：无 IMAP/LLM 写入 `phase1-context.json`、`intent-classification.json`、Phase 4 YAML、`activity-pulse.json`；包装脚本 `scripts/seed_modular_mail_sim.sh` |
-| **State-root vendor 副本** | `twinbox vendor install` 将当前 **code root** 下 `src/twinbox_core/` 同步到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/`，并写 `vendor/MANIFEST.json`；`twinbox vendor status --json` 查询；宿主可 `PYTHONPATH="$TWINBOX_STATE_ROOT/vendor" python3 -m twinbox_core.task_cli …`（不改变默认 `resolve_*` 语义） |
-| **OpenClaw 话术** | `openclaw-skill/prompt-test.md` § P8（种子 + 对话验收） |
-| **deploy：SKILL 真源 + 软链** | `twinbox deploy openclaw` 将 `SKILL.md` 写入 `state_root/SKILL.md`，并尝试 `ln -s` 到 `~/.openclaw/skills/twinbox/SKILL.md`（失败则复制）；含 **`ensure_himalaya`**（宿主 `system`/`machine` + Linux 内置包解压或 `skipped`）；rollback 仍只拆 OpenClaw 侧目录 |
+| **Python 常驻 Daemon** | Unix socket + JSON-RPC 2.0（`ping`、`cli_invoke`、`imap_pool_stats`），`twinbox_version`；`logs/daemon.log` 使用 **轮转**（约 10MB×3）；路径在 `$TWINBOX_STATE_ROOT/run/` |
+| **CLI** | `twinbox daemon start\|stop\|status\|restart`；`cli_invoke` 支持 `cache_policy` / `timeout_ms`（见 [rpc-protocol.md](./rpc-protocol.md)） |
+| **Go 薄客户端** | `cmd/twinbox-go/`：RPC 或 `exec` Python；**`twinbox-go install --archive …`** 将 tarball 解压到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/` |
+| **Profile** | `twinbox --profile NAME`：`TWINBOX_STATE_ROOT=~/.twinbox/profiles/NAME/state`，`TWINBOX_HOME=~/.twinbox`（共享 **vendor**） |
+| **Loading 入口** | `twinbox loading phase1|…|phase4` → 调用仓库 `scripts/phaseN_loading.sh`（实现仍主要为 bash，Python 为统一入口） |
+| **IMAP 池（可选）** | `TWINBOX_IMAP_POOL=1` 时 preflight 可走 `imaplib` 复用连接；统计经 RPC `imap_pool_stats` |
+| **单测** | `tests/test_daemon_rpc.py`、`tests/test_modular_mail_sim.py`、`tests/test_vendor_install.py`、`tests/test_imap_pool.py` |
+| **模组化模拟邮箱** | `twinbox_core.modular_mail_sim`；`scripts/seed_modular_mail_sim.sh` |
+| **Vendor 副本** | `twinbox vendor install` 同步 `src/twinbox_core` → **`$TWINBOX_HOME/vendor`**（未设 `TWINBOX_HOME` 时与 **state root** 同根，即 `state/vendor`）；`MANIFEST.json` 含 `file_count`、`twinbox_version`；`vendor status` 含 **integrity** |
+| **OpenClaw** | SKILL 真源 + 软链/复制；若已存在 **vendor/twinbox_core**，`deploy` 合并 `openclaw.json` 时会把 **插件 `config.cwd`** 指向该 **vendor** 目录 |
+| **CI tarball** | `scripts/package_vendor_tarball.sh`；workflow `.github/workflows/package-twinbox-core.yml` 上传 artifact |
 
 ## 显式未包含（仍为 North Star / 后续 PR）
 
-- **Go 安装器**式 vendor 释放、自动 PATH、`~/.twinbox` 叙事上的「唯一根」产品化收口；多 profile；LSP；IMAP 连接池等（见历史 grill 计划类文档，**不作当前交付承诺**）。
+- **Onboard / LSP**、daemon **自动监控重启**、Phase 4 **Go hot path** 重写等。
+- **Loading**：bash 脚本仍承担主要 IMAP/himalaya 逻辑；未改为纯 Python 实现。
 
 ## 常用命令
 
 ```bash
-# Daemon
 twinbox daemon start
 twinbox daemon status --json
+twinbox --profile work daemon start
 
-# Go（在 cmd/twinbox-go 构建后）
 ./twinbox-go task todo --json
+./twinbox-go install --archive dist/twinbox_core-0.1.0.tar.gz
 
-# 模组化 30 封邮件种子（默认 ~/.twinbox）
-bash scripts/seed_modular_mail_sim.sh
-
-# 将 twinbox_core 同步到 state root（在仓库根执行；需已配置 code/state root）
 twinbox vendor install
 twinbox vendor status --json
+twinbox loading phase1 -- --lookback-days 3
+
+bash scripts/seed_modular_mail_sim.sh
 ```
 
 ## 环境变量（摘要）
 
-- `TWINBOX_STATE_ROOT`：state root（socket/PID/日志/模拟数据均在此下）。
-- Daemon 客户端侧：`TWINBOX_DAEMON_SOCKET`、`TWINBOX_PYTHON`（Go 与文档同）。
-- 连接空闲超时（测试可调）：`TWINBOX_DAEMON_CONN_IDLE_SEC`。
+- `TWINBOX_STATE_ROOT`、`TWINBOX_HOME`（共享 vendor）、`TWINBOX_DAEMON_SOCKET`、`TWINBOX_PYTHON`、`TWINBOX_IMAP_POOL`、`TWINBOX_DAEMON_CLI_TIMEOUT_SEC`、`TWINBOX_DAEMON_CONN_IDLE_SEC`。
+
+## 相关参考
+
+- [rpc-protocol.md](./rpc-protocol.md)、[artifact-contract.md](./artifact-contract.md)、[code-root-developer.md](./code-root-developer.md)
 
 ## 与历史文档的关系
 
-- `docs/core-refactor.md` 中 **「Go 暂缓」** 的原始含义是：**不全量用 Go 重写 Phase 1–4 / LLM 管线**；**不排斥** Go 作为可选 **CLI 分发 / RPC 转发** 薄壳。
-- 归档计划、旧 near-term 列表若未提及 daemon，视为 **文档未更新**，不以之否定已实现模块。
+- `docs/core-refactor.md` 中 **「Go 暂缓」** 指不全量 Go 重写 Phase 管线；**不排斥** Go 薄壳与安装辅助。
+- 归档计划若未提及上述能力，视为文档未更新，不以之否定当前实现。
