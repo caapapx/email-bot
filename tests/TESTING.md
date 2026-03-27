@@ -114,7 +114,7 @@ test_gate_passes_when_no_regression — 没有退步时门禁应该放行（exit
 
 ### 🟢 fixture 数据质量
 
-信封类探测用例使用 `test_envelope_recipient_probe.py` 内联 JSON 结构，不再依赖大体积 `fixtures/` 目录。
+信封类探测用例使用 `test_envelope_recipient_probe.py` 内联 JSON 结构。仓库 **不** 保留 `tests/fixtures/` 目录。
 
 ---
 
