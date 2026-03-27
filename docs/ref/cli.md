@@ -77,6 +77,10 @@ twinbox                      # task-facing CLI 入口
   daemon                     # 后台 JSON-RPC（Unix socket；省 Python 冷启动）
     start | stop | restart | status [--json]
 
+  vendor                     # 将 src/twinbox_core 同步到 $TWINBOX_STATE_ROOT/vendor
+    install [--dry-run] [--json]
+    status [--json]
+
   task                       # OpenClaw-facing thin task routes
     latest-mail
     todo
@@ -1213,6 +1217,12 @@ twinbox context refresh
 - **Python daemon**：`twinbox daemon start|stop|restart|status [--json]`；协议与路径见 [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)。
 - **Go 薄客户端**：仓库 `cmd/twinbox-go/`（构建与 `TWINBOX_DAEMON_SOCKET` 等见该目录 `README.md`）。
 - **模组化模拟邮箱（无 IMAP）**：`python3 -m twinbox_core.modular_mail_sim` 或 `bash scripts/seed_modular_mail_sim.sh`，用于 OpenClaw 对话验收前灌数据。
+
+## vendor（state-root 下的 Python 包副本）
+
+- **`twinbox vendor install`**：从当前 **code root** 的 `src/twinbox_core/` 复制到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/`，并写入 `vendor/MANIFEST.json`（`--dry-run` 仅打印路径；`--json` 输出结构化结果）。
+- **`twinbox vendor status`**：是否已安装、`MANIFEST` 摘要、`.py` 文件数量等（`--json`）。
+- 不改变默认 `resolve_code_root` / `resolve_state_root`；宿主使用方式见 [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)。实现：`twinbox_core.vendor_sync`、`task_cli_vendor.py`。
 
 ## 参考文档
 

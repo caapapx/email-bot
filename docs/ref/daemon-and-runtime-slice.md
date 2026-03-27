@@ -14,13 +14,14 @@
 | **Python 常驻 Daemon** | Unix socket + JSON-RPC 2.0（`ping`、`cli_invoke`），`twinbox_version` 字段；路径在 `$TWINBOX_STATE_ROOT/run/`、`logs/daemon.log` |
 | **CLI** | `twinbox daemon start\|stop\|status\|restart`（`task_cli_daemon.py`） |
 | **Go 薄客户端** | `cmd/twinbox-go/`：优先连 daemon，失败则 `exec` `python3 -m twinbox_core.task_cli`；见该目录 `README.md` |
-| **单测** | `tests/test_daemon_rpc.py`、`tests/test_modular_mail_sim.py` |
+| **单测** | `tests/test_daemon_rpc.py`、`tests/test_modular_mail_sim.py`、`tests/test_vendor_install.py` |
 | **模组化模拟邮箱** | `twinbox_core.modular_mail_sim`：无 IMAP/LLM 写入 `phase1-context.json`、`intent-classification.json`、Phase 4 YAML、`activity-pulse.json`；包装脚本 `scripts/seed_modular_mail_sim.sh` |
+| **State-root vendor 副本** | `twinbox vendor install` 将当前 **code root** 下 `src/twinbox_core/` 同步到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/`，并写 `vendor/MANIFEST.json`；`twinbox vendor status --json` 查询；宿主可 `PYTHONPATH="$TWINBOX_STATE_ROOT/vendor" python3 -m twinbox_core.task_cli …`（不改变默认 `resolve_*` 语义） |
 | **OpenClaw 话术** | `openclaw-skill/prompt-test.md` § P8（种子 + 对话验收） |
 
 ## 显式未包含（仍为 North Star / 后续 PR）
 
-- `~/.twinbox` 唯一根与 vendor 释放、多 profile、OpenClaw deploy 软链真源、LSP、IMAP 连接池等（见历史 grill 计划类文档，**不作当前交付承诺**）。
+- **Go 安装器**式 vendor 释放、自动 PATH、`~/.twinbox` 叙事上的「唯一根」产品化收口；多 profile；OpenClaw deploy 软链 SKILL 真源；LSP；IMAP 连接池等（见历史 grill 计划类文档，**不作当前交付承诺**）。
 
 ## 常用命令
 
@@ -34,6 +35,10 @@ twinbox daemon status --json
 
 # 模组化 30 封邮件种子（默认 ~/.twinbox）
 bash scripts/seed_modular_mail_sim.sh
+
+# 将 twinbox_core 同步到 state root（在仓库根执行；需已配置 code/state root）
+twinbox vendor install
+twinbox vendor status --json
 ```
 
 ## 环境变量（摘要）
