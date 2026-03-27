@@ -7,7 +7,7 @@ import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from .env_writer import load_env_file, merge_env_file, write_env_file
 from .llm import LLMError, resolve_backend
@@ -21,6 +21,64 @@ from .paths import PathResolutionError, resolve_code_root, resolve_state_root
 InputFn = Callable[[str], str]
 SecretInputFn = Callable[[str], str]
 DeployRunner = Callable[..., OpenClawDeployReport]
+
+
+class JourneyPrompter(Protocol):
+    def intro(self, text: str) -> None: ...
+
+    def outro(self, text: str) -> None: ...
+
+    def note(self, title: str, body: str) -> None: ...
+
+    def select(self, prompt: str, options: list[dict[str, str]], *, default: str | None = None) -> str: ...
+
+    def confirm(self, prompt: str, *, default: bool = True) -> bool: ...
+
+    def progress(self, title: str): ...
+
+
+class ConsoleJourneyPrompter:
+    def intro(self, text: str) -> None:
+        print(f"\n=== {text} ===\n")
+
+    def outro(self, text: str) -> None:
+        print(f"\n{text}\n")
+
+    def note(self, title: str, body: str) -> None:
+        print(f"[{title}]")
+        print(body)
+        print("")
+
+    def select(self, prompt: str, options: list[dict[str, str]], *, default: str | None = None) -> str:
+        labels = ", ".join(
+            f"{opt['value']}{' (default)' if opt.get('value') == default else ''}" for opt in options
+        )
+        allowed = {opt["value"]: opt["value"] for opt in options}
+        while True:
+            raw = input(f"{prompt} [{labels}]: ").strip()
+            if not raw and default is not None:
+                return default
+            if raw in allowed:
+                return allowed[raw]
+
+    def confirm(self, prompt: str, *, default: bool = True) -> bool:
+        return _prompt_yes_no(input, prompt, default=default)
+
+    def progress(self, title: str):
+        print(f"... {title}")
+        prompter = self
+
+        class _Progress:
+            def update(self, message: str) -> None:
+                print(f"    {message}")
+
+            def finish(self, message: str) -> None:
+                print(f"    OK: {message}")
+
+            def fail(self, message: str) -> None:
+                print(f"    FAIL: {message}")
+
+        return _Progress()
 
 
 @dataclass
@@ -132,6 +190,7 @@ def run_openclaw_onboard(
     input_fn: InputFn | None = None,
     secret_input_fn: SecretInputFn | None = None,
     deploy_runner: DeployRunner = run_openclaw_deploy,
+    fragment_decision: bool | None = None,
 ) -> OpenClawOnboardReport:
     report = OpenClawOnboardReport(ok=False)
     input_fn = input_fn or input
@@ -261,11 +320,14 @@ def run_openclaw_onboard(
     fragment_path = default_openclaw_fragment_path(resolved_code_root)
     use_fragment = False
     if fragment_path.is_file():
-        use_fragment = _prompt_yes_no(
-            input_fn,
-            f"Include OpenClaw fragment from {fragment_path}?",
-            default=True,
-        )
+        if fragment_decision is None:
+            use_fragment = _prompt_yes_no(
+                input_fn,
+                f"Include OpenClaw fragment from {fragment_path}?",
+                default=True,
+            )
+        else:
+            use_fragment = fragment_decision
     report.fragment = {
         "path": str(fragment_path),
         "exists": fragment_path.is_file(),
@@ -308,6 +370,92 @@ def run_openclaw_onboard(
     report.notes.append(
         "Host wiring is verified locally; OpenClaw session prompt injection can still lag behind on some models."
     )
+    return report
+
+
+def run_openclaw_onboard_v2(
+    *,
+    code_root: Path | None = None,
+    openclaw_home: Path | None = None,
+    dry_run: bool = False,
+    openclaw_bin: str = "openclaw",
+    prompter: JourneyPrompter | None = None,
+    run_onboard: Callable[..., OpenClawOnboardReport] = run_openclaw_onboard,
+) -> OpenClawOnboardReport:
+    prompter = prompter or ConsoleJourneyPrompter()
+    resolved_code_root = None
+    try:
+        resolved_code_root = resolve_code_root(code_root or Path.cwd())
+    except PathResolutionError:
+        resolved_code_root = None
+
+    fragment_path = default_openclaw_fragment_path(resolved_code_root) if resolved_code_root else None
+    fragment_exists = bool(fragment_path and fragment_path.is_file())
+
+    prompter.intro("Twinbox OpenClaw onboarding")
+    prompter.note(
+        "Phase 1 of 2",
+        "This wizard verifies host wiring first, then hands you off to the twinbox agent for profile, materials, rules, and notifications.",
+    )
+
+    flow = prompter.select(
+        "Choose onboarding flow",
+        options=[
+            {"value": "quickstart", "label": "Quickstart"},
+            {"value": "advanced", "label": "Advanced"},
+        ],
+        default="quickstart",
+    )
+
+    if flow == "advanced":
+        prompter.note(
+            "Advanced mode",
+            "You can review optional fragment behavior before Twinbox performs the recommended OpenClaw wiring sequence.",
+        )
+
+    fragment_decision: bool | None = None
+    if fragment_exists:
+        if flow == "quickstart":
+            fragment_decision = True
+            prompter.note(
+                "Quickstart defaults",
+                f"Twinbox will include the detected OpenClaw fragment at {fragment_path} so plugin wiring stays on the recommended path.",
+            )
+        else:
+            fragment_decision = prompter.confirm(
+                f"Include the detected OpenClaw fragment from {fragment_path}?",
+                default=True,
+            )
+
+    progress = prompter.progress("Running Twinbox host onboarding")
+    progress.update("Checking mailbox, LLM, and OpenClaw wiring prerequisites")
+    report = run_onboard(
+        code_root=code_root,
+        openclaw_home=openclaw_home,
+        dry_run=dry_run,
+        openclaw_bin=openclaw_bin,
+        fragment_decision=fragment_decision,
+    )
+
+    if report.ok:
+        progress.finish("Host wiring verified and onboarding handoff prepared")
+        current_stage = report.onboarding.get("current_stage", "unknown")
+        prompter.note(
+            "Phase 2 of 2",
+            f"Continue in the twinbox agent inside OpenClaw. Your next guided conversation stage is {current_stage}.",
+        )
+        prompter.outro(
+            "Continue in the twinbox agent now. Ask it to keep onboarding and it should pick up from the next stage."
+        )
+    else:
+        progress.fail(report.error or "OpenClaw host onboarding failed")
+        current_stage = report.onboarding.get("current_stage", "unknown")
+        prompter.note(
+            "Recovery",
+            f"Twinbox stopped during host setup. Current guided stage is {current_stage}; fix the blocking error, then rerun the wizard.",
+        )
+        prompter.outro(report.error or "Onboarding failed before handoff.")
+
     return report
 
 

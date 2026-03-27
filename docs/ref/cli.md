@@ -271,6 +271,24 @@ twinbox onboard openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
 - 然后调用 `deploy openclaw` 的推荐策略：env sync + strict + gateway restart。
 - 完成后只把 onboarding 进度推进到下一对话阶段；不会替你采集 profile/material/rules/push 的业务内容。
 
+### onboard openclaw-v2
+
+OpenClaw 风格的 Twinbox onboarding 旅程壳。保持底层 `run_openclaw_onboard` / onboarding state 契约不变，但额外提供 `quickstart` / `advanced` 分流、上下文 note、进度提示，以及更明确的 OpenClaw `twinbox` agent handoff。
+
+**用法**：
+
+```bash
+twinbox onboard openclaw-v2 [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
+                            [--openclaw-bin NAME] [--json]
+```
+
+**说明**：
+
+- `quickstart`：默认推荐，若检测到 `openclaw-skill/openclaw.fragment.json`，会沿推荐路径自动并入 fragment。
+- `advanced`：显式确认是否并入 fragment，并展示更多宿主接线语义。
+- 成功后的人类可读输出会把宿主接线表述为 **Phase 1 of 2**，并明确提示用户继续在 OpenClaw 的 `twinbox` agent 中完成 **Phase 2 of 2**。
+- `--json` 仍输出低层 report JSON；V2 主要增强非 JSON 终端体验。
+
 ### deploy openclaw
 
 宿主机上把 Twinbox 接到 OpenClaw的高级/脚本化入口：**roots 初始化**、合并 `~/.openclaw/openclaw.json` 的 `skills.entries.twinbox`、按 **`deploy_host_system` / `deploy_host_machine`** 做 **`ensure_himalaya`**（`PATH` → `state_root/runtime/bin/himalaya` → 内置 **Linux x86_64 / aarch64** 解压；其它平台为 `skipped` 并提示自行安装）、将仓库根 `SKILL.md` 写入 **state root** 根下的 `SKILL.md` 并对 `~/.openclaw/skills/twinbox/SKILL.md` **创建符号链接**（不支持时回退复制）、`openclaw gateway restart`。JSON 报告含 `skill_canonical_dest` / `skill_dest` 及宿主字段。实现：`src/twinbox_core/openclaw_deploy.py`。
@@ -395,6 +413,10 @@ twinbox onboarding start [--json]
 
 **阶段**：mailbox_login → llm_setup → profile_setup → material_import → routing_rules → push_subscription
 
+**人类可读输出**：
+
+- 以 “Twinbox Onboarding Journey / Phase 2 of 2” 开头，作为宿主态接线完成后的连续旅程文案。
+
 ### onboarding status
 
 查看当前引导进度。
@@ -404,6 +426,10 @@ twinbox onboarding start [--json]
 ```bash
 twinbox onboarding status [--json]
 ```
+
+**人类可读输出**：
+
+- 以 “Twinbox Onboarding Journey / Phase 2 of 2” 开头，强调这是 OpenClaw handoff 后的继续阶段。
 
 ### onboarding next
 
@@ -421,6 +447,10 @@ twinbox onboarding next [--json]
 - `current_stage`：推进后的当前阶段（可能为 `completed`）
 - `completed_stages`：已完成阶段列表
 - `prompt`：下一阶段提示文案
+
+**人类可读输出**：
+
+- 以 “Twinbox Onboarding Journey / Phase 2 of 2” 开头，并展示刚完成阶段和当前阶段，保持与 `onboard openclaw-v2` 的 handoff 语言一致。
 
 ### push subscribe
 
