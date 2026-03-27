@@ -5,6 +5,7 @@ from __future__ import annotations
 import getpass
 import os
 import shutil
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Protocol
@@ -38,45 +39,82 @@ class JourneyPrompter(Protocol):
 
 
 class ConsoleJourneyPrompter:
+    def __init__(self) -> None:
+        self._stream = sys.stdout
+        self._is_tty = hasattr(self._stream, "isatty") and self._stream.isatty()
+
+    def _write(self, text: str = "") -> None:
+        self._stream.write(text + "\n")
+        self._stream.flush()
+
+    def _style(self, text: str, code: str) -> str:
+        if not self._is_tty:
+            return text
+        return f"\033[{code}m{text}\033[0m"
+
     def intro(self, text: str) -> None:
-        print(f"\n=== {text} ===\n")
+        title = self._style(text, "1;36")
+        border = self._style("━" * max(len(text), 28), "36")
+        self._write("")
+        self._write(border)
+        self._write(title)
+        self._write(border)
+        self._write("")
 
     def outro(self, text: str) -> None:
-        print(f"\n{text}\n")
+        self._write("")
+        self._write(self._style(text, "1;32"))
+        self._write("")
 
     def note(self, title: str, body: str) -> None:
-        print(f"[{title}]")
-        print(body)
-        print("")
+        rendered_title = self._style(title, "1;34")
+        lines = body.splitlines() or [body]
+        width = max(len(title) + 4, *(len(line) for line in lines)) + 2
+        top = f"┌{'─' * width}┐"
+        divider = f"├{'─' * width}┤"
+        bottom = f"└{'─' * width}┘"
+        self._write(top)
+        self._write(f"│ {rendered_title.ljust(width - 1)}│")
+        self._write(divider)
+        for line in lines:
+            self._write(f"│ {line.ljust(width - 1)}│")
+        self._write(bottom)
+        self._write("")
 
     def select(self, prompt: str, options: list[dict[str, str]], *, default: str | None = None) -> str:
-        labels = ", ".join(
-            f"{opt['value']}{' (default)' if opt.get('value') == default else ''}" for opt in options
-        )
-        allowed = {opt["value"]: opt["value"] for opt in options}
+        self._write(self._style(prompt, "1"))
+        allowed: dict[str, str] = {}
+        for idx, opt in enumerate(options, 1):
+            label = opt.get("label", opt["value"]).strip()
+            suffix = " [Recommended]" if opt.get("value") == default else ""
+            self._write(f"{idx}. {label}{suffix}")
+            allowed[str(idx)] = opt["value"]
+            allowed[opt["value"]] = opt["value"]
+            allowed[label.lower()] = opt["value"]
         while True:
-            raw = input(f"{prompt} [{labels}]: ").strip()
+            raw = input("Enter choice: ").strip()
             if not raw and default is not None:
                 return default
-            if raw in allowed:
-                return allowed[raw]
+            normalized = raw.lower()
+            if normalized in allowed:
+                return allowed[normalized]
 
     def confirm(self, prompt: str, *, default: bool = True) -> bool:
         return _prompt_yes_no(input, prompt, default=default)
 
     def progress(self, title: str):
-        print(f"... {title}")
+        self._write(self._style(f"… {title}", "1;33"))
         prompter = self
 
         class _Progress:
             def update(self, message: str) -> None:
-                print(f"    {message}")
+                prompter._write(f"  {message}")
 
             def finish(self, message: str) -> None:
-                print(f"    OK: {message}")
+                prompter._write(prompter._style(f"  OK: {message}", "32"))
 
             def fail(self, message: str) -> None:
-                print(f"    FAIL: {message}")
+                prompter._write(prompter._style(f"  FAIL: {message}", "31"))
 
         return _Progress()
 
