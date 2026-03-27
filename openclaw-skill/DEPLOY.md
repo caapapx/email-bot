@@ -121,7 +121,21 @@ twinbox mailbox preflight --json
 cp /path/to/twinbox/SKILL.md ~/.openclaw/skills/twinbox/SKILL.md
 ```
 
-在 `~/.openclaw/openclaw.json` 中启用并写入 **完整** 邮箱 env：
+#### 一键宿主接线（推荐）
+
+在仓库根、已激活 venv 的前提下，可用 CLI 串行完成：**roots 初始化**、`~/.openclaw/openclaw.json` 中 `skills.entries.twinbox` 合并（默认从 **state root** 的 `.env` 同步邮箱相关键）、**复制 `SKILL.md`**、**`openclaw gateway restart`**：
+
+```bash
+cd /path/to/twinbox
+source .venv/bin/activate
+twinbox deploy openclaw --json
+```
+
+常用选项：`--dry-run`（只输出计划、不写盘）；`--no-restart`；`--no-env-sync`（仅 `enabled: true`，不覆盖已有 `env`）。若 state `.env` 尚未含完整邮箱字段，合并后 OpenClaw 仍可能缺键，需先完成 §3.4 或手改 JSON。
+
+实现见 `src/twinbox_core/openclaw_deploy.py`。
+
+在 `~/.openclaw/openclaw.json` 中启用并写入 **完整** 邮箱 env（手改或与上面命令等价）：
 
 ```json
 {
@@ -275,9 +289,10 @@ twinbox-orchestrate run --phase 4
 git pull
 source .venv/bin/activate
 pip install -e .
-cp SKILL.md ~/.openclaw/skills/twinbox/SKILL.md
-openclaw gateway restart
+twinbox deploy openclaw --json
 ```
+
+（等价于手动 `cp SKILL.md ~/.openclaw/skills/twinbox/SKILL.md` 后 `openclaw gateway restart`；若只需更新 skill 文件、不改 `openclaw.json`，仍可只执行 `cp` + 重启。）
 
 变更后用新会话做一次 smoke：`skills info`、一条 `twinbox task --json`。
 
