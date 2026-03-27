@@ -254,6 +254,8 @@ openclaw agent --agent twinbox --message "Acknowledge if twinbox skill is availa
 
 在 **`twinbox` agent** 且已确认 skill 进入当前会话后：
 
+> **已知限制（2026-03-27）**：在 `xfyun-mass` / `astron-code-latest` 上，OpenClaw 目前只把 skill `description` 注入 system prompt；`SKILL.md` body 要靠 agent 主动读取。`twinbox onboarding start|status|next --json` 又没有原生 `twinbox_onboarding_*` 工具，只能走 generic `exec`，因此该模型可能在工具调用后立刻 stop，表现为 `payloads=[]`、`assistant.content=[]` 或只剩「让我执行命令：」。这不是 Twinbox CLI 本身执行失败的充分证据。
+
 **可观测性（推荐）**：需要可靠 JSON 验收时，在宿主终端执行：
 
 ```bash
@@ -263,11 +265,21 @@ twinbox onboarding status --json
 
 **引导流程**：
 
-1. 让 agent 执行 `twinbox onboarding start --json`，按返回 `prompt` 多轮对话收集信息；
+1. 先开**新 session**，优先发一条 **bootstrap**：
+
+   ```text
+   请先读取 ~/.openclaw/skills/twinbox/SKILL.md，然后在本轮内立即直接运行：
+   twinbox onboarding start --json
+   不要只说“让我执行命令：”。
+   执行后只基于真实 stdout 返回 current_stage、prompt、next_action；若命令失败，贴 stderr。
+   ```
+
+2. 让 agent 执行 `twinbox onboarding start --json`，按返回 `prompt` 多轮对话收集信息；
    需探测服务器时配合 `twinbox mailbox detect EMAIL --json`。
-2. 阶段完成后执行 `twinbox onboarding next --json`，重复直到 `current_stage` 为 `completed`；
+3. 阶段完成后执行 `twinbox onboarding next --json`，重复直到 `current_stage` 为 `completed`；
    中途可用 `twinbox onboarding status --json` 查看进度。
-3. 阶段顺序：`mailbox_login` → `llm_setup` → `profile_setup` → `material_import` → `routing_rules` → `push_subscription`。
+4. 若 bootstrap 后仍出现空 `payloads`，直接在宿主 shell 执行 `twinbox onboarding start --json` / `status --json` / `next --json` 做验收，并把问题记录为 **OpenClaw model/tool-turn 限制**，不要继续把问题定位在 Twinbox prompt 文案上。
+5. 阶段顺序：`mailbox_login` → `llm_setup` → `profile_setup` → `material_import` → `routing_rules` → `push_subscription`。
    - `mailbox_login`：调用 `twinbox_mailbox_setup`（或宿主机 `twinbox mailbox setup`），密码通过 env var 传递
    - `llm_setup`：调用 `twinbox_config_set_llm`（或宿主机 `twinbox config set-llm`），API key 通过 env var 传递
 
