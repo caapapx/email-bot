@@ -21,7 +21,7 @@
 | **模组化模拟邮箱** | `twinbox_core.modular_mail_sim`；`scripts/seed_modular_mail_sim.sh` |
 | **Vendor 副本** | `twinbox vendor install` 同步 `src/twinbox_core` → **`$TWINBOX_HOME/vendor`**（未设 `TWINBOX_HOME` 时与 **state root** 同根，即 `state/vendor`）；`MANIFEST.json` 含 `file_count`、`twinbox_version`；`vendor status` 含 **integrity** |
 | **OpenClaw** | SKILL 真源 + 软链/复制；若已存在 **vendor/twinbox_core**，`deploy` 合并 `openclaw.json` 时会把 **插件 `config.cwd`** 指向该 **vendor** 目录 |
-| **CI tarball** | `scripts/package_vendor_tarball.sh`；workflow `.github/workflows/package-twinbox-core.yml` 上传 artifact |
+| **CI tarball** | `scripts/package_vendor_tarball.sh`（本地/流水线自行调用；仓库内未附带 GitHub workflow） |
 
 ## 显式未包含（仍为 North Star / 后续 PR）
 

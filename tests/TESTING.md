@@ -113,9 +113,8 @@ test_gate_passes_when_no_regression — 没有退步时门禁应该放行（exit
 ---
 
 ### 🟢 fixture 数据质量
-**文件**: `fixtures/delivery_director_ops/`（对应测试文件待补：`test_delivery_director_fixtures.py`）
 
-合成邮箱 fixture 数据目录（50 封邮件）。验证测试尚未建立，这是下一步补充项。
+信封类探测用例使用 `test_envelope_recipient_probe.py` 内联 JSON 结构，不再依赖大体积 `fixtures/` 目录。
 
 ---
 
