@@ -71,6 +71,9 @@ twinbox                      # task-facing CLI 入口
     pulse
     weekly
 
+  deploy                     # OpenClaw 宿主接线（仅宿主机）
+    openclaw [--rollback] [--remove-config] [--dry-run] [--json] ...
+
   task                       # OpenClaw-facing thin task routes
     latest-mail
     todo
@@ -238,6 +241,26 @@ next_action: string
 ```
 
 ## 命令规范
+
+### deploy openclaw
+
+宿主机上把 Twinbox 接到 OpenClaw：**roots 初始化**、合并 `~/.openclaw/openclaw.json` 的 `skills.entries.twinbox`、复制根目录 `SKILL.md`、`openclaw gateway restart`。实现：`src/twinbox_core/openclaw_deploy.py`。
+
+**用法**：
+
+```bash
+twinbox deploy openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run] [--no-restart]
+                        [--no-env-sync] [--openclaw-bin NAME] [--json]
+twinbox deploy openclaw --rollback [--remove-config] [--dry-run] [--no-restart] [--json]
+```
+
+**说明**：
+
+- `--rollback`：撤销上述接线（删除 `skills.entries.twinbox`、`~/.openclaw/skills/twinbox/`），**不删除** `~/.twinbox`；全量卸载见 `openclaw-skill/DEPLOY.md` §5 `uninstall_openclaw_twinbox.sh`。
+- `--remove-config`：仅在与 `--rollback` 联用时删除 `~/.config/twinbox/`（code-root / state-root 指针）。
+- `scripts/reset_twinbox_state.sh` 只清 `runtime/` 与 twinbox 会话，不动 `openclaw.json` / skill 文件。
+
+操作主路径见 [openclaw-skill/DEPLOY.md](../../openclaw-skill/DEPLOY.md)。
 
 ### mailbox preflight
 

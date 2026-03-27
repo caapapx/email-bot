@@ -133,7 +133,19 @@ twinbox deploy openclaw --json
 
 常用选项：`--dry-run`（只输出计划、不写盘）；`--no-restart`；`--no-env-sync`（仅 `enabled: true`，不覆盖已有 `env`）。若 state `.env` 尚未含完整邮箱字段，合并后 OpenClaw 仍可能缺键，需先完成 §3.4 或手改 JSON。
 
-实现见 `src/twinbox_core/openclaw_deploy.py`。
+##### 撤销本次宿主接线（与 deploy 对称，非全量卸载）
+
+误执行 deploy 或想先拆掉 OpenClaw 侧的 Markdown skill 时，用 **rollback**（**不删** `~/.twinbox` 邮件数据；**不删** 插件、cron、systemd bridge —— 全量 teardown 见本文 **§5** `uninstall_openclaw_twinbox.sh`）：
+
+```bash
+twinbox deploy openclaw --rollback --json
+```
+
+可选：`--remove-config` 同时删除 `~/.config/twinbox/`（`code-root` / `state-root` 指针）；`--dry-run`；`--no-restart`。
+
+实现见 `src/twinbox_core/openclaw_deploy.py`（`run_openclaw_rollback`）。
+
+与 **`scripts/reset_twinbox_state.sh`** 的区别：reset 只清 **`runtime/`** 与 twinbox **会话**，**保留** `openclaw.json`、skill 文件与 `~/.config/twinbox`。rollback 只做 **OpenClaw 宿主接线** 的逆操作。
 
 在 `~/.openclaw/openclaw.json` 中启用并写入 **完整** 邮箱 env（手改或与上面命令等价）：
 
