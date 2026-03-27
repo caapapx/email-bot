@@ -152,10 +152,30 @@ cp /path/to/twinbox/SKILL.md ~/.openclaw/skills/twinbox/SKILL.md
 |----|------|
 | 位置 | [plugin-twinbox-task/](./plugin-twinbox-task/) |
 | 入口 | [index.mjs](./plugin-twinbox-task/index.mjs)、[register-twinbox-tools.mjs](./plugin-twinbox-task/register-twinbox-tools.mjs) |
-| 配置 | `twinboxBin`：可执行名或绝对路径；`cwd`：Twinbox code root |
+| 配置 | `twinboxBin`：可选，建议写 Gateway 宿主机上的绝对路径；`cwd`：Twinbox code root。若未显式配置 `twinboxBin`，插件会先尝试 `<cwd>/scripts/twinbox`，再退回 PATH 中的 `twinbox` |
 | 测试 | `node --test openclaw-skill/plugin-twinbox-task/register-twinbox-tools.test.mjs` |
 
 安装方式以 OpenClaw 当前插件文档为准（见 [DEPLOY-APPENDIX.md §A.1](./DEPLOY-APPENDIX.md)）。插件与 Markdown skill 可并存。
+
+**推荐配置**：如果 Gateway 不是从 Twinbox 仓库根目录启动，或宿主进程的 PATH 不保证包含 `.venv/bin`，请在 `~/.openclaw/openclaw.json` 里把插件配置写成绝对路径：
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "twinbox-task-tools": {
+        "path": "/abs/path/to/twinbox/openclaw-skill/plugin-twinbox-task",
+        "config": {
+          "cwd": "/abs/path/to/twinbox",
+          "twinboxBin": "/abs/path/to/twinbox/scripts/twinbox"
+        }
+      }
+    }
+  }
+}
+```
+
+原因是插件工具调用的是 `spawn(twinboxBin, ...)`，不会额外经过仓库里的 `scripts/twinbox` 包装脚本；只有把 `twinboxBin` 指到 `scripts/twinbox`，或让插件通过 `cwd` 自动探测到它，才能稳定激活 `.venv` 并补齐 `PYTHONPATH`。不要假设 Gateway 进程的 PATH 自带 Twinbox `.venv/bin`。
 
 然后 **重启 Gateway**，用 **新会话** 起 agent turn 检查 `systemPromptReport.skills.entries`。
 
