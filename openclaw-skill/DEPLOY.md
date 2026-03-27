@@ -117,13 +117,17 @@ twinbox mailbox preflight --json
 
 #### Markdown skill
 
+**推荐**：用下方 `twinbox deploy openclaw`（会把真源写入 **state root** 并尽量用软链接到 OpenClaw）。
+
+仅手工时：
+
 ```bash
 cp /path/to/twinbox/SKILL.md ~/.openclaw/skills/twinbox/SKILL.md
 ```
 
 #### 一键宿主接线（推荐）
 
-在仓库根、已激活 venv 的前提下，可用 CLI 串行完成：**roots 初始化**、`~/.openclaw/openclaw.json` 中 `skills.entries.twinbox` 合并（默认从 **state root** 的 `.env` 同步邮箱相关键）、**复制 `SKILL.md`**、**`openclaw gateway restart`**：
+在仓库根、已激活 venv 的前提下，可用 CLI 串行完成：**roots 初始化**、`~/.openclaw/openclaw.json` 中 `skills.entries.twinbox` 合并（默认从 **state root** 的 `.env` 同步邮箱相关键）、**同步 `SKILL.md`**（先写入 `$TWINBOX_STATE_ROOT/skills/twinbox/SKILL.md`，再对 `~/.openclaw/skills/twinbox/SKILL.md` **创建指向该文件的符号链接**；若宿主不支持软链则回退为复制）、**`openclaw gateway restart`**：
 
 ```bash
 cd /path/to/twinbox
