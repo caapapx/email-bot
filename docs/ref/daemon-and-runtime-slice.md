@@ -13,7 +13,7 @@
 |------|------|
 | **Python 常驻 Daemon** | Unix socket + JSON-RPC 2.0（`ping`、`cli_invoke`、`imap_pool_stats`），`twinbox_version`；`logs/daemon.log` 使用 **轮转**（约 10MB×3）；路径在 `$TWINBOX_STATE_ROOT/run/` |
 | **CLI** | `twinbox daemon start\|stop\|status\|restart`；`cli_invoke` 支持 `cache_policy` / `timeout_ms`（见 [rpc-protocol.md](./rpc-protocol.md)） |
-| **Go 薄客户端** | `cmd/twinbox-go/`：RPC 或 `exec` Python；**`twinbox-go install --archive …`** 将 tarball 解压到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/` |
+| **Go 薄客户端** | `cmd/twinbox-go/`：RPC 或 `exec` Python；**`twinbox-go install --archive …`** 可从本地 tarball 或 HTTP URL 解压到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/` |
 | **Profile** | `twinbox --profile NAME`：`TWINBOX_STATE_ROOT=~/.twinbox/profiles/NAME/state`，`TWINBOX_HOME=~/.twinbox`（共享 **vendor**） |
 | **Loading 入口** | `twinbox loading phase1|…|phase4` → 调用仓库 `scripts/phaseN_loading.sh`（实现仍主要为 bash，Python 为统一入口） |
 | **IMAP 池（可选）** | `TWINBOX_IMAP_POOL=1` 时 preflight 可走 `imaplib` 复用连接；统计经 RPC `imap_pool_stats` |
@@ -37,6 +37,7 @@ twinbox --profile work daemon start
 
 ./twinbox-go task todo --json
 ./twinbox-go install --archive dist/twinbox_core-0.1.0.tar.gz
+./twinbox-go install --archive https://example.com/twinbox_core-0.1.0.tar.gz
 
 twinbox vendor install
 twinbox vendor status --json
