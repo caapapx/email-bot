@@ -127,7 +127,7 @@ cp /path/to/twinbox/SKILL.md ~/.openclaw/skills/twinbox/SKILL.md
 
 #### 一键宿主接线（推荐）
 
-在仓库根、已激活 venv 的前提下，可用 CLI 串行完成：**roots 初始化**、`~/.openclaw/openclaw.json` 中 `skills.entries.twinbox` 合并（默认从 **state root** 的 `.env` 同步邮箱相关键）、**同步 `SKILL.md`**（先写入 `$TWINBOX_STATE_ROOT/SKILL.md`，再对 `~/.openclaw/skills/twinbox/SKILL.md` **创建指向该文件的符号链接**；若宿主不支持软链则回退为复制）、**`openclaw gateway restart`**：
+在仓库根、已激活 venv 的前提下，可用 CLI 串行完成：**roots 初始化**、`~/.openclaw/openclaw.json` 中 `skills.entries.twinbox` 合并（默认从 **state root** 的 `.env` 同步邮箱相关键）、**按宿主 OS/CPU 检查或释放 `himalaya`**（`--json` 中 `ensure_himalaya` 步；Linux x86_64/aarch64 可自动从 twinbox 内置包解压到 `runtime/bin`，其它平台为 `skipped` 时需自行安装）、**同步 `SKILL.md`**（先写入 `$TWINBOX_STATE_ROOT/SKILL.md`，再对 `~/.openclaw/skills/twinbox/SKILL.md` **创建指向该文件的符号链接**；若宿主不支持软链则回退为复制）、**`openclaw gateway restart`**：
 
 ```bash
 cd /path/to/twinbox
