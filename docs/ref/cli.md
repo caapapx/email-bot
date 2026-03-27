@@ -327,6 +327,7 @@ twinbox mailbox preflight [--json] [--account NAME] [--folder INBOX] [--page-siz
 
 - 解析 `.env` 与进程环境变量
 - 应用默认值：`MAIL_ACCOUNT_NAME=myTwinbox`、`MAIL_DISPLAY_NAME={MAIL_ACCOUNT_NAME}`、`IMAP_ENCRYPTION=tls`、`SMTP_ENCRYPTION=tls`
+- 解析 `himalaya` 可执行文件：先 `PATH`，再 `$TWINBOX_STATE_ROOT/runtime/bin/himalaya`；若仍没有且在 **Linux x86_64 / aarch64** 上，则从随 `twinbox_core` 分发的官方 `himalaya.*-linux.tgz` 解压到 `runtime/bin/himalaya`（便于离线宿主）
 - 渲染 `runtime/himalaya/config.toml`
 - 执行 `himalaya envelope list --output json`
 - 写入 `runtime/validation/preflight/mailbox-smoke.json`
