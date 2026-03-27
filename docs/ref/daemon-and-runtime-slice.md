@@ -15,7 +15,7 @@
 | **CLI** | `twinbox daemon start\|stop\|status\|restart`；`cli_invoke` 支持 `cache_policy` / `timeout_ms`（见 [rpc-protocol.md](./rpc-protocol.md)） |
 | **Go 薄客户端** | `cmd/twinbox-go/`：RPC 或 `exec` Python；**`twinbox-go install --archive …`** 可从本地 tarball 或 HTTP URL 解压到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/` |
 | **Profile** | `twinbox --profile NAME`：`TWINBOX_STATE_ROOT=~/.twinbox/profiles/NAME/state`，`TWINBOX_HOME=~/.twinbox`（共享 **vendor**） |
-| **Loading 入口** | `twinbox loading phase1|…|phase4` → 调用仓库 `scripts/phaseN_loading.sh`（实现仍主要为 bash，Python 为统一入口） |
+| **Loading 入口** | `twinbox loading phase1|…|phase4` 全部走 Python 入口；`phase1/4` 已迁为 Python 编排，`scripts/phase1_loading.sh` / `scripts/phase4_loading.sh` 仅保留兼容 shim，mail transport 仍走 himalaya CLI |
 | **IMAP 池（可选）** | `TWINBOX_IMAP_POOL=1` 时 preflight 可走 `imaplib` 复用连接；统计经 RPC `imap_pool_stats` |
 | **单测** | `tests/test_daemon_rpc.py`、`tests/test_modular_mail_sim.py`、`tests/test_vendor_install.py`、`tests/test_imap_pool.py` |
 | **模组化模拟邮箱** | `twinbox_core.modular_mail_sim`；`scripts/seed_modular_mail_sim.sh` |
@@ -26,7 +26,7 @@
 ## 显式未包含（仍为 North Star / 后续 PR）
 
 - **Onboard / LSP**、daemon **自动监控重启**、Phase 4 **Go hot path** 重写等。
-- **Loading**：bash 脚本仍承担主要 IMAP/himalaya 逻辑；未改为纯 Python 实现。
+- **Loading**：phase1/4 编排已迁 Python，但 mailbox transport 仍依赖 himalaya CLI；未改为纯 Python mail transport。
 
 ## 常用命令
 
