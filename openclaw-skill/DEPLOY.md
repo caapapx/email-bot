@@ -38,49 +38,80 @@
 
 ### 3.2 安装 Twinbox CLI
 
-在仓库根按项目惯例安装 editable / 包，使宿主机上 `twinbox`、`twinbox-orchestrate` 可执行。
+需要 Python ≥ 3.11。在仓库根创建 venv 并安装：
 
-### 3.3 邮箱连通与首次 phase（门槛）
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
 
-接 OpenClaw 托管之前，必须让宿主上的 `twinbox` 能读齐邮箱配置并跑通预检，三选一：
+验证两个命令可执行：
 
-- **A（推荐）.** 用新 `mailbox setup` 命令自动探测 + 写入 `.env`（密码通过 env var 注入，不会出现在命令行历史）：
-  ```bash
-  TWINBOX_SETUP_IMAP_PASS=<app_password> twinbox mailbox setup --email you@example.com --json
-  ```
-  命令会自动探测 IMAP/SMTP 配置、写入 `state root/.env`，并运行 preflight 验证。
+```bash
+twinbox --help
+twinbox-orchestrate --help
+```
 
-- **B.** 手动写 `state root/.env`（IMAP/SMTP 全字段），再执行 `twinbox mailbox preflight --json` 直到成功。
-- **C.** 把完整 IMAP/SMTP 写入 `skills.entries.twinbox.env`（§3.5），重启 Gateway 后在 `twinbox` agent 里验证。
+后续所有 `twinbox` / `twinbox-orchestrate` 命令均在此 venv 激活后执行。
 
-同理，确认 LLM 后端已配置（Phase 1-4 必需）：
+### 3.3 初始化数据目录（state root）
+
+> **两个目录概念**：
+> - **code root**：twinbox 仓库本身（代码、脚本）所在路径，通常是你 `git clone` 的位置。
+> - **state root**：运行时数据目录，存放 `.env`（邮箱/LLM 凭据）、phase 产物、日志等。默认为 `~/.twinbox`，与代码仓库分离，不会进 git。
+
+在仓库根执行初始化脚本，将两个路径写入 `~/.config/twinbox/`：
+
+```bash
+bash scripts/install_openclaw_twinbox_init.sh
+```
+
+成功输出示例：
+
+```
+Wrote Twinbox roots:
+  ~/.config/twinbox/code-root  -> /path/to/twinbox
+  ~/.config/twinbox/state-root -> /home/yourname/.twinbox
+```
+
+> **注意**：首次运行时 OpenClaw workspace 可能还不存在，脚本不会报错，继续即可。如果报错，查看 `~/.twinbox/logs/init.log`。
+
+验证路径已写入：
+
+```bash
+cat ~/.config/twinbox/code-root
+cat ~/.config/twinbox/state-root
+```
+
+### 3.4 配置邮箱与 LLM（门槛）
+
+此时 state root 已初始化为 `~/.twinbox`，凭据将写入 `~/.twinbox/.env`。
+
+**配置邮箱**（密码通过环境变量注入，不会出现在命令行历史）：
+
+```bash
+TWINBOX_SETUP_IMAP_PASS=<app_password> twinbox mailbox setup --email you@example.com --json
+```
+
+命令自动探测 IMAP/SMTP 服务器配置，写入 `~/.twinbox/.env`，并运行连通预检。`"status": "ok"` 表示成功。失败时日志见 `~/.twinbox/runtime/validation/preflight/mailbox-smoke.stderr.log`。
+
+**配置 LLM API**（Phase 1-4 流水线必需）：
 
 ```bash
 TWINBOX_SETUP_API_KEY=<your_key> twinbox config set-llm --provider openai --json
 # 或 --provider anthropic
 ```
 
-命令写入 `LLM_API_KEY`（openai）或 `ANTHROPIC_API_KEY`（anthropic）到 `.env`，并验证后端可连通。
+写入 `~/.twinbox/.env` 并验证后端可连通。`"backend_validated": true` 表示成功。
 
-至少手动跑通一次完整产物链：
-
-```bash
-twinbox-orchestrate run --phase 4
-```
-
-若本地 CLI 与 phase 未跑通，不要宣称托管侧已可用。
-
-### 3.4 初始化 code root / state root
-
-避免 workspace 误当 state root、读错 `.env`。在 **仓库根**：
+**可选：手动验证邮箱连通**：
 
 ```bash
-bash scripts/install_openclaw_twinbox_init.sh
+twinbox mailbox preflight --json
 ```
 
-作用：写入 `~/.config/twinbox/code-root`、`state-root`（及 `canonical-root`）；默认尝试验证 `twinbox mailbox preflight --json`。
-
-**路径注意**：若 `~/.openclaw/workspace` 不存在，可加 `--no-verify` 跳过，再手工执行 preflight。
+`"status": "warn"` 或 `"ok"` 均表示 IMAP 连通成功（SMTP 在只读模式下跳过）。
 
 ### 3.5 安装托管 skill 文件（含插件）
 
@@ -190,7 +221,23 @@ twinbox schedule disable --job daytime-sync --json
 或通过插件工具 `twinbox_schedule_enable` / `twinbox_schedule_disable` 调用（模型可直接触发）。
 详见 [docs/ref/scheduling.md](../docs/ref/scheduling.md) 与 [SKILL.md](../SKILL.md) schedule 工具说明。
 
-### 3.9 可选：调度与宿主桥接
+### 3.9 首次完整运行（可选验证）
+
+邮箱和 LLM 均配置完成后，可手动运行完整 Phase 1-4 流水线验证端到端数据链路：
+
+```bash
+twinbox-orchestrate run --phase 4
+```
+
+**期望输出**：每个 phase 打印进度，最后产出 `~/.twinbox/runtime/validation/phase-4/` 下的 YAML 文件。
+
+**如果失败**：日志位置取决于失败阶段：
+- Phase 1（邮件拉取）：`~/.twinbox/runtime/validation/preflight/mailbox-smoke.stderr.log`
+- Phase 2-4（LLM 处理）：stderr 直接输出；若 LLM 调用失败，检查 `~/.twinbox/.env` 中 API key 是否有效
+
+首次运行需要真实邮件数据，若 INBOX 为空会产出空 YAML，属正常现象。
+
+### 3.10 可选：调度与宿主桥接
 
 若需 `OpenClaw cron → system-event → 宿主机 → twinbox-orchestrate`：
 
