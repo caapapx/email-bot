@@ -42,10 +42,25 @@
 
 ### 3.3 邮箱连通与首次 phase（门槛）
 
-接 OpenClaw 托管之前，必须让宿主上的 `twinbox` 能读齐邮箱配置并跑通预检，二选一：
+接 OpenClaw 托管之前，必须让宿主上的 `twinbox` 能读齐邮箱配置并跑通预检，三选一：
 
-- **A.** 先配 `state root/.env`，执行 `twinbox mailbox preflight --json` 直到成功。
-- **B.** 把完整 IMAP/SMTP 写入 `skills.entries.twinbox.env`（§3.5），重启 Gateway 后在 `twinbox` agent 里验证。
+- **A（推荐）.** 用新 `mailbox setup` 命令自动探测 + 写入 `.env`（密码通过 env var 注入，不会出现在命令行历史）：
+  ```bash
+  TWINBOX_SETUP_IMAP_PASS=<app_password> twinbox mailbox setup --email you@example.com --json
+  ```
+  命令会自动探测 IMAP/SMTP 配置、写入 `state root/.env`，并运行 preflight 验证。
+
+- **B.** 手动写 `state root/.env`（IMAP/SMTP 全字段），再执行 `twinbox mailbox preflight --json` 直到成功。
+- **C.** 把完整 IMAP/SMTP 写入 `skills.entries.twinbox.env`（§3.5），重启 Gateway 后在 `twinbox` agent 里验证。
+
+同理，确认 LLM 后端已配置（Phase 1-4 必需）：
+
+```bash
+TWINBOX_SETUP_API_KEY=<your_key> twinbox config set-llm --provider openai --json
+# 或 --provider anthropic
+```
+
+命令写入 `LLM_API_KEY`（openai）或 `ANTHROPIC_API_KEY`（anthropic）到 `.env`，并验证后端可连通。
 
 至少手动跑通一次完整产物链：
 
@@ -160,7 +175,9 @@ twinbox onboarding status --json
    需探测服务器时配合 `twinbox mailbox detect EMAIL --json`。
 2. 阶段完成后执行 `twinbox onboarding next --json`，重复直到 `current_stage` 为 `completed`；
    中途可用 `twinbox onboarding status --json` 查看进度。
-3. 阶段顺序：`mailbox_login` → `profile_setup` → `material_import` → `routing_rules` → `push_subscription`。
+3. 阶段顺序：`mailbox_login` → `llm_setup` → `profile_setup` → `material_import` → `routing_rules` → `push_subscription`。
+   - `mailbox_login`：调用 `twinbox_mailbox_setup`（或宿主机 `twinbox mailbox setup`），密码通过 env var 传递
+   - `llm_setup`：调用 `twinbox_config_set_llm`（或宿主机 `twinbox config set-llm`），API key 通过 env var 传递
 
 **调度开关（对话中可设置）**：
 onboarding 完成后，可在对话里启用或禁用定时任务：
