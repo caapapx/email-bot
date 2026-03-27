@@ -74,6 +74,9 @@ twinbox                      # task-facing CLI 入口
   deploy                     # OpenClaw 宿主接线（仅宿主机）
     openclaw [--rollback] [--strict] [--fragment PATH] [--no-fragment] [--remove-config] [--dry-run] [--json] ...
 
+  daemon                     # 后台 JSON-RPC（Unix socket；省 Python 冷启动）
+    start | stop | restart | status [--json]
+
   task                       # OpenClaw-facing thin task routes
     latest-mail
     todo
@@ -1205,8 +1208,15 @@ twinbox context refresh
 - Phase 1-4 artifacts：真相源，不变
 - `renderer.py`：视图层，可能需要扩展以支持 task-facing 输出
 
+## daemon 与可选 Go 入口
+
+- **Python daemon**：`twinbox daemon start|stop|restart|status [--json]`；协议与路径见 [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)。
+- **Go 薄客户端**：仓库 `cmd/twinbox-go/`（构建与 `TWINBOX_DAEMON_SOCKET` 等见该目录 `README.md`）。
+- **模组化模拟邮箱（无 IMAP）**：`python3 -m twinbox_core.modular_mail_sim` 或 `bash scripts/seed_modular_mail_sim.sh`，用于 OpenClaw 对话验收前灌数据。
+
 ## 参考文档
 
 - [core-refactor-plan.md](../core-refactor.md)
+- [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)
 - [architecture.md](./architecture.md)
 - [pipeline-orchestration-contract.md](./orchestration.md)
