@@ -251,7 +251,7 @@ next_action: string
 
 ### deploy openclaw
 
-宿主机上把 Twinbox 接到 OpenClaw：**roots 初始化**、合并 `~/.openclaw/openclaw.json` 的 `skills.entries.twinbox`、将仓库根 `SKILL.md` 写入 **state root** `skills/twinbox/SKILL.md` 并对 `~/.openclaw/skills/twinbox/SKILL.md` **创建符号链接**（不支持时回退复制）、`openclaw gateway restart`。JSON 报告含 `skill_canonical_dest` / `skill_dest`。实现：`src/twinbox_core/openclaw_deploy.py`。
+宿主机上把 Twinbox 接到 OpenClaw：**roots 初始化**、合并 `~/.openclaw/openclaw.json` 的 `skills.entries.twinbox`、将仓库根 `SKILL.md` 写入 **state root** 根下的 `SKILL.md` 并对 `~/.openclaw/skills/twinbox/SKILL.md` **创建符号链接**（不支持时回退复制）、`openclaw gateway restart`。JSON 报告含 `skill_canonical_dest` / `skill_dest`。实现：`src/twinbox_core/openclaw_deploy.py`。
 
 **用法**：
 

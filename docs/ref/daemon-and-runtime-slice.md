@@ -18,7 +18,7 @@
 | **模组化模拟邮箱** | `twinbox_core.modular_mail_sim`：无 IMAP/LLM 写入 `phase1-context.json`、`intent-classification.json`、Phase 4 YAML、`activity-pulse.json`；包装脚本 `scripts/seed_modular_mail_sim.sh` |
 | **State-root vendor 副本** | `twinbox vendor install` 将当前 **code root** 下 `src/twinbox_core/` 同步到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/`，并写 `vendor/MANIFEST.json`；`twinbox vendor status --json` 查询；宿主可 `PYTHONPATH="$TWINBOX_STATE_ROOT/vendor" python3 -m twinbox_core.task_cli …`（不改变默认 `resolve_*` 语义） |
 | **OpenClaw 话术** | `openclaw-skill/prompt-test.md` § P8（种子 + 对话验收） |
-| **deploy：SKILL 真源 + 软链** | `twinbox deploy openclaw` 将 `SKILL.md` 写入 `state_root/skills/twinbox/SKILL.md`，并尝试 `ln -s` 到 `~/.openclaw/skills/twinbox/SKILL.md`（失败则复制）；rollback 仍只拆 OpenClaw 侧目录 |
+| **deploy：SKILL 真源 + 软链** | `twinbox deploy openclaw` 将 `SKILL.md` 写入 `state_root/SKILL.md`，并尝试 `ln -s` 到 `~/.openclaw/skills/twinbox/SKILL.md`（失败则复制）；rollback 仍只拆 OpenClaw 侧目录 |
 
 ## 显式未包含（仍为 North Star / 后续 PR）
 
