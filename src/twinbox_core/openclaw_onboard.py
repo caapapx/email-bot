@@ -8,7 +8,7 @@ import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Protocol, TextIO
 
 from .env_writer import load_env_file, merge_env_file, write_env_file
 from .llm import LLMError, resolve_backend
@@ -39,18 +39,36 @@ class JourneyPrompter(Protocol):
 
 
 class ConsoleJourneyPrompter:
-    def __init__(self) -> None:
-        self._stream = sys.stdout
+    _SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+
+    def __init__(
+        self,
+        *,
+        stream: TextIO | None = None,
+        input_fn: Callable[[str], str] | None = None,
+    ) -> None:
+        self._stream = stream or sys.stdout
+        self._input_fn = input_fn or input
         self._is_tty = hasattr(self._stream, "isatty") and self._stream.isatty()
+        self._spinner_idx = 0
 
     def _write(self, text: str = "") -> None:
         self._stream.write(text + "\n")
+        self._stream.flush()
+
+    def _write_inline(self, text: str) -> None:
+        self._stream.write(text)
         self._stream.flush()
 
     def _style(self, text: str, code: str) -> str:
         if not self._is_tty:
             return text
         return f"\033[{code}m{text}\033[0m"
+
+    def _next_spinner_frame(self) -> str:
+        frame = self._SPINNER_FRAMES[self._spinner_idx % len(self._SPINNER_FRAMES)]
+        self._spinner_idx += 1
+        return frame
 
     def intro(self, text: str) -> None:
         title = self._style(text, "1;36")
@@ -88,32 +106,49 @@ class ConsoleJourneyPrompter:
             label = opt.get("label", opt["value"]).strip()
             suffix = " [Recommended]" if opt.get("value") == default else ""
             self._write(f"{idx}. {label}{suffix}")
+            description = opt.get("description", "").strip()
+            if description:
+                self._write(f"   {description}")
             allowed[str(idx)] = opt["value"]
             allowed[opt["value"]] = opt["value"]
             allowed[label.lower()] = opt["value"]
         while True:
-            raw = input("Enter choice: ").strip()
+            self._write_inline("Enter choice: ")
+            raw = self._input_fn("").strip()
             if not raw and default is not None:
                 return default
             normalized = raw.lower()
             if normalized in allowed:
                 return allowed[normalized]
+            self._write(self._style("Invalid choice. Please enter a number or option name from the list above.", "31"))
 
     def confirm(self, prompt: str, *, default: bool = True) -> bool:
-        return _prompt_yes_no(input, prompt, default=default)
+        return _prompt_yes_no(self._input_fn, prompt, default=default)
 
     def progress(self, title: str):
-        self._write(self._style(f"… {title}", "1;33"))
+        if self._is_tty:
+            self._write_inline(self._style(f"{self._next_spinner_frame()} {title}\r", "1;33"))
+        else:
+            self._write(self._style(f"… {title}", "1;33"))
         prompter = self
 
         class _Progress:
             def update(self, message: str) -> None:
-                prompter._write(f"  {message}")
+                if prompter._is_tty:
+                    prompter._write_inline(
+                        prompter._style(f"{prompter._next_spinner_frame()} {message}\r", "1;33")
+                    )
+                else:
+                    prompter._write(f"  {message}")
 
             def finish(self, message: str) -> None:
+                if prompter._is_tty:
+                    prompter._write_inline("\r")
                 prompter._write(prompter._style(f"  OK: {message}", "32"))
 
             def fail(self, message: str) -> None:
+                if prompter._is_tty:
+                    prompter._write_inline("\r")
                 prompter._write(prompter._style(f"  FAIL: {message}", "31"))
 
         return _Progress()
