@@ -249,11 +249,35 @@ twinbox-orchestrate run --phase 4
 
 ## 4. 维护与升级
 
-1. 修改了 CLI 行为、根 [SKILL.md](../SKILL.md) 或插件时，同步更新 [SKILL.md](../SKILL.md)。
-2. 部署 skill：`cp SKILL.md ~/.openclaw/skills/twinbox/SKILL.md`
-3. 重载 Gateway：`openclaw gateway restart`
+**常规升级**（代码更新）：
 
-变更后用新会话做一次 smoke：`skills info`、一条 `twinbox task --json`，以及按需一次 `openclaw agent … --json` 查 `systemPromptReport`。
+```bash
+git pull
+source .venv/bin/activate
+pip install -e .
+cp SKILL.md ~/.openclaw/skills/twinbox/SKILL.md
+openclaw gateway restart
+```
+
+变更后用新会话做一次 smoke：`skills info`、一条 `twinbox task --json`。
+
+**从旧版本迁移**（state root 从仓库根迁到 `~/.twinbox`）：
+
+旧版本的 `.env` 和 `runtime/` 数据存放在仓库根目录。升级后需要手动迁移一次：
+
+```bash
+# 1. 运行初始化脚本（创建 ~/.twinbox，写入新路径）
+bash scripts/install_openclaw_twinbox_init.sh
+
+# 2. 迁移现有数据
+mv /path/to/twinbox/.env ~/.twinbox/.env
+mv /path/to/twinbox/runtime ~/.twinbox/runtime
+
+# 3. 验证路径生效
+twinbox mailbox preflight --json
+```
+
+迁移后仓库根目录下不再保留 `.env` 和 `runtime/`，git 状态更干净。
 
 ---
 
