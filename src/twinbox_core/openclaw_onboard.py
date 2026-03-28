@@ -187,7 +187,7 @@ class ConsoleJourneyPrompter:
     ) -> int:
         lines: list[str] = []
         body_width = max(24, self._width - 4)
-        lines.append(self._accent(prompt) if layout == "horizontal" else self._style(prompt, "1"))
+        lines.append(self._accent(prompt))
         if layout == "horizontal":
             lines.append("Use ←/→ to move. Press Enter to confirm.")
             rendered_options: list[str] = []
@@ -550,6 +550,37 @@ def _mailbox_summary(dotenv: dict[str, str]) -> str:
     )
 
 
+_MAILBOX_ENV_KEYS = (
+    "MAIL_ADDRESS",
+    "IMAP_HOST",
+    "IMAP_PORT",
+    "IMAP_ENCRYPTION",
+    "IMAP_LOGIN",
+    "IMAP_PASS",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_ENCRYPTION",
+    "SMTP_LOGIN",
+    "SMTP_PASS",
+)
+
+_LLM_ENV_KEYS = (
+    "LLM_API_KEY",
+    "LLM_MODEL",
+    "LLM_API_URL",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_BASE_URL",
+)
+
+
+def _without_env_keys(dotenv: dict[str, str], keys: tuple[str, ...]) -> dict[str, str]:
+    stripped = dict(dotenv)
+    for key in keys:
+        stripped.pop(key, None)
+    return stripped
+
+
 def _inspect_llm(env_file: Path, dotenv: dict[str, str]) -> dict[str, Any]:
     try:
         backend = resolve_backend(env_file=env_file, env={})
@@ -583,6 +614,40 @@ def _llm_summary(llm_info: dict[str, Any]) -> str:
         f"- Model: {model}\n"
         f"- API URL: {url}\n"
         f"- API key: {key_state}"
+    )
+
+
+def _existing_config_choice(
+    prompter: JourneyPrompter,
+    *,
+    subject: str,
+    default: str,
+) -> str:
+    prompter.note(
+        "Existing config detected",
+        f"Twinbox found existing {subject} settings in the current environment. Choose whether to reuse them, update them, or reset them before continuing.",
+        complete=None,
+    )
+    return prompter.select(
+        "◆  Config handling",
+        options=[
+            {
+                "value": "use_existing",
+                "label": "Use existing values",
+                "description": "Keep the detected values and continue with them.",
+            },
+            {
+                "value": "update",
+                "label": "Update values",
+                "description": "Review the detected values and change what you need.",
+            },
+            {
+                "value": "reset",
+                "label": "Reset",
+                "description": "Ignore the detected values and start this step from scratch.",
+            },
+        ],
+        default=default,
     )
 
 
@@ -1120,22 +1185,21 @@ def run_openclaw_onboard_v2(
         if advanced:
             mailbox_body += f"\n\nState file: {env_file}"
         prompter.note("Mailbox", mailbox_body, complete=mailbox_ready)
+        mailbox_action = "update"
+        mailbox_prompt_dotenv = dotenv
         if mailbox_ready:
-            mailbox_action = prompter.select(
-                "Choose mailbox setup",
-                options=[
-                    {"value": "use_current_mailbox", "label": "Use current value", "description": "Validate the mailbox settings already stored in Twinbox."},
-                    {"value": "customize_mailbox", "label": "Customize", "description": "Review or replace the mailbox settings before continuing."},
-                ],
-                default="use_current_mailbox" if flow == "quickstart" else "customize_mailbox",
+            mailbox_action = _existing_config_choice(
+                prompter,
+                subject="mailbox",
+                default="use_existing" if flow == "quickstart" else "update",
             )
-        else:
-            mailbox_action = "customize_mailbox"
+            if mailbox_action == "reset":
+                mailbox_prompt_dotenv = _without_env_keys(dotenv, _MAILBOX_ENV_KEYS)
         mailbox_progress = None
         try:
             mailbox_updates = None
-            if mailbox_action == "customize_mailbox":
-                mailbox_updates = _prompt_mailbox_customization(prompter, dotenv=dotenv)
+            if mailbox_action != "use_existing":
+                mailbox_updates = _prompt_mailbox_customization(prompter, dotenv=mailbox_prompt_dotenv)
             mailbox_progress = prompter.progress("Checking mailbox settings")
             mailbox_result = _run_with_timeout(
                 lambda: mailbox_apply_runner(
@@ -1153,7 +1217,7 @@ def run_openclaw_onboard_v2(
                     f"Mailbox validation timed out after {mailbox_validation_timeout_seconds:.1f}s."
                 )
                 report.mailbox = {
-                    "prompted": mailbox_action == "customize_mailbox",
+                    "prompted": mailbox_action != "use_existing",
                     "configured": False,
                     "missing_required": missing_required_mail_values(dotenv),
                     "status": "timeout",
@@ -1179,7 +1243,7 @@ def run_openclaw_onboard_v2(
                 mailbox_progress.fail(str(exc))
             report.error = str(exc)
             report.mailbox = {
-                "prompted": mailbox_action == "customize_mailbox",
+                "prompted": mailbox_action != "use_existing",
                 "configured": False,
                 "missing_required": missing_required_mail_values(dotenv),
                 "status": "error",
@@ -1223,31 +1287,54 @@ def run_openclaw_onboard_v2(
             "Twinbox needs an LLM backend for the Phase 1-4 pipeline. Choose a provider to review or update it, or skip for now."
         )
         if llm_info.get("configured"):
-            llm_body += "\nPress Enter on a field to keep the current model or API URL."
+            llm_body += "\nUpdate values keeps the current provider defaults available while you edit."
         prompter.note("LLM", llm_body, complete=bool(llm_info.get("configured")))
-        llm_options: list[dict[str, str]] = []
-        if llm_info.get("configured"):
-            llm_options.append(
-                {
-                    "value": "use_current_llm",
-                    "label": "Use current value",
-                    "description": "Keep the current provider, model, and API URL as they are.",
-                }
+        llm_ready = bool(llm_info.get("configured"))
+        llm_handling = None
+        llm_prompt_dotenv = dotenv
+        preserve_existing_on_skip = llm_ready
+        if llm_ready:
+            llm_handling = _existing_config_choice(
+                prompter,
+                subject="LLM",
+                default="use_existing" if flow == "quickstart" else "update",
             )
-        llm_options.extend(
-            [
+            if llm_handling == "use_existing":
+                report.llm = {
+                    "prompted": False,
+                    "configured": llm_ready,
+                    "backend": llm_info.get("backend", ""),
+                    "model": llm_info.get("model", ""),
+                    "url": llm_info.get("url", ""),
+                    "status": "configured" if llm_ready else "missing",
+                }
+                llm_choice = "use_existing"
+            else:
+                if llm_handling == "reset":
+                    llm_prompt_dotenv = _without_env_keys(dotenv, _LLM_ENV_KEYS)
+                    preserve_existing_on_skip = False
+                llm_options: list[dict[str, str]] = [
+                    {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
+                    {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
+                    {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
+                ]
+                llm_choice = prompter.select(
+                    "Choose LLM setup",
+                    options=llm_options,
+                    default=llm_info.get("backend") or "openai",
+                )
+        else:
+            llm_options = [
                 {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
                 {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
                 {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
             ]
-        )
-        llm_choice = prompter.select(
-            "Choose LLM setup",
-            options=llm_options,
-            default="use_current_llm" if llm_info.get("configured") else (llm_info.get("backend") or "openai"),
-        )
-        llm_ready = bool(llm_info.get("configured"))
-        if llm_choice == "use_current_llm":
+            llm_choice = prompter.select(
+                "Choose LLM setup",
+                options=llm_options,
+                default=llm_info.get("backend") or "openai",
+            )
+        if llm_choice == "use_existing":
             report.llm = {
                 "prompted": False,
                 "configured": llm_ready,
@@ -1257,19 +1344,22 @@ def run_openclaw_onboard_v2(
                 "status": "configured" if llm_ready else "missing",
             }
         elif llm_choice == "skip":
+            retained_llm = llm_info if preserve_existing_on_skip else {"backend": "", "model": "", "url": ""}
+            llm_ready = bool(preserve_existing_on_skip and llm_info.get("configured"))
             report.llm = {
                 "prompted": False,
                 "configured": llm_ready,
-                "backend": llm_info.get("backend", ""),
-                "model": llm_info.get("model", ""),
-                "url": llm_info.get("url", ""),
+                "backend": retained_llm.get("backend", ""),
+                "model": retained_llm.get("model", ""),
+                "url": retained_llm.get("url", ""),
                 "status": "configured" if llm_ready else "skipped",
             }
         else:
             current_key_name, current_model_name, current_url_name = _provider_env_keys(llm_choice)
-            current_key = dotenv.get(current_key_name, "")
-            current_model = dotenv.get(current_model_name, "")
-            current_url = dotenv.get(current_url_name, "")
+            current_key = llm_prompt_dotenv.get(current_key_name, "")
+            current_model = llm_prompt_dotenv.get(current_model_name, "")
+            current_url = llm_prompt_dotenv.get(current_url_name, "")
+            api_url = prompter.text("API URL", default=current_url)
             api_key = prompter.secret("API key", allow_empty=bool(current_key))
             if not api_key:
                 api_key = current_key
@@ -1295,8 +1385,7 @@ def run_openclaw_onboard_v2(
                 )
                 prompter.outro(report.error)
                 return report
-            model = prompter.text("Model", default=current_model)
-            api_url = prompter.text("API URL", default=current_url)
+            model = prompter.text("Model ID", default=current_model)
             llm_progress = prompter.progress("Validating LLM configuration")
             llm_result = _run_with_timeout(
                 lambda: llm_update_runner(
