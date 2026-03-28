@@ -273,7 +273,7 @@ twinbox onboard openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
 
 ### onboard openclaw-v2
 
-OpenClaw 风格的 Twinbox onboarding 旅程壳。保持底层 `run_openclaw_onboard` / onboarding state 契约不变，但额外提供 `quickstart` / `advanced` 分流、上下文 note、进度提示，以及更明确的 OpenClaw `twinbox` agent handoff。
+OpenClaw 风格的 Twinbox onboarding 旅程壳。保持底层 report / onboarding state 契约不变，但把交互提升为显式步骤向导：`Security`、`Mailbox`、`LLM`、`Twinbox tools integration`、`Apply setup`，并在最后给出更明确的 OpenClaw `twinbox` agent handoff。
 
 **用法**：
 
@@ -284,8 +284,13 @@ twinbox onboard openclaw-v2 [--repo-root PATH] [--openclaw-home PATH] [--dry-run
 
 **说明**：
 
-- `quickstart`：默认推荐，若检测到 `openclaw-skill/openclaw.fragment.json`，会沿推荐路径自动并入 fragment。
-- `advanced`：显式确认是否并入 fragment，并展示更多宿主接线语义。
+- `quickstart`：默认推荐，但仍会逐页展示每个环节，已有值不会静默跳过。
+- `advanced`：同样逐页展示，并额外补充 repo root / state root / OpenClaw home 等宿主语义。
+- `Security` 是第一页，必须显式确认后才会继续。
+- `Mailbox` 不允许跳过；若已有值，可显式选择 `Use current value` 或 `Customize`。
+- `LLM` 提供 `Configure OpenAI` / `Configure Anthropic` / `Skip for now`，跳过时会保留现有值，若仍未配置则最终以 incomplete handoff 收尾。
+- `Twinbox tools integration` 用 OpenClaw 风格的 `Yes (Recommended) / No` 单选确认是否并入 `openclaw.fragment.json`。
+- `Apply setup` 会先汇总本轮选择，再显式决定 `Apply now` 或 `Skip for now`。
 - 成功后的人类可读输出会把宿主接线表述为 **Phase 1 of 2**，并明确提示用户继续在 OpenClaw 的 `twinbox` agent 中完成 **Phase 2 of 2**。
 - `--json` 仍输出低层 report JSON；V2 主要增强非 JSON 终端体验。
 

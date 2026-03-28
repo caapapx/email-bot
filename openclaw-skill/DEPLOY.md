@@ -117,7 +117,7 @@ twinbox mailbox preflight --json
 
 #### Markdown skill
 
-**推荐**：优先使用 `twinbox onboard openclaw`，让向导按顺序检查邮箱/LLM 门槛、执行宿主接线，并在最后交接到对话 onboarding。`twinbox deploy openclaw` 保留为高级/脚本化入口。旧版曾使用 `state_root/skills/twinbox/SKILL.md`，升级后若存在该路径可手动删除以免混淆。
+**推荐**：优先使用 `twinbox onboard openclaw`；如果你在打磨人工交互体验或想逐页确认每个步骤，可使用 `twinbox onboard openclaw-v2`。两者都会检查邮箱/LLM 门槛、执行宿主接线，并在最后交接到对话 onboarding。`twinbox deploy openclaw` 保留为高级/脚本化入口。旧版曾使用 `state_root/skills/twinbox/SKILL.md`，升级后若存在该路径可手动删除以免混淆。
 
 仅手工时：
 
