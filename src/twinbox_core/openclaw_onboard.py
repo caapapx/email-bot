@@ -623,9 +623,10 @@ class ConsoleJourneyPrompter:
             styled_prompt, _ = self._style_parenthetical_chunk(rendered_prompt, main_code="0")
         if self._supports_inline_secret_input():
             chars: list[str] = []
+            max_mask_chars = 8
 
             def _render() -> None:
-                self._write_inline(f"\r\033[K{styled_prompt}{'*' * len(chars)}")
+                self._write_inline(f"\r\033[K{styled_prompt}{'*' * min(len(chars), max_mask_chars)}")
 
             _render()
             
