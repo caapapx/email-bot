@@ -92,6 +92,21 @@ class ConsoleJourneyPrompter:
     def _dim_preview(self, text: str) -> str:
         return self._style(text, "90")
 
+    def _muted(self, text: str) -> str:
+        return self._style(text, "38;5;244")
+
+    def _accent(self, text: str) -> str:
+        return self._style(text, "1;38;5;208")
+
+    def _banner_lines(self) -> list[str]:
+        raw_lines = [
+            "  TWINBOX  ",
+            "  TWINBOX  ",
+        ]
+        if not self._is_tty:
+            return ["TWINBOX"]
+        return [self._style(line, "1;30;47") for line in raw_lines]
+
     def _next_spinner_frame(self) -> str:
         frame = self._SPINNER_FRAMES[self._spinner_idx % len(self._SPINNER_FRAMES)]
         self._spinner_idx += 1
@@ -207,12 +222,15 @@ class ConsoleJourneyPrompter:
         return len(lines)
 
     def intro(self, text: str) -> None:
-        title = self._style(text, "1;36")
-        border = self._style("━" * min(max(len(text), 28), self._width), "36")
+        brand = self._accent("✉ TwinBox v1")
+        tagline = self._muted("Reads your inbox without making you babysit it.")
         self._write("")
-        self._write(border)
-        self._write(title)
-        self._write(border)
+        self._write(f"{brand} {self._muted('—')} {tagline}")
+        self._write("")
+        for line in self._banner_lines():
+            self._write(line)
+        self._write("")
+        self._write(self._accent(text))
         self._write("")
 
     def outro(self, text: str) -> None:
@@ -234,19 +252,19 @@ class ConsoleJourneyPrompter:
         self._write("")
 
     def note(self, title: str, body: str) -> None:
-        content_width = max(24, self._width - 4)
+        content_width = max(24, self._width - 6)
         title_lines = self._wrap_text(title, content_width)
         body_lines = self._wrap_text(body, content_width)
-        top = f"┌{'─' * (content_width + 2)}┐"
-        divider = f"├{'─' * (content_width + 2)}┤"
-        bottom = f"└{'─' * (content_width + 2)}┘"
-        self._write(top)
+        rail = self._muted("│")
+        elbow = self._muted("└")
+        rule = self._muted("─" * min(28, content_width))
+        self._write(f"{rail}")
         for title_line in title_lines:
-            self._write(self._style(f"│ {title_line.ljust(content_width)} │", "1;34"))
-        self._write(divider)
+            self._write(f"{rail}  {self._accent(title_line)}")
+        self._write(f"{rail}")
         for line in body_lines:
-            self._write(f"│ {line.ljust(content_width)} │")
-        self._write(bottom)
+            self._write(f"{rail}  {self._muted(line)}")
+        self._write(f"{elbow}{rule}")
         self._write("")
 
     def select(
@@ -946,10 +964,10 @@ def run_openclaw_onboard_v2(
         fragment_path = default_openclaw_fragment_path(resolved_code_root)
         fragment_exists = fragment_path.is_file()
 
-        prompter.intro("Twinbox OpenClaw onboarding")
+        prompter.intro("TwinBox setup")
         prompter.note(
-        "Phase 1 of 2",
-        "This wizard verifies host wiring first, then hands you off to the twinbox agent for profile, materials, rules, and notifications.",
+        "TwinBox setup",
+        "Phase 1 of 2. This wizard verifies host wiring first, then hands you off to the twinbox agent for profile, materials, rules, and notifications.",
         )
         prompter.note(
         "Security",
