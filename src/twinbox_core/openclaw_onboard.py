@@ -36,7 +36,7 @@ class JourneyPrompter(Protocol):
 
     def cancel(self, summary_title: str, summary_value: str, message: str = "Setup cancelled.") -> None: ...
 
-    def note(self, title: str, body: str) -> None: ...
+    def note(self, title: str, body: str, *, complete: bool | None = None) -> None: ...
 
     def select(
         self,
@@ -185,7 +185,7 @@ class ConsoleJourneyPrompter:
     ) -> int:
         lines: list[str] = []
         body_width = max(24, self._width - 4)
-        lines.append(self._style(prompt, "1"))
+        lines.append(self._accent(prompt) if layout == "horizontal" else self._style(prompt, "1"))
         if layout == "horizontal":
             lines.append("Use ←/→ to move. Press Enter to confirm.")
             rendered_options: list[str] = []
@@ -251,20 +251,51 @@ class ConsoleJourneyPrompter:
         self._write(f"└  {footer}")
         self._write("")
 
-    def note(self, title: str, body: str) -> None:
-        content_width = max(24, self._width - 6)
-        title_lines = self._wrap_text(title, content_width)
-        body_lines = self._wrap_text(body, content_width)
-        rail = self._muted("│")
-        elbow = self._muted("└")
-        rule = self._muted("─" * min(28, content_width))
-        self._write(f"{rail}")
-        for title_line in title_lines:
-            self._write(f"{rail}  {self._accent(title_line)}")
-        self._write(f"{rail}")
-        for line in body_lines:
-            self._write(f"{rail}  {self._muted(line)}")
-        self._write(f"{elbow}{rule}")
+    def note(self, title: str, body: str, *, complete: bool | None = None) -> None:
+        """Draw a closed box; optional left rail glyph: ◆ = pending / not satisfied, ◇ = configured or done."""
+        inner = max(28, min(76, self._width - 8))
+        glyph = ""
+        if complete is True:
+            glyph = "◇"
+        elif complete is False:
+            glyph = "◆"
+
+        title_head = f"{glyph} {title}" if glyph else title
+        title_lines = self._wrap_text(title_head, inner)
+
+        body_lines: list[str] = []
+        for raw_line in body.splitlines() or [body]:
+            if raw_line.strip() == "":
+                body_lines.append("")
+            else:
+                body_lines.extend(self._wrap_text(raw_line, max(8, inner - 2)))
+
+        rows: list[str] = list(title_lines) + [""]
+        for bl in body_lines:
+            rows.append(("  " + bl) if bl else "")
+
+        max_w = max((len(r) for r in rows), default=0)
+        max_w = max(max_w, 24)
+        inner_bar = max_w + 2
+
+        top_rule = self._muted("┌" + "─" * inner_bar + "┐")
+        bot_rule = self._muted("└" + "─" * inner_bar + "┘")
+        self._write(top_rule)
+
+        title_row_count = len(title_lines)
+        for idx, row in enumerate(rows):
+            plain = row.ljust(max_w)
+            if idx < title_row_count:
+                if glyph and idx == 0 and plain.startswith(glyph):
+                    after_glyph = plain[len(glyph) :]
+                    styled = self._style(glyph, "1;32") + self._accent(after_glyph)
+                else:
+                    styled = self._accent(plain)
+            else:
+                styled = self._muted(plain)
+            self._write(self._muted("│") + " " + styled + " " + self._muted("│"))
+
+        self._write(bot_rule)
         self._write("")
 
     def select(
@@ -966,15 +997,17 @@ def run_openclaw_onboard_v2(
 
         prompter.intro("TwinBox setup")
         prompter.note(
-        "TwinBox setup",
-        "Phase 1 of 2. This wizard verifies host wiring first, then hands you off to the twinbox agent for profile, materials, rules, and notifications.",
+            "TwinBox setup",
+            "Phase 1 of 2. This wizard verifies host wiring first, then hands you off to the twinbox agent for profile, materials, rules, and notifications.",
+            complete=None,
         )
         prompter.note(
-        "Security",
-        (
-            "Twinbox is personal-by-default. Please use this setup only where mailbox access, prompts, and attached tools are trusted.\n\n"
-            "Shared or multi-user setups need extra lock-down before you rely on them."
-        ),
+            "Security",
+            (
+                "Twinbox is personal-by-default. Please use this setup only where mailbox access, prompts, and attached tools are trusted.\n\n"
+                "Shared or multi-user setups need extra lock-down before you rely on them."
+            ),
+            complete=False,
         )
         security_choice = prompter.select(
         "I understand this is personal-by-default and shared/multi-user use requires lock-down. Continue?",
@@ -1025,7 +1058,7 @@ def run_openclaw_onboard_v2(
         )
         if advanced:
             mailbox_body += f"\n\nState file: {env_file}"
-        prompter.note("Mailbox", mailbox_body)
+        prompter.note("Mailbox", mailbox_body, complete=mailbox_ready)
         if mailbox_ready:
             mailbox_action = prompter.select(
                 "Choose mailbox setup",
@@ -1070,6 +1103,7 @@ def run_openclaw_onboard_v2(
             prompter.note(
                 "Recovery",
                 "Mailbox setup is required before Twinbox can continue. Fix the mailbox step and rerun the wizard.",
+                complete=None,
             )
             prompter.outro(report.error)
             return report
@@ -1085,6 +1119,7 @@ def run_openclaw_onboard_v2(
             prompter.note(
                 "Recovery",
                 "Twinbox could not validate the mailbox settings. Review the mailbox values and rerun the wizard.",
+                complete=None,
             )
             prompter.outro(report.error)
             return report
@@ -1097,7 +1132,7 @@ def run_openclaw_onboard_v2(
         )
         if llm_info.get("configured"):
             llm_body += "\nPress Enter on a field to keep the current model or API URL."
-        prompter.note("LLM", llm_body)
+        prompter.note("LLM", llm_body, complete=bool(llm_info.get("configured")))
         llm_options: list[dict[str, str]] = []
         if llm_info.get("configured"):
             llm_options.append(
@@ -1143,12 +1178,10 @@ def run_openclaw_onboard_v2(
             current_key = dotenv.get(current_key_name, "")
             current_model = dotenv.get(current_model_name, "")
             current_url = dotenv.get(current_url_name, "")
-            llm_progress = prompter.progress("Validating LLM configuration")
             api_key = prompter.secret("API key", allow_empty=bool(current_key))
             if not api_key:
                 api_key = current_key
             if not api_key:
-                llm_progress.fail("API key is required for the selected provider")
                 report.error = "LLM API key is required."
                 report.llm = {
                     "prompted": True,
@@ -1166,11 +1199,13 @@ def run_openclaw_onboard_v2(
                 prompter.note(
                     "Recovery",
                     "Twinbox needs an API key before it can validate the selected LLM provider.",
+                    complete=None,
                 )
                 prompter.outro(report.error)
                 return report
             model = prompter.text("Model", default=current_model)
             api_url = prompter.text("API URL", default=current_url)
+            llm_progress = prompter.progress("Validating LLM configuration")
             llm_ready, report.llm, dotenv = _apply_llm_updates(
                 env_file=env_file,
                 dotenv=dotenv,
@@ -1191,7 +1226,7 @@ def run_openclaw_onboard_v2(
         )
         if advanced:
             integration_body += f"\nOpenClaw home: {resolved_openclaw_home}"
-        prompter.note("Twinbox tools integration", integration_body)
+        prompter.note("Twinbox tools integration", integration_body, complete=None)
         if fragment_exists:
             fragment_selected = (
                 prompter.select(
@@ -1222,7 +1257,7 @@ def run_openclaw_onboard_v2(
         ]
         if advanced:
             summary_lines.append(f"State root: {state_root}")
-        prompter.note("Apply setup", "\n".join(summary_lines))
+        prompter.note("Apply setup", "\n".join(summary_lines), complete=None)
         deploy_choice = prompter.select(
             "Apply the host setup now?",
             options=[
@@ -1251,6 +1286,7 @@ def run_openclaw_onboard_v2(
             prompter.note(
                 "Recovery",
                 f"Host setup is still pending. Current guided stage is {report.onboarding['current_stage']}; apply the setup, then continue in the twinbox agent.",
+                complete=None,
             )
             prompter.outro(report.error)
             return report
@@ -1281,6 +1317,7 @@ def run_openclaw_onboard_v2(
             prompter.note(
                 "Recovery",
                 f"Twinbox stopped during host setup. Current guided stage is {report.onboarding['current_stage']}; fix the deploy error, then rerun the wizard.",
+                complete=None,
             )
             prompter.outro(report.error)
             return report
@@ -1305,6 +1342,7 @@ def run_openclaw_onboard_v2(
             prompter.note(
                 "Phase 2 of 2",
                 f"Continue in the twinbox agent inside OpenClaw. Your next guided conversation stage is {current_stage}.",
+                complete=True,
             )
             prompter.outro(
                 "Continue in the twinbox agent now. Ask it to keep onboarding and it should pick up from the next stage."
@@ -1319,6 +1357,7 @@ def run_openclaw_onboard_v2(
         prompter.note(
             "Phase 2 of 2",
             f"Host setup is partially ready. Your next guided conversation stage is {current_stage}, but Twinbox still needs LLM setup before the full handoff is ready.",
+            complete=False,
         )
         prompter.outro("Finish the LLM step, then continue in the twinbox agent.")
         return report
