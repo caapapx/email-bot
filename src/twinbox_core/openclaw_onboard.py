@@ -23,6 +23,7 @@ from .onboarding import STAGE_ORDER, load_state, save_state
 from .openclaw_deploy import run_openclaw_deploy
 from .openclaw_deploy_types import OpenClawDeployReport
 from .openclaw_json_io import default_openclaw_fragment_path
+from .openclaw_llm_import import OpenClawLlmImportError, import_llm_from_openclaw_path
 from .paths import PathResolutionError, resolve_code_root, resolve_state_root
 from .twinbox_config import (
     config_path_for_state_root,
@@ -1243,6 +1244,11 @@ def run_openclaw_onboard(
     deploy_runner: DeployRunner = run_openclaw_deploy,
     fragment_decision: bool | None = None,
 ) -> OpenClawOnboardReport:
+    """Legacy stdin/getpass onboarding wizard (minimal prompts).
+
+    Not used by ``twinbox onboard openclaw``; the CLI uses the journey wizard instead.
+    Retained for tests and programmatic callers that need the old flow.
+    """
     report = OpenClawOnboardReport(ok=False)
     input_fn = input_fn or input
     secret_input_fn = secret_input_fn or getpass.getpass
@@ -1471,9 +1477,7 @@ def run_openclaw_onboard_v2(
     mailbox_validation_timeout_seconds: float = 15.0,
     llm_update_runner: LLMUpdateRunner = _apply_llm_updates,
     llm_validation_timeout_seconds: float = 15.0,
-    run_onboard: Callable[..., OpenClawOnboardReport] = run_openclaw_onboard,
 ) -> OpenClawOnboardReport:
-    del run_onboard
     prompter = prompter or ConsoleJourneyPrompter()
     deploy_runner = deploy_runner or run_openclaw_deploy
     report = OpenClawOnboardReport(ok=False)
@@ -1714,6 +1718,11 @@ def run_openclaw_onboard_v2(
         llm_options_menu: list[dict[str, str]] = [
             {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
             {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
+            {
+                "value": "openclaw",
+                "label": "Import from OpenClaw",
+                "description": "Use OpenClaw's default model from openclaw.json.",
+            },
             {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
         ]
         if llm_ready:
@@ -1798,6 +1807,98 @@ def run_openclaw_onboard_v2(
                 }
                 break
 
+            if llm_choice == "openclaw":
+                oc_json = resolved_openclaw_home / "openclaw.json"
+                try:
+                    extracted = import_llm_from_openclaw_path(oc_json)
+                except OpenClawLlmImportError as exc:
+                    prompter.note(
+                        "Recovery",
+                        f"{exc}\n\nChoose another LLM setup option, or skip for now.",
+                        complete=None,
+                    )
+                    llm_choice = prompter.select(
+                        "Choose LLM setup",
+                        options=llm_options_menu,
+                        default="openai",
+                    )
+                    continue
+
+                twinbox_provider = str(extracted["twinbox_provider"])
+                api_key = str(extracted["api_key"])
+                model = str(extracted["model"])
+                api_url = str(extracted["api_url"])
+                llm_progress = prompter.progress("Validating LLM configuration")
+                llm_result = _run_with_timeout(
+                    lambda: llm_update_runner(
+                        env_file=env_file,
+                        dotenv=dotenv,
+                        provider=twinbox_provider,
+                        api_key=api_key,
+                        model=model,
+                        api_url=api_url,
+                        dry_run=dry_run,
+                    ),
+                    timeout_seconds=llm_validation_timeout_seconds,
+                )
+                if llm_result is None:
+                    llm_progress.fail("LLM validation timed out")
+                    report.onboarding = _sync_onboarding_state(
+                        state_root,
+                        mailbox_ready=mailbox_ready,
+                        llm_ready=False,
+                        dry_run=dry_run,
+                    )
+                    prompter.note(
+                        "Recovery",
+                        (
+                            f"LLM validation timed out after {llm_validation_timeout_seconds:.1f}s. "
+                            "Check the endpoint or try again — or skip for now (pipeline stays incomplete until configured)."
+                        ),
+                        complete=None,
+                    )
+                    llm_choice = prompter.select(
+                        "Choose LLM setup",
+                        options=llm_options_menu,
+                        default=llm_choice if llm_choice in ("openai", "anthropic", "openclaw") else "openai",
+                    )
+                    continue
+
+                llm_ready, report.llm, dotenv = llm_result
+                if llm_ready:
+                    llm_progress.finish("LLM configuration validated")
+                    report.llm = {
+                        **report.llm,
+                        "openclaw_json": str(oc_json),
+                        "openclaw_model_ref": str(extracted.get("openclaw_model_ref", "")),
+                    }
+                    break
+
+                err_detail = report.llm.get("error", "LLM validation failed")
+                llm_progress.fail(err_detail)
+                report.onboarding = _sync_onboarding_state(
+                    state_root,
+                    mailbox_ready=mailbox_ready,
+                    llm_ready=False,
+                    dry_run=dry_run,
+                )
+                prompter.note(
+                    "Recovery",
+                    (
+                        f"{err_detail}\n\n"
+                        "OpenAI-compatible bases such as https://…/v2 only need the base URL; Twinbox appends /chat/completions. "
+                        "If you still see 401, confirm the API key matches the console (often `appid:secret` as one token) with no extra text.\n\n"
+                        "Choose LLM setup again, or skip for now (host wiring can continue without a validated LLM)."
+                    ),
+                    complete=None,
+                )
+                llm_choice = prompter.select(
+                    "Choose LLM setup",
+                    options=llm_options_menu,
+                    default=llm_choice if llm_choice in ("openai", "anthropic", "openclaw") else "openai",
+                )
+                continue
+
             current_key_name, current_model_name, current_url_name = _provider_env_keys(llm_choice)
             current_key = llm_prompt_dotenv.get(current_key_name, "")
             current_model = llm_prompt_dotenv.get(current_model_name, "")
@@ -1861,7 +1962,7 @@ def run_openclaw_onboard_v2(
                 llm_choice = prompter.select(
                     "Choose LLM setup",
                     options=llm_options_menu,
-                    default=llm_choice if llm_choice in ("openai", "anthropic") else "openai",
+                    default=llm_choice if llm_choice in ("openai", "anthropic", "openclaw") else "openai",
                 )
                 continue
 
@@ -1891,7 +1992,7 @@ def run_openclaw_onboard_v2(
             llm_choice = prompter.select(
                 "Choose LLM setup",
                 options=llm_options_menu,
-                default=llm_choice if llm_choice in ("openai", "anthropic") else "openai",
+                default=llm_choice if llm_choice in ("openai", "anthropic", "openclaw") else "openai",
             )
 
         if llm_ready and (not initial_llm_configured or llm_choice != "use_existing"):
