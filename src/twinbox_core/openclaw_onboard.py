@@ -111,6 +111,68 @@ class ConsoleJourneyPrompter:
     def _accent(self, text: str) -> str:
         return self._style(text, "1;38;5;208")
 
+    def _style_parenthetical_chunk(
+        self,
+        text: str,
+        *,
+        main_code: str,
+        paren_code: str = "0;90",
+        initial_depth: int = 0,
+        glyph: str | None = None,
+        glyph_code: str | None = None,
+    ) -> tuple[str, int]:
+        if not self._is_tty:
+            return text, initial_depth
+
+        parts: list[str] = []
+        depth = initial_depth
+        index = 0
+        if glyph and depth == 0 and text.startswith(glyph):
+            parts.append(self._style(glyph, glyph_code or main_code))
+            index = len(glyph)
+
+        buffer: list[str] = []
+        in_paren = depth > 0
+
+        def flush(code: str) -> None:
+            nonlocal buffer
+            if buffer:
+                parts.append(self._style("".join(buffer), code))
+                buffer = []
+
+        while index < len(text):
+            ch = text[index]
+            if ch == "(":
+                if depth == 0:
+                    if buffer and buffer[-1] == " ":
+                        buffer.pop()
+                        flush(main_code)
+                        buffer = [" ", "("]
+                    else:
+                        flush(main_code)
+                        buffer = ["("]
+                    depth = 1
+                    in_paren = True
+                else:
+                    buffer.append(ch)
+                    depth += 1
+                index += 1
+                continue
+            if ch == ")":
+                buffer.append(ch)
+                if depth > 0:
+                    depth -= 1
+                    if depth == 0:
+                        flush(paren_code)
+                        in_paren = False
+                index += 1
+                continue
+            buffer.append(ch)
+            index += 1
+
+        flush(paren_code if in_paren else main_code)
+        return "".join(parts), depth
+
     @staticmethod
     def _visible_length(text: str) -> int:
         plain = re.sub(r"\x1b\[[0-9;]*[mK]", "", text)
@@ -254,7 +316,13 @@ class ConsoleJourneyPrompter:
                 if not glyph:
                     glyph = "●" if selected else "○"
                 rendered = f"{glyph} {label}"
-                rendered_options.append(self._style(rendered, "1;32" if selected else "0"))
+                styled, _ = self._style_parenthetical_chunk(
+                    rendered,
+                    main_code="1;32" if selected else "0",
+                    glyph=glyph,
+                    glyph_code="1;32" if selected else "0",
+                )
+                rendered_options.append(styled)
             lines.append(" / ".join(rendered_options))
         else:
             lines.append("Use ↑/↓ to move. Press Enter to confirm.")
@@ -269,25 +337,29 @@ class ConsoleJourneyPrompter:
                 if description:
                     option_line = f"{option_line} ({description})"
                 wrapped = self._wrap_text(option_line, body_width)
+                paren_depth = 0
                 for line_index, chunk in enumerate(wrapped):
                     if line_index == 0:
                         rendered = chunk
                     else:
                         rendered = f"  {chunk}"
                     if selected:
-                        glyph_prefix = f"{glyph} "
-                        if rendered.startswith(glyph_prefix):
-                            styled = (
-                                self._style(glyph, "1;32")
-                                + self._style(rendered[len(glyph):], "1;97")
-                            )
-                        else:
-                            styled = self._style(rendered, "0;97")
+                        styled, paren_depth = self._style_parenthetical_chunk(
+                            rendered,
+                            main_code="1;97",
+                            initial_depth=paren_depth,
+                            glyph=glyph if line_index == 0 else None,
+                            glyph_code="1;32",
+                        )
                     else:
-                        if rendered.startswith(f"{glyph} "):
-                            styled = self._style(glyph, "0;90") + self._style(rendered[len(glyph):], "0;90")
-                        else:
-                            styled = self._style(rendered, "0;90")
+                        styled, paren_depth = self._style_parenthetical_chunk(
+                            rendered,
+                            main_code="0;90",
+                            paren_code="0;90",
+                            initial_depth=paren_depth,
+                            glyph=glyph if line_index == 0 else None,
+                            glyph_code="0;90",
+                        )
                     lines.append(styled)
 
         # Must clear exactly the *previous* frame's line count. Using len(lines) here
@@ -434,15 +506,70 @@ class ConsoleJourneyPrompter:
             return default
         return raw
 
+    def _supports_inline_secret_input(self) -> bool:
+        return self._is_tty and (self._key_reader is not None or self._stdin_is_tty)
+
+    def _read_secret_key(self) -> str:
+        if self._key_reader is not None:
+            key = self._key_reader()
+            if key in {"\x03", "CTRL_C"}:
+                raise KeyboardInterrupt
+            return key
+        if not self._stdin_is_tty:
+            return ""
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            char = sys.stdin.read(1)
+            if char in ("\r", "\n"):
+                return "ENTER"
+            if char == "\x03":
+                raise KeyboardInterrupt
+            if char in ("\x7f", "\b"):
+                return "BACKSPACE"
+            return char
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
     def secret(self, prompt: str, *, allow_empty: bool = False) -> str:
         suffix = " (press Enter to keep current value)" if allow_empty else ""
-        value = _prompt_secret(getpass.getpass, f"{prompt}{suffix}: ")
-        # Show masked feedback after input
+        rendered_prompt = f"{prompt}{suffix}: "
+        styled_prompt = rendered_prompt
+        if self._is_tty:
+            styled_prompt, _ = self._style_parenthetical_chunk(rendered_prompt, main_code="0")
+        if self._supports_inline_secret_input():
+            chars: list[str] = []
+
+            def _render() -> None:
+                self._write_inline(f"\r\033[K{styled_prompt}{'*' * len(chars)}")
+
+            _render()
+            while True:
+                key = self._read_secret_key()
+                if key == "ENTER":
+                    self._write("")
+                    break
+                if key == "BACKSPACE":
+                    if chars:
+                        chars.pop()
+                        _render()
+                    continue
+                if len(key) != 1 or not key.isprintable():
+                    continue
+                chars.append(key)
+                _render()
+            value = "".join(chars)
+            if not value and allow_empty:
+                self._write(self._dim_preview("  → ********"))
+            return value
+
+        value = _prompt_secret(getpass.getpass, rendered_prompt)
         if value:
             mask = "***" + ("*" * min(len(value) - 3, 5))
             self._write(self._dim_preview(f"  → {mask}"))
         elif allow_empty:
-            self._write(self._dim_preview("  → (keeping current value)"))
+            self._write(self._dim_preview("  → ********"))
         return value
 
     def confirm(self, prompt: str, *, default: bool = True) -> bool:
@@ -747,9 +874,12 @@ def _prompt_mailbox_customization(
             raise ValueError("Mailbox password is required.")
         from .mailbox_detect import detect_to_env
 
+        detect_progress = prompter.progress("Detecting mailbox settings")
         detected = detect_to_env(email, verbose=False)
         if detected is None:
+            detect_progress.fail(f"Could not auto-detect mailbox servers for {email}")
             raise ValueError(f"Could not auto-detect mailbox servers for {email}")
+        detect_progress.finish("Mailbox settings detected")
         existing_secret = dotenv.get("IMAP_PASS") or dotenv.get("SMTP_PASS", "")
         resolved_password = password or existing_secret
         return {
