@@ -616,17 +616,10 @@ class ConsoleJourneyPrompter:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
     def secret(self, prompt: str, *, allow_empty: bool = False) -> str:
-        suffix = " (press Enter to keep current value)" if allow_empty else ""
-        rendered_prompt = f"{prompt}{suffix}: "
-        inline_prompt = rendered_prompt
+        inline_prompt = f"{prompt}: "
+        max_mask_chars = 8
         if allow_empty:
-            max_mask_chars = 8
-            prompt_would_wrap = self._visible_length(rendered_prompt) + max_mask_chars >= self._width
-            if prompt_would_wrap:
-                self._write(self._dim_preview("Press Enter to keep current value."))
-                inline_prompt = f"{prompt}: "
-        else:
-            max_mask_chars = 8
+            self._write(self._dim_preview("Press Enter to keep current value."))
         rendered_prompt = inline_prompt
         styled_prompt = rendered_prompt
         if self._is_tty:
@@ -656,7 +649,7 @@ class ConsoleJourneyPrompter:
                             key = char
                             
                         if key == "ENTER":
-                            self._write("")
+                            self._write_inline("\r\n")
                             break
                         if key == "BACKSPACE":
                             if chars:
@@ -673,7 +666,7 @@ class ConsoleJourneyPrompter:
                 while True:
                     key = self._read_secret_key()
                     if key == "ENTER":
-                        self._write("")
+                        self._write_inline("\r\n")
                         break
                     if key == "BACKSPACE":
                         if chars:
