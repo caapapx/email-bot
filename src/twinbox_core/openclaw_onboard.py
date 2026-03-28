@@ -273,7 +273,7 @@ class ConsoleJourneyPrompter:
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:
-            tty.setraw(fd)
+            tty.setraw(fd, termios.TCSADRAIN)
             char = sys.stdin.read(1)
             if char in ("\r", "\n"):
                 return "ENTER"
@@ -568,11 +568,26 @@ class ConsoleJourneyPrompter:
             self._write(self._style("Invalid choice. Please enter a number or option name from the list above.", "31"))
 
     def text(self, prompt: str, *, default: str | None = None) -> str:
-        rendered_prompt = f"{prompt}: " if not default else f"{prompt} [{default}]: "
+        # Do not print default values (URLs, model IDs) — long strings wrap badly and a
+        # prior masked secret line can leave the cursor mid-row so a "Default:" line
+        # appears misaligned. Empty input still keeps the saved default.
+        def _collapse_lines(value: str) -> str:
+            return "".join(str(value).strip().splitlines()).strip()
+
+        if default is not None:
+            default_oneline = _collapse_lines(str(default))
+            if default_oneline:
+                rendered_prompt = f"{prompt} (press Enter to keep): "
+                raw = self._input_fn(rendered_prompt).strip()
+                if not raw:
+                    return default_oneline
+                return _collapse_lines(raw)
+        rendered_prompt = f"{prompt}: "
         raw = self._input_fn(rendered_prompt).strip()
         if not raw and default is not None:
-            return default
-        return raw
+            collapsed = _collapse_lines(str(default))
+            return collapsed if collapsed else str(default).strip()
+        return _collapse_lines(raw) if raw else raw
 
     def _supports_inline_secret_input(self) -> bool:
         return self._is_tty and (self._key_reader is not None or self._stdin_is_tty)
@@ -588,7 +603,7 @@ class ConsoleJourneyPrompter:
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:
-            tty.setraw(fd)
+            tty.setraw(fd, termios.TCSADRAIN)
             char = sys.stdin.read(1)
             if char in ("\r", "\n"):
                 return "ENTER"
@@ -613,20 +628,53 @@ class ConsoleJourneyPrompter:
                 self._write_inline(f"\r\033[K{styled_prompt}{'*' * len(chars)}")
 
             _render()
-            while True:
-                key = self._read_secret_key()
-                if key == "ENTER":
-                    self._write("")
-                    break
-                if key == "BACKSPACE":
-                    if chars:
-                        chars.pop()
+            
+            if self._key_reader is None and self._stdin_is_tty:
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(fd, termios.TCSADRAIN)
+                    while True:
+                        char = sys.stdin.read(1)
+                        if char in ("\r", "\n"):
+                            key = "ENTER"
+                        elif char == "\x03":
+                            raise KeyboardInterrupt
+                        elif char in ("\x7f", "\b"):
+                            key = "BACKSPACE"
+                        else:
+                            key = char
+                            
+                        if key == "ENTER":
+                            self._write("")
+                            break
+                        if key == "BACKSPACE":
+                            if chars:
+                                chars.pop()
+                                _render()
+                            continue
+                        if len(key) != 1 or not key.isprintable():
+                            continue
+                        chars.append(key)
                         _render()
-                    continue
-                if len(key) != 1 or not key.isprintable():
-                    continue
-                chars.append(key)
-                _render()
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            else:
+                while True:
+                    key = self._read_secret_key()
+                    if key == "ENTER":
+                        self._write("")
+                        break
+                    if key == "BACKSPACE":
+                        if chars:
+                            chars.pop()
+                            _render()
+                        continue
+                    if len(key) != 1 or not key.isprintable():
+                        continue
+                    chars.append(key)
+                    _render()
+            
             value = "".join(chars)
             if not value and allow_empty:
                 self._write(self._dim_preview("  → ********"))
@@ -1118,6 +1166,42 @@ def _apply_llm_updates(
             "url": backend.url,
         },
         merged,
+    )
+
+
+def _validate_existing_llm(
+    *,
+    env_file: Path,
+    dotenv: dict[str, str],
+    dry_run: bool,
+) -> tuple[bool, dict[str, Any], dict[str, str]]:
+    try:
+        backend = resolve_backend(env_file=env_file, env={})
+    except LLMError as exc:
+        return (
+            False,
+            {
+                "prompted": False,
+                "configured": False,
+                "backend": "",
+                "model": dotenv.get("LLM_MODEL") or dotenv.get("ANTHROPIC_MODEL", ""),
+                "url": dotenv.get("LLM_API_URL") or dotenv.get("ANTHROPIC_BASE_URL", ""),
+                "error": str(exc),
+            },
+            dict(dotenv),
+        )
+
+    return (
+        True,
+        {
+            "prompted": False,
+            "configured": True,
+            "backend": backend.backend,
+            "model": backend.model,
+            "url": backend.url,
+            "status": "configured",
+        },
+        dict(dotenv),
     )
 
 
@@ -1663,15 +1747,41 @@ def run_openclaw_onboard_v2(
 
         while True:
             if llm_choice == "use_existing":
-                report.llm = {
-                    "prompted": False,
-                    "configured": llm_ready,
-                    "backend": llm_info.get("backend", ""),
-                    "model": llm_info.get("model", ""),
-                    "url": llm_info.get("url", ""),
-                    "status": "configured" if llm_ready else "missing",
-                }
-                break
+                llm_progress = prompter.progress("Validating LLM configuration")
+                llm_ready, report.llm, dotenv = _validate_existing_llm(
+                    env_file=env_file,
+                    dotenv=dotenv,
+                    dry_run=dry_run,
+                )
+                if llm_ready:
+                    llm_progress.finish("LLM configuration validated")
+                    report.onboarding = _sync_onboarding_state(
+                        state_root,
+                        mailbox_ready=mailbox_ready,
+                        llm_ready=True,
+                        dry_run=dry_run,
+                    )
+                    break
+
+                err_detail = report.llm.get("error", "LLM validation failed")
+                llm_progress.fail(err_detail)
+                report.error = err_detail
+                report.onboarding = _sync_onboarding_state(
+                    state_root,
+                    mailbox_ready=mailbox_ready,
+                    llm_ready=False,
+                    dry_run=dry_run,
+                )
+                prompter.note(
+                    "Recovery",
+                    (
+                        f"{err_detail}\n\n"
+                        "The existing LLM settings did not validate. Choose Update values to fix them, or Skip for now to leave this step incomplete."
+                    ),
+                    complete=None,
+                )
+                prompter.outro(report.error)
+                return report
             if llm_choice == "skip":
                 retained_llm = llm_info if preserve_existing_on_skip else {"backend": "", "model": "", "url": ""}
                 llm_ready = bool(preserve_existing_on_skip and llm_info.get("configured"))
