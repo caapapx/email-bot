@@ -181,7 +181,7 @@ class ConsoleJourneyPrompter:
         options: list[dict[str, str]],
         current_index: int,
         *,
-        first_frame: bool,
+        previous_height: int = 0,
         default: str | None,
         layout: str,
     ) -> int:
@@ -234,8 +234,11 @@ class ConsoleJourneyPrompter:
                             styled = self._style(rendered, "0;90")
                     lines.append(styled)
 
-        if not first_frame:
-            self._clear_previous_frame(len(lines))
+        # Must clear exactly the *previous* frame's line count. Using len(lines) here
+        # breaks when the new selection wraps to fewer lines than the old one, leaving
+        # orphan rows that stack with the next prompt (duplicate headings / mangled UI).
+        if previous_height > 0:
+            self._clear_previous_frame(previous_height)
         for line in lines:
             self._write(line)
         return len(lines)
@@ -331,22 +334,24 @@ class ConsoleJourneyPrompter:
                 current_index = values.index(default) if default is not None else 0
             except ValueError:
                 current_index = 0
-            rendered_line_count = self._render_select_frame(
-                prompt, options, current_index, first_frame=True, default=default, layout=layout
-            )
+            prev_h = 0
             while True:
+                prev_h = self._render_select_frame(
+                    prompt,
+                    options,
+                    current_index,
+                    previous_height=prev_h,
+                    default=default,
+                    layout=layout,
+                )
                 key = self._read_key()
                 if key in {"UP", "LEFT"}:
                     current_index = (current_index - 1) % len(options)
-                    rendered_line_count = self._render_select_frame(
-                        prompt, options, current_index, first_frame=False, default=default, layout=layout
-                    )
                 elif key in {"DOWN", "RIGHT"}:
                     current_index = (current_index + 1) % len(options)
-                    rendered_line_count = self._render_select_frame(
-                        prompt, options, current_index, first_frame=False, default=default, layout=layout
-                    )
                 elif key == "ENTER":
+                    if prev_h > 0:
+                        self._clear_previous_frame(prev_h)
                     self._write("")
                     return options[current_index]["value"]
 
