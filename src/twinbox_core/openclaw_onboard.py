@@ -34,6 +34,8 @@ class JourneyPrompter(Protocol):
 
     def outro(self, text: str) -> None: ...
 
+    def cancel(self, summary_title: str, summary_value: str, message: str = "Setup cancelled.") -> None: ...
+
     def note(self, title: str, body: str) -> None: ...
 
     def select(
@@ -123,7 +125,10 @@ class ConsoleJourneyPrompter:
 
     def _read_key(self) -> str:
         if self._key_reader is not None:
-            return self._key_reader()
+            key = self._key_reader()
+            if key in {"\x03", "CTRL_C"}:
+                raise KeyboardInterrupt
+            return key
         if not self._stdin_is_tty:
             return ""
         fd = sys.stdin.fileno()
@@ -133,6 +138,8 @@ class ConsoleJourneyPrompter:
             char = sys.stdin.read(1)
             if char in ("\r", "\n"):
                 return "ENTER"
+            if char == "\x03":
+                raise KeyboardInterrupt
             if char == "\x1b":
                 next_char = sys.stdin.read(1)
                 if next_char == "[":
@@ -208,6 +215,19 @@ class ConsoleJourneyPrompter:
     def outro(self, text: str) -> None:
         self._write("")
         self._write(self._style(text, "1;32"))
+        self._write("")
+
+    def cancel(self, summary_title: str, summary_value: str, message: str = "Setup cancelled.") -> None:
+        accent = self._style("■", "1;38;5;208")
+        summary = self._style(summary_title, "1;38;5;208")
+        value = self._style(summary_value, "0;37")
+        footer = self._style(message, "0;37")
+        self._write("")
+        self._write("│")
+        self._write(f"{accent}  {summary}")
+        self._write(f"│  {value}")
+        self._write("│")
+        self._write(f"└  {footer}")
         self._write("")
 
     def note(self, title: str, body: str) -> None:
@@ -891,49 +911,51 @@ def run_openclaw_onboard_v2(
     prompter = prompter or ConsoleJourneyPrompter()
     deploy_runner = deploy_runner or run_openclaw_deploy
     report = OpenClawOnboardReport(ok=False)
+    flow_label = "Quickstart"
     try:
-        resolved_code_root = resolve_code_root(code_root or Path.cwd())
-    except PathResolutionError as exc:
-        report.error = str(exc)
-        return report
+        try:
+            resolved_code_root = resolve_code_root(code_root or Path.cwd())
+        except PathResolutionError as exc:
+            report.error = str(exc)
+            return report
 
-    default_state_root = Path.home() / ".twinbox"
-    try:
-        configured_default = (
-            Path(os.environ["TWINBOX_STATE_ROOT"]).expanduser()
-            if "TWINBOX_STATE_ROOT" in os.environ
-            else default_state_root
-        )
-        state_root = resolve_state_root(configured_default)
-    except PathResolutionError:
-        state_root = Path(os.environ.get("TWINBOX_STATE_ROOT", str(default_state_root))).expanduser()
+        default_state_root = Path.home() / ".twinbox"
+        try:
+            configured_default = (
+                Path(os.environ["TWINBOX_STATE_ROOT"]).expanduser()
+                if "TWINBOX_STATE_ROOT" in os.environ
+                else default_state_root
+            )
+            state_root = resolve_state_root(configured_default)
+        except PathResolutionError:
+            state_root = Path(os.environ.get("TWINBOX_STATE_ROOT", str(default_state_root))).expanduser()
 
-    resolved_openclaw_home = (openclaw_home or Path.home() / ".openclaw").expanduser()
-    report.code_root = str(resolved_code_root)
-    report.state_root = str(state_root)
-    report.openclaw_home = str(resolved_openclaw_home)
-    if shutil.which(openclaw_bin) is None:
-        report.error = f"Missing executable on PATH: {openclaw_bin}"
-        return report
+        resolved_openclaw_home = (openclaw_home or Path.home() / ".openclaw").expanduser()
+        report.code_root = str(resolved_code_root)
+        report.state_root = str(state_root)
+        report.openclaw_home = str(resolved_openclaw_home)
+        if shutil.which(openclaw_bin) is None:
+            report.error = f"Missing executable on PATH: {openclaw_bin}"
+            return report
 
-    env_file = state_root / ".env"
-    dotenv = load_env_file(env_file)
-    fragment_path = default_openclaw_fragment_path(resolved_code_root)
-    fragment_exists = fragment_path.is_file()
+        env_file = state_root / ".env"
+        dotenv = load_env_file(env_file)
+        fragment_path = default_openclaw_fragment_path(resolved_code_root)
+        fragment_exists = fragment_path.is_file()
 
-    prompter.intro("Twinbox OpenClaw onboarding")
-    prompter.note(
+        prompter.intro("Twinbox OpenClaw onboarding")
+        prompter.note(
         "Phase 1 of 2",
         "This wizard verifies host wiring first, then hands you off to the twinbox agent for profile, materials, rules, and notifications.",
-    )
-    prompter.note(
+        )
+        prompter.note(
         "Security",
         (
             "Twinbox is personal-by-default. Please use this setup only where mailbox access, prompts, and attached tools are trusted.\n\n"
             "Shared or multi-user setups need extra lock-down before you rely on them."
         ),
-    )
-    security_choice = prompter.select(
+        )
+        security_choice = prompter.select(
         "I understand this is personal-by-default and shared/multi-user use requires lock-down. Continue?",
         options=[
             {
@@ -951,312 +973,318 @@ def run_openclaw_onboard_v2(
         ],
         default="continue",
         layout="horizontal",
-    )
-    if security_choice != "continue":
-        report.error = "Security acknowledgement was not accepted."
-        report.onboarding = _sync_onboarding_state(
+        )
+        if security_choice != "continue":
+            report.error = "Security acknowledgement was not accepted."
+            report.onboarding = _sync_onboarding_state(
             state_root,
             mailbox_ready=False,
             llm_ready=False,
             dry_run=dry_run,
-        )
-        prompter.outro("Setup stopped before any host changes were applied.")
-        return report
+            )
+            prompter.outro("Setup stopped before any host changes were applied.")
+            return report
 
-    flow = prompter.select(
+        flow = prompter.select(
         "Choose onboarding flow",
         options=[
             {"value": "quickstart", "label": "Quickstart", "description": "Follow the recommended setup path with the fewest decisions."},
             {"value": "advanced", "label": "Manual", "description": "Configure port, network, Tailscale, and auth options."},
         ],
         default="quickstart",
-    )
-    advanced = flow == "advanced"
+        )
+        flow_label = "Manual" if flow == "advanced" else "Quickstart"
+        advanced = flow == "advanced"
 
-    missing_mail = missing_required_mail_values(dotenv)
-    mailbox_ready = not missing_mail
-    mailbox_body = (
-        f"{_mailbox_summary(dotenv)}\n\n"
-        "Twinbox needs mailbox access before the agent can keep onboarding."
-    )
-    if advanced:
-        mailbox_body += f"\n\nState file: {env_file}"
-    prompter.note("Mailbox", mailbox_body)
-    if mailbox_ready:
-        mailbox_action = prompter.select(
-            "Choose mailbox setup",
-            options=[
-                {"value": "use_current_mailbox", "label": "Use current value", "description": "Validate the mailbox settings already stored in Twinbox."},
-                {"value": "customize_mailbox", "label": "Customize", "description": "Review or replace the mailbox settings before continuing."},
-            ],
-            default="use_current_mailbox" if flow == "quickstart" else "customize_mailbox",
+        missing_mail = missing_required_mail_values(dotenv)
+        mailbox_ready = not missing_mail
+        mailbox_body = (
+            f"{_mailbox_summary(dotenv)}\n\n"
+            "Twinbox needs mailbox access before the agent can keep onboarding."
         )
-    else:
-        mailbox_action = "customize_mailbox"
-    mailbox_progress = prompter.progress("Checking mailbox settings")
-    try:
-        mailbox_updates = None
-        if mailbox_action == "customize_mailbox":
-            mailbox_progress.update("Collecting mailbox configuration")
-            mailbox_updates = _prompt_mailbox_customization(prompter, dotenv=dotenv)
-        mailbox_ready, report.mailbox, dotenv = _apply_mailbox_updates(
-            state_root=state_root,
-            env_file=env_file,
-            dotenv=dotenv,
-            updates=mailbox_updates,
-            dry_run=dry_run,
-        )
-    except ValueError as exc:
-        mailbox_progress.fail(str(exc))
-        report.error = str(exc)
-        report.mailbox = {
-            "prompted": mailbox_action == "customize_mailbox",
-            "configured": False,
-            "missing_required": missing_required_mail_values(dotenv),
-            "status": "error",
-            "mail_address": dotenv.get("MAIL_ADDRESS", ""),
-            "env_file_path": str(env_file),
-        }
-        report.onboarding = _sync_onboarding_state(
-            state_root,
-            mailbox_ready=False,
-            llm_ready=False,
-            dry_run=dry_run,
-        )
-        prompter.note(
-            "Recovery",
-            "Mailbox setup is required before Twinbox can continue. Fix the mailbox step and rerun the wizard.",
-        )
-        prompter.outro(report.error)
-        return report
-    if not mailbox_ready:
-        mailbox_progress.fail("Mailbox validation did not pass")
-        report.error = "Mailbox validation failed."
-        report.onboarding = _sync_onboarding_state(
-            state_root,
-            mailbox_ready=False,
-            llm_ready=False,
-            dry_run=dry_run,
-        )
-        prompter.note(
-            "Recovery",
-            "Twinbox could not validate the mailbox settings. Review the mailbox values and rerun the wizard.",
-        )
-        prompter.outro(report.error)
-        return report
-    mailbox_progress.finish("Mailbox settings validated")
-
-    llm_info = _inspect_llm(env_file, dotenv)
-    llm_body = (
-        f"{_llm_summary(llm_info)}\n\n"
-        "Twinbox needs an LLM backend for the Phase 1-4 pipeline. Choose a provider to review or update it, or skip for now."
-    )
-    if llm_info.get("configured"):
-        llm_body += "\nPress Enter on a field to keep the current model or API URL."
-    prompter.note("LLM", llm_body)
-    llm_choice = prompter.select(
-        "Choose LLM setup",
-        options=[
-            {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
-            {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
-            {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
-        ],
-        default=llm_info.get("backend") or "openai",
-    )
-    llm_ready = bool(llm_info.get("configured"))
-    if llm_choice == "skip":
-        report.llm = {
-            "prompted": False,
-            "configured": llm_ready,
-            "backend": llm_info.get("backend", ""),
-            "model": llm_info.get("model", ""),
-            "url": llm_info.get("url", ""),
-            "status": "configured" if llm_ready else "skipped",
-        }
-    else:
-        current_key_name, current_model_name, current_url_name = _provider_env_keys(llm_choice)
-        current_key = dotenv.get(current_key_name, "")
-        current_model = dotenv.get(current_model_name, "")
-        current_url = dotenv.get(current_url_name, "")
-        llm_progress = prompter.progress("Validating LLM configuration")
-        api_key = prompter.secret("API key", allow_empty=bool(current_key))
-        if not api_key:
-            api_key = current_key
-        if not api_key:
-            llm_progress.fail("API key is required for the selected provider")
-            report.error = "LLM API key is required."
-            report.llm = {
-                "prompted": True,
+        if advanced:
+            mailbox_body += f"\n\nState file: {env_file}"
+        prompter.note("Mailbox", mailbox_body)
+        if mailbox_ready:
+            mailbox_action = prompter.select(
+                "Choose mailbox setup",
+                options=[
+                    {"value": "use_current_mailbox", "label": "Use current value", "description": "Validate the mailbox settings already stored in Twinbox."},
+                    {"value": "customize_mailbox", "label": "Customize", "description": "Review or replace the mailbox settings before continuing."},
+                ],
+                default="use_current_mailbox" if flow == "quickstart" else "customize_mailbox",
+            )
+        else:
+            mailbox_action = "customize_mailbox"
+        mailbox_progress = prompter.progress("Checking mailbox settings")
+        try:
+            mailbox_updates = None
+            if mailbox_action == "customize_mailbox":
+                mailbox_progress.update("Collecting mailbox configuration")
+                mailbox_updates = _prompt_mailbox_customization(prompter, dotenv=dotenv)
+            mailbox_ready, report.mailbox, dotenv = _apply_mailbox_updates(
+                state_root=state_root,
+                env_file=env_file,
+                dotenv=dotenv,
+                updates=mailbox_updates,
+                dry_run=dry_run,
+            )
+        except ValueError as exc:
+            mailbox_progress.fail(str(exc))
+            report.error = str(exc)
+            report.mailbox = {
+                "prompted": mailbox_action == "customize_mailbox",
                 "configured": False,
-                "backend": llm_choice,
-                "model": current_model,
-                "url": current_url,
+                "missing_required": missing_required_mail_values(dotenv),
+                "status": "error",
+                "mail_address": dotenv.get("MAIL_ADDRESS", ""),
+                "env_file_path": str(env_file),
             }
             report.onboarding = _sync_onboarding_state(
                 state_root,
-                mailbox_ready=mailbox_ready,
+                mailbox_ready=False,
                 llm_ready=False,
                 dry_run=dry_run,
             )
             prompter.note(
                 "Recovery",
-                "Twinbox needs an API key before it can validate the selected LLM provider.",
+                "Mailbox setup is required before Twinbox can continue. Fix the mailbox step and rerun the wizard.",
             )
             prompter.outro(report.error)
             return report
-        model = prompter.text("Model", default=current_model)
-        api_url = prompter.text("API URL", default=current_url)
-        llm_ready, report.llm, dotenv = _apply_llm_updates(
-            env_file=env_file,
-            dotenv=dotenv,
-            provider=llm_choice,
-            api_key=api_key,
-            model=model,
-            api_url=api_url,
-            dry_run=dry_run,
-        )
-        if llm_ready:
-            llm_progress.finish("LLM configuration validated")
-        else:
-            llm_progress.fail(report.llm.get("error", "LLM validation failed"))
-
-    integration_body = (
-        "This adds the small Twinbox integration config that helps OpenClaw discover Twinbox tools and stay on the recommended wiring path.\n\n"
-        f"Integration fragment: {fragment_path if fragment_exists else 'not found'}"
-    )
-    if advanced:
-        integration_body += f"\nOpenClaw home: {resolved_openclaw_home}"
-    prompter.note("Twinbox tools integration", integration_body)
-    if fragment_exists:
-        fragment_selected = (
-            prompter.select(
-                "Use the recommended Twinbox tools integration?",
-                options=[
-                    {"value": "yes", "label": "Yes (Recommended)", "selected_glyph": "●", "unselected_glyph": "○"},
-                    {"value": "no", "label": "No", "selected_glyph": "●", "unselected_glyph": "○"},
-                ],
-                default="yes",
-                layout="horizontal",
+        if not mailbox_ready:
+            mailbox_progress.fail("Mailbox validation did not pass")
+            report.error = "Mailbox validation failed."
+            report.onboarding = _sync_onboarding_state(
+                state_root,
+                mailbox_ready=False,
+                llm_ready=False,
+                dry_run=dry_run,
             )
-            == "yes"
-        )
-    else:
-        fragment_selected = False
-    report.fragment = {
-        "path": str(fragment_path),
-        "exists": fragment_exists,
-        "selected": fragment_selected,
-    }
+            prompter.note(
+                "Recovery",
+                "Twinbox could not validate the mailbox settings. Review the mailbox values and rerun the wizard.",
+            )
+            prompter.outro(report.error)
+            return report
+        mailbox_progress.finish("Mailbox settings validated")
 
-    summary_lines = [
-        f"Mailbox: {report.mailbox.get('mail_address') or 'configured'}",
-        f"LLM: {report.llm.get('backend') or report.llm.get('status', 'not configured')}",
-        f"Twinbox tools integration: {'yes' if fragment_selected else 'no'}",
-        f"Repo root: {resolved_code_root}",
-        f"OpenClaw home: {resolved_openclaw_home}",
-    ]
-    if advanced:
-        summary_lines.append(f"State root: {state_root}")
-    prompter.note("Apply setup", "\n".join(summary_lines))
-    deploy_choice = prompter.select(
-        "Apply the host setup now?",
-        options=[
-            {"value": "apply", "label": "Apply now", "selected_glyph": "◆", "unselected_glyph": "◇"},
-            {"value": "skip", "label": "Skip for now", "selected_glyph": "◆", "unselected_glyph": "◇"},
-        ],
-        default="apply",
-        layout="horizontal",
-    )
-    if deploy_choice == "skip":
-        report.deploy = {
-            "ok": False,
-            "status": "skipped",
+        llm_info = _inspect_llm(env_file, dotenv)
+        llm_body = (
+            f"{_llm_summary(llm_info)}\n\n"
+            "Twinbox needs an LLM backend for the Phase 1-4 pipeline. Choose a provider to review or update it, or skip for now."
+        )
+        if llm_info.get("configured"):
+            llm_body += "\nPress Enter on a field to keep the current model or API URL."
+        prompter.note("LLM", llm_body)
+        llm_choice = prompter.select(
+            "Choose LLM setup",
+            options=[
+                {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
+                {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
+                {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
+            ],
+            default=llm_info.get("backend") or "openai",
+        )
+        llm_ready = bool(llm_info.get("configured"))
+        if llm_choice == "skip":
+            report.llm = {
+                "prompted": False,
+                "configured": llm_ready,
+                "backend": llm_info.get("backend", ""),
+                "model": llm_info.get("model", ""),
+                "url": llm_info.get("url", ""),
+                "status": "configured" if llm_ready else "skipped",
+            }
+        else:
+            current_key_name, current_model_name, current_url_name = _provider_env_keys(llm_choice)
+            current_key = dotenv.get(current_key_name, "")
+            current_model = dotenv.get(current_model_name, "")
+            current_url = dotenv.get(current_url_name, "")
+            llm_progress = prompter.progress("Validating LLM configuration")
+            api_key = prompter.secret("API key", allow_empty=bool(current_key))
+            if not api_key:
+                api_key = current_key
+            if not api_key:
+                llm_progress.fail("API key is required for the selected provider")
+                report.error = "LLM API key is required."
+                report.llm = {
+                    "prompted": True,
+                    "configured": False,
+                    "backend": llm_choice,
+                    "model": current_model,
+                    "url": current_url,
+                }
+                report.onboarding = _sync_onboarding_state(
+                    state_root,
+                    mailbox_ready=mailbox_ready,
+                    llm_ready=False,
+                    dry_run=dry_run,
+                )
+                prompter.note(
+                    "Recovery",
+                    "Twinbox needs an API key before it can validate the selected LLM provider.",
+                )
+                prompter.outro(report.error)
+                return report
+            model = prompter.text("Model", default=current_model)
+            api_url = prompter.text("API URL", default=current_url)
+            llm_ready, report.llm, dotenv = _apply_llm_updates(
+                env_file=env_file,
+                dotenv=dotenv,
+                provider=llm_choice,
+                api_key=api_key,
+                model=model,
+                api_url=api_url,
+                dry_run=dry_run,
+            )
+            if llm_ready:
+                llm_progress.finish("LLM configuration validated")
+            else:
+                llm_progress.fail(report.llm.get("error", "LLM validation failed"))
+
+        integration_body = (
+            "This adds the small Twinbox integration config that helps OpenClaw discover Twinbox tools and stay on the recommended wiring path.\n\n"
+            f"Integration fragment: {fragment_path if fragment_exists else 'not found'}"
+        )
+        if advanced:
+            integration_body += f"\nOpenClaw home: {resolved_openclaw_home}"
+        prompter.note("Twinbox tools integration", integration_body)
+        if fragment_exists:
+            fragment_selected = (
+                prompter.select(
+                    "Use the recommended Twinbox tools integration?",
+                    options=[
+                        {"value": "yes", "label": "Yes (Recommended)", "selected_glyph": "●", "unselected_glyph": "○"},
+                        {"value": "no", "label": "No", "selected_glyph": "●", "unselected_glyph": "○"},
+                    ],
+                    default="yes",
+                    layout="horizontal",
+                )
+                == "yes"
+            )
+        else:
+            fragment_selected = False
+        report.fragment = {
+            "path": str(fragment_path),
+            "exists": fragment_exists,
+            "selected": fragment_selected,
         }
+
+        summary_lines = [
+            f"Mailbox: {report.mailbox.get('mail_address') or 'configured'}",
+            f"LLM: {report.llm.get('backend') or report.llm.get('status', 'not configured')}",
+            f"Twinbox tools integration: {'yes' if fragment_selected else 'no'}",
+            f"Repo root: {resolved_code_root}",
+            f"OpenClaw home: {resolved_openclaw_home}",
+        ]
+        if advanced:
+            summary_lines.append(f"State root: {state_root}")
+        prompter.note("Apply setup", "\n".join(summary_lines))
+        deploy_choice = prompter.select(
+            "Apply the host setup now?",
+            options=[
+                {"value": "apply", "label": "Apply now", "selected_glyph": "◆", "unselected_glyph": "◇"},
+                {"value": "skip", "label": "Skip for now", "selected_glyph": "◆", "unselected_glyph": "◇"},
+            ],
+            default="apply",
+            layout="horizontal",
+        )
+        if deploy_choice == "skip":
+            report.deploy = {
+                "ok": False,
+                "status": "skipped",
+            }
+            report.onboarding = _sync_onboarding_state(
+                state_root,
+                mailbox_ready=mailbox_ready,
+                llm_ready=llm_ready,
+                dry_run=dry_run,
+            )
+            report.error = "Host setup was reviewed but not applied yet."
+            report.next_action = (
+                "Apply the host setup when you are ready, then continue inside OpenClaw with the twinbox agent; "
+                f"next guided conversation stage is {report.onboarding['current_stage']}."
+            )
+            prompter.note(
+                "Recovery",
+                f"Host setup is still pending. Current guided stage is {report.onboarding['current_stage']}; apply the setup, then continue in the twinbox agent.",
+            )
+            prompter.outro(report.error)
+            return report
+
+        deploy_progress = prompter.progress("Applying Twinbox OpenClaw setup")
+        deploy_progress.update("Syncing skill, config, fragment choice, and gateway wiring")
+        deploy_report = deploy_runner(
+            code_root=resolved_code_root,
+            openclaw_home=resolved_openclaw_home,
+            dry_run=dry_run,
+            restart_gateway=True,
+            sync_env_from_dotenv=True,
+            strict=True,
+            fragment_path=fragment_path if fragment_selected else None,
+            no_fragment=fragment_exists and not fragment_selected,
+            openclaw_bin=openclaw_bin,
+        )
+        report.deploy = deploy_report.to_json_dict()
+        if not deploy_report.ok:
+            deploy_progress.fail("OpenClaw deploy wiring failed")
+            report.error = "OpenClaw deploy wiring failed."
+            report.onboarding = _sync_onboarding_state(
+                state_root,
+                mailbox_ready=mailbox_ready,
+                llm_ready=llm_ready,
+                dry_run=dry_run,
+            )
+            prompter.note(
+                "Recovery",
+                f"Twinbox stopped during host setup. Current guided stage is {report.onboarding['current_stage']}; fix the deploy error, then rerun the wizard.",
+            )
+            prompter.outro(report.error)
+            return report
+        deploy_progress.finish("Host wiring applied")
+
         report.onboarding = _sync_onboarding_state(
             state_root,
             mailbox_ready=mailbox_ready,
             llm_ready=llm_ready,
             dry_run=dry_run,
         )
-        report.error = "Host setup was reviewed but not applied yet."
-        report.next_action = (
-            "Apply the host setup when you are ready, then continue inside OpenClaw with the twinbox agent; "
-            f"next guided conversation stage is {report.onboarding['current_stage']}."
-        )
-        prompter.note(
-            "Recovery",
-            f"Host setup is still pending. Current guided stage is {report.onboarding['current_stage']}; apply the setup, then continue in the twinbox agent.",
-        )
-        prompter.outro(report.error)
-        return report
+        current_stage = report.onboarding.get("current_stage", "unknown")
+        if llm_ready:
+            report.ok = True
+            report.next_action = (
+                "Continue inside OpenClaw with the twinbox agent; "
+                f"next guided conversation stage is {current_stage}."
+            )
+            report.notes.append(
+                "Host wiring is verified locally; OpenClaw session prompt injection can still lag behind on some models."
+            )
+            prompter.note(
+                "Phase 2 of 2",
+                f"Continue in the twinbox agent inside OpenClaw. Your next guided conversation stage is {current_stage}.",
+            )
+            prompter.outro(
+                "Continue in the twinbox agent now. Ask it to keep onboarding and it should pick up from the next stage."
+            )
+            return report
 
-    deploy_progress = prompter.progress("Applying Twinbox OpenClaw setup")
-    deploy_progress.update("Syncing skill, config, fragment choice, and gateway wiring")
-    deploy_report = deploy_runner(
-        code_root=resolved_code_root,
-        openclaw_home=resolved_openclaw_home,
-        dry_run=dry_run,
-        restart_gateway=True,
-        sync_env_from_dotenv=True,
-        strict=True,
-        fragment_path=fragment_path if fragment_selected else None,
-        no_fragment=fragment_exists and not fragment_selected,
-        openclaw_bin=openclaw_bin,
-    )
-    report.deploy = deploy_report.to_json_dict()
-    if not deploy_report.ok:
-        deploy_progress.fail("OpenClaw deploy wiring failed")
-        report.error = "OpenClaw deploy wiring failed."
-        report.onboarding = _sync_onboarding_state(
-            state_root,
-            mailbox_ready=mailbox_ready,
-            llm_ready=llm_ready,
-            dry_run=dry_run,
-        )
-        prompter.note(
-            "Recovery",
-            f"Twinbox stopped during host setup. Current guided stage is {report.onboarding['current_stage']}; fix the deploy error, then rerun the wizard.",
-        )
-        prompter.outro(report.error)
-        return report
-    deploy_progress.finish("Host wiring applied")
-
-    report.onboarding = _sync_onboarding_state(
-        state_root,
-        mailbox_ready=mailbox_ready,
-        llm_ready=llm_ready,
-        dry_run=dry_run,
-    )
-    current_stage = report.onboarding.get("current_stage", "unknown")
-    if llm_ready:
-        report.ok = True
+        report.error = "LLM setup is still incomplete."
         report.next_action = (
-            "Continue inside OpenClaw with the twinbox agent; "
+            "Host setup is partially ready. Configure the LLM step, then continue inside OpenClaw with the twinbox agent; "
             f"next guided conversation stage is {current_stage}."
-        )
-        report.notes.append(
-            "Host wiring is verified locally; OpenClaw session prompt injection can still lag behind on some models."
         )
         prompter.note(
             "Phase 2 of 2",
-            f"Continue in the twinbox agent inside OpenClaw. Your next guided conversation stage is {current_stage}.",
+            f"Host setup is partially ready. Your next guided conversation stage is {current_stage}, but Twinbox still needs LLM setup before the full handoff is ready.",
         )
-        prompter.outro(
-            "Continue in the twinbox agent now. Ask it to keep onboarding and it should pick up from the next stage."
-        )
+        prompter.outro("Finish the LLM step, then continue in the twinbox agent.")
         return report
-
-    report.error = "LLM setup is still incomplete."
-    report.next_action = (
-        "Host setup is partially ready. Configure the LLM step, then continue inside OpenClaw with the twinbox agent; "
-        f"next guided conversation stage is {current_stage}."
-    )
-    prompter.note(
-        "Phase 2 of 2",
-        f"Host setup is partially ready. Your next guided conversation stage is {current_stage}, but Twinbox still needs LLM setup before the full handoff is ready.",
-    )
-    prompter.outro("Finish the LLM step, then continue in the twinbox agent.")
-    return report
+    except KeyboardInterrupt:
+        report.ok = False
+        report.error = "Setup cancelled."
+        prompter.cancel("Setup mode", flow_label)
+        return report
 
 
 def format_openclaw_onboard_report(report: OpenClawOnboardReport) -> str:
