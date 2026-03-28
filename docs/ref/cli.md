@@ -288,7 +288,8 @@ twinbox onboard openclaw-v2 [--repo-root PATH] [--openclaw-home PATH] [--dry-run
 - `manual`：同样逐页展示，并额外补充 repo root / state root / OpenClaw home 等宿主语义。
 - `Security` 是第一页，必须显式确认后才会继续。
 - `Mailbox` 不允许跳过；若已有值，可显式选择 `Use current value` 或 `Customize`。
-- `LLM` 提供 `Configure OpenAI` / `Configure Anthropic` / `Skip for now`，跳过时会保留现有值，若仍未配置则最终以 incomplete handoff 收尾。
+- `LLM` 只会在 `.env` 中已经显式存在完整当前值（key + model + api-url/base-url）时显示 `Use current value`；否则只显示 `Configure OpenAI` / `Configure Anthropic` / `Skip for now`。
+- Twinbox 不再内置默认 LLM 模型或默认 API URL；必须显式配置。
 - `Twinbox tools integration` 用 OpenClaw 风格的 `Yes (Recommended) / No` 单选确认是否并入 `openclaw.fragment.json`。
 - `Apply setup` 会先汇总本轮选择，再显式决定 `Apply now` 或 `Skip for now`。
 - 成功后的人类可读输出会把宿主接线表述为 **Phase 1 of 2**，并明确提示用户继续在 OpenClaw 的 `twinbox` agent 中完成 **Phase 2 of 2**。

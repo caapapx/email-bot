@@ -331,7 +331,7 @@ class ConsoleJourneyPrompter:
                     self._write("")
                     return options[current_index]["value"]
 
-        self._write(self._style(prompt, "1"))
+        self._write(self._accent(prompt) if layout == "horizontal" else self._style(prompt, "1"))
         allowed: dict[str, str] = {}
         default_value = default
         for idx, opt in enumerate(options, 1):
@@ -876,7 +876,21 @@ def run_openclaw_onboard(
         if not api_key:
             report.error = "LLM API key is required."
             return report
-        updates = {"LLM_API_KEY": api_key} if provider == "openai" else {"ANTHROPIC_API_KEY": api_key}
+        model_prompt = "LLM model: " if provider == "openai" else "Anthropic model: "
+        model = _prompt_text(input_fn, model_prompt)
+        if not model:
+            report.error = "LLM model is required."
+            return report
+        url_prompt = "LLM API URL: " if provider == "openai" else "Anthropic base URL: "
+        api_url = _prompt_text(input_fn, url_prompt)
+        if not api_url:
+            report.error = "LLM API URL is required."
+            return report
+        updates = (
+            {"LLM_API_KEY": api_key, "LLM_MODEL": model, "LLM_API_URL": api_url}
+            if provider == "openai"
+            else {"ANTHROPIC_API_KEY": api_key, "ANTHROPIC_MODEL": model, "ANTHROPIC_BASE_URL": api_url}
+        )
         if not dry_run:
             write_env_file(env_file, merge_env_file(env_file, updates))
         try:
