@@ -407,24 +407,70 @@ class ConsoleJourneyPrompter:
         self._write(f"└  {footer}")
         self._write("")
 
-    def note(self, title: str, body: str, *, complete: bool | None = None) -> None:
-        """Draw a closed box; optional left rail glyph: ◆ = pending / not satisfied, ◇ = configured or done."""
-        rail_cols = 3 if self._journey_rail else 0
-        inner = max(28, min(76, self._width - 8 - rail_cols))
+    def _journey_junction_node(self, complete: bool | None) -> str:
+        """Configured → green solid ◆; not configured → hollow ◇ (muted); neutral → dim ·."""
+        if complete is True:
+            return self._style("◆", "1;32")
+        if complete is False:
+            return self._muted("◇")
+        return self._muted("·")
 
-        if self._journey_rail and self._journey_gap_before_next_note:
+    def _note_journey_tee(self, title: str, body: str, *, complete: bool | None) -> None:
+        """T-junction: spine │ continues; each card is ├─┐ / │ … │ / └──╯; node on title row."""
+        if self._journey_gap_before_next_note:
             self._write(self._muted("│"))
             self._write("")
 
-        rp = (self._muted("│") + "  ") if self._journey_rail else ""
+        inner = max(28, min(76, self._width - 6))
+        title_lines = self._wrap_text(title, max(8, inner - 4))
+        body_lines: list[str] = []
+        for raw_line in body.splitlines() or [body]:
+            if raw_line.strip() == "":
+                body_lines.append("")
+            else:
+                body_lines.extend(self._wrap_text(raw_line, max(8, inner - 4)))
 
-        glyph = ""
+        node = self._journey_junction_node(complete)
+        cells: list[str] = []
+        for ti, tl in enumerate(title_lines):
+            if ti == 0:
+                cells.append(node + " " + self._accent(tl))
+            else:
+                cells.append(self._accent("  " + tl))
+        cells.append(self._muted(""))
+        for bl in body_lines:
+            cells.append(self._muted("  " + bl) if bl else self._muted(""))
+
+        max_w = max((self._visible_length(c) for c in cells), default=0)
+        max_w = max(max_w, 24)
+        inner_bar = max_w + 2
+
+        m = self._muted
+        self._write(m("├") + m("─" * inner_bar) + m("┐"))
+        for content in cells:
+            pad = max_w - self._visible_length(content)
+            padded = content + (" " * pad if pad > 0 else "")
+            self._write(m("│") + " " + padded + " " + m("│"))
+        self._write(m("└") + m("─" * inner_bar) + m("┘"))
+        self._write(m("│"))
+        self._write("")
+
+    def note(self, title: str, body: str, *, complete: bool | None = None) -> None:
+        """Closed box. Journey rail: T-pipe + junction node — green ◆ configured, hollow ◇ pending."""
+        if self._journey_rail:
+            self._note_journey_tee(title, body, complete=complete)
+            self._journey_gap_before_next_note = True
+            return
+
+        inner = max(28, min(76, self._width - 8))
+
+        glyph_char = ""
         if complete is True:
-            glyph = "◇"
+            glyph_char = "◆"
         elif complete is False:
-            glyph = "◆"
+            glyph_char = "◇"
 
-        title_head = f"{glyph} {title}" if glyph else title
+        title_head = f"{glyph_char} {title}" if glyph_char else title
         title_lines = self._wrap_text(title_head, inner)
 
         body_lines: list[str] = []
@@ -444,25 +490,26 @@ class ConsoleJourneyPrompter:
 
         top_rule = self._muted("╭" + "─" * inner_bar + "╮")
         bot_rule = self._muted("╰" + "─" * inner_bar + "╯")
-        self._write(rp + top_rule)
+        self._write(top_rule)
 
         title_row_count = len(title_lines)
         for idx, row in enumerate(rows):
             plain = row.ljust(max_w)
             if idx < title_row_count:
-                if glyph and idx == 0 and plain.startswith(glyph):
-                    after_glyph = plain[len(glyph) :]
-                    styled = self._style(glyph, "1;32") + self._accent(after_glyph)
+                if glyph_char and idx == 0 and plain.startswith(glyph_char):
+                    after_glyph = plain[len(glyph_char) :]
+                    if complete is True:
+                        styled = self._style("◆", "1;32") + self._accent(after_glyph)
+                    else:
+                        styled = self._muted("◇") + self._accent(after_glyph)
                 else:
                     styled = self._accent(plain)
             else:
                 styled = self._muted(plain)
-            self._write(rp + self._muted("│") + " " + styled + " " + self._muted("│"))
+            self._write(self._muted("│") + " " + styled + " " + self._muted("│"))
 
-        self._write(rp + bot_rule)
+        self._write(bot_rule)
         self._write("")
-        if self._journey_rail:
-            self._journey_gap_before_next_note = True
 
     def select(
         self,
