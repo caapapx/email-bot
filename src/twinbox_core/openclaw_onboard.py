@@ -415,11 +415,9 @@ class ConsoleJourneyPrompter:
 
     def _note_journey_tee(self, title: str, body: str, *, complete: bool | None) -> None:
         """Spine: one continuous │ between cards (no extra │+blank that looks broken). Tee row: ◇  Title  ──┐ with spaced dashes."""
-        if self._journey_gap_before_next_note:
-            self._write(self._muted("│"))
+        self._write(self._muted("│"))
 
-        rail_prefix = self._muted("│") + "  "
-        inner = max(28, min(76, self._width - 10))
+        inner = max(28, min(76, self._width - 6))
         title_lines = self._wrap_text(title, max(8, inner - 4))
         body_lines: list[str] = []
         for raw_line in body.splitlines() or [body]:
@@ -449,12 +447,12 @@ class ConsoleJourneyPrompter:
         n_dash = max_w - vis0
         if n_dash < 1:
             n_dash = 1
-        self._write(rail_prefix + node + "  " + title0 + "  " + m("─" * n_dash) + m("┐"))
+        self._write(node + "  " + title0 + "  " + m("─" * n_dash) + m("┐"))
         for content in cells:
             pad = max_w - self._visible_length(content)
             padded = content + (" " * pad if pad > 0 else "")
-            self._write(rail_prefix + m("│") + side_pad + padded + side_pad + m("│"))
-        self._write(rail_prefix + m("└") + m("─" * inner_bar) + m("┘"))
+            self._write(m("│") + side_pad + padded + side_pad + m("│"))
+        self._write(m("└") + m("─" * inner_bar) + m("┘"))
 
     def note(self, title: str, body: str, *, complete: bool | None = None) -> None:
         """Closed box. Journey rail: T-pipe + junction node — green ◆ configured, hollow ◇ pending."""
@@ -1626,6 +1624,11 @@ def run_openclaw_onboard_v2(
         llm_handling = None
         llm_prompt_dotenv = dotenv
         preserve_existing_on_skip = llm_ready
+        llm_options_menu: list[dict[str, str]] = [
+            {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
+            {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
+            {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
+        ]
         if llm_ready:
             llm_handling = _existing_config_choice(
                 prompter,
@@ -1646,48 +1649,42 @@ def run_openclaw_onboard_v2(
                 if llm_handling == "reset":
                     llm_prompt_dotenv = _without_env_keys(dotenv, _LLM_ENV_KEYS)
                     preserve_existing_on_skip = False
-                llm_options: list[dict[str, str]] = [
-                    {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
-                    {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
-                    {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
-                ]
                 llm_choice = prompter.select(
                     "Choose LLM setup",
-                    options=llm_options,
+                    options=llm_options_menu,
                     default=llm_info.get("backend") or "openai",
                 )
         else:
-            llm_options = [
-                {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
-                {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
-                {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
-            ]
             llm_choice = prompter.select(
                 "Choose LLM setup",
-                options=llm_options,
+                options=llm_options_menu,
                 default=llm_info.get("backend") or "openai",
             )
-        if llm_choice == "use_existing":
-            report.llm = {
-                "prompted": False,
-                "configured": llm_ready,
-                "backend": llm_info.get("backend", ""),
-                "model": llm_info.get("model", ""),
-                "url": llm_info.get("url", ""),
-                "status": "configured" if llm_ready else "missing",
-            }
-        elif llm_choice == "skip":
-            retained_llm = llm_info if preserve_existing_on_skip else {"backend": "", "model": "", "url": ""}
-            llm_ready = bool(preserve_existing_on_skip and llm_info.get("configured"))
-            report.llm = {
-                "prompted": False,
-                "configured": llm_ready,
-                "backend": retained_llm.get("backend", ""),
-                "model": retained_llm.get("model", ""),
-                "url": retained_llm.get("url", ""),
-                "status": "configured" if llm_ready else "skipped",
-            }
-        else:
+
+        while True:
+            if llm_choice == "use_existing":
+                report.llm = {
+                    "prompted": False,
+                    "configured": llm_ready,
+                    "backend": llm_info.get("backend", ""),
+                    "model": llm_info.get("model", ""),
+                    "url": llm_info.get("url", ""),
+                    "status": "configured" if llm_ready else "missing",
+                }
+                break
+            if llm_choice == "skip":
+                retained_llm = llm_info if preserve_existing_on_skip else {"backend": "", "model": "", "url": ""}
+                llm_ready = bool(preserve_existing_on_skip and llm_info.get("configured"))
+                report.llm = {
+                    "prompted": False,
+                    "configured": llm_ready,
+                    "backend": retained_llm.get("backend", ""),
+                    "model": retained_llm.get("model", ""),
+                    "url": retained_llm.get("url", ""),
+                    "status": "configured" if llm_ready else "skipped",
+                }
+                break
+
             current_key_name, current_model_name, current_url_name = _provider_env_keys(llm_choice)
             current_key = llm_prompt_dotenv.get(current_key_name, "")
             current_model = llm_prompt_dotenv.get(current_model_name, "")
@@ -1734,17 +1731,6 @@ def run_openclaw_onboard_v2(
             )
             if llm_result is None:
                 llm_progress.fail("LLM validation timed out")
-                report.error = (
-                    f"LLM validation timed out after {llm_validation_timeout_seconds:.1f}s."
-                )
-                report.llm = {
-                    "prompted": True,
-                    "configured": False,
-                    "backend": llm_choice,
-                    "model": model,
-                    "url": api_url,
-                    "error": report.error,
-                }
                 report.onboarding = _sync_onboarding_state(
                     state_root,
                     mailbox_ready=mailbox_ready,
@@ -1753,31 +1739,47 @@ def run_openclaw_onboard_v2(
                 )
                 prompter.note(
                     "Recovery",
-                    "Twinbox could not finish validating the selected LLM provider in time. Check the endpoint and try again.",
-                    complete=False,
+                    (
+                        f"LLM validation timed out after {llm_validation_timeout_seconds:.1f}s. "
+                        "Check the endpoint or try again — or skip for now (pipeline stays incomplete until configured)."
+                    ),
+                    complete=None,
                 )
-                prompter.outro(report.error)
-                return report
+                llm_choice = prompter.select(
+                    "Choose LLM setup",
+                    options=llm_options_menu,
+                    default=llm_choice if llm_choice in ("openai", "anthropic") else "openai",
+                )
+                continue
+
             llm_ready, report.llm, dotenv = llm_result
             if llm_ready:
                 llm_progress.finish("LLM configuration validated")
-            else:
-                err_detail = report.llm.get("error", "LLM validation failed")
-                llm_progress.fail(err_detail)
-                report.error = err_detail if isinstance(err_detail, str) else str(err_detail)
-                report.onboarding = _sync_onboarding_state(
-                    state_root,
-                    mailbox_ready=mailbox_ready,
-                    llm_ready=False,
-                    dry_run=dry_run,
-                )
-                prompter.note(
-                    "Recovery",
-                    "Twinbox could not validate the LLM settings. Check API URL, key, and model id, then rerun the wizard.",
-                    complete=None,
-                )
-                prompter.outro(report.error)
-                return report
+                break
+
+            err_detail = report.llm.get("error", "LLM validation failed")
+            llm_progress.fail(err_detail)
+            report.onboarding = _sync_onboarding_state(
+                state_root,
+                mailbox_ready=mailbox_ready,
+                llm_ready=False,
+                dry_run=dry_run,
+            )
+            prompter.note(
+                "Recovery",
+                (
+                    f"{err_detail}\n\n"
+                    "OpenAI-compatible bases such as https://…/v2 only need the base URL; Twinbox appends /chat/completions. "
+                    "If you still see 401, confirm the API key matches the console (often `appid:secret` as one token) with no extra text.\n\n"
+                    "Choose LLM setup again, or skip for now (host wiring can continue without a validated LLM)."
+                ),
+                complete=None,
+            )
+            llm_choice = prompter.select(
+                "Choose LLM setup",
+                options=llm_options_menu,
+                default=llm_choice if llm_choice in ("openai", "anthropic") else "openai",
+            )
 
         if llm_ready and (not initial_llm_configured or llm_choice != "use_existing"):
             llm_info_final = _inspect_llm(env_file, dotenv)
