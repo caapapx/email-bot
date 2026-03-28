@@ -6,6 +6,11 @@ import getpass
 import os
 import shutil
 import sys
+import termios
+import threading
+import time
+import textwrap
+import tty
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Protocol, TextIO
@@ -46,11 +51,17 @@ class ConsoleJourneyPrompter:
         *,
         stream: TextIO | None = None,
         input_fn: Callable[[str], str] | None = None,
+        key_reader: Callable[[], str] | None = None,
+        width: int | None = None,
     ) -> None:
         self._stream = stream or sys.stdout
         self._input_fn = input_fn or input
+        self._key_reader = key_reader
         self._is_tty = hasattr(self._stream, "isatty") and self._stream.isatty()
+        self._stdin_is_tty = hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
         self._spinner_idx = 0
+        detected_width = width or shutil.get_terminal_size((80, 20)).columns
+        self._width = max(32, detected_width)
 
     def _write(self, text: str = "") -> None:
         self._stream.write(text + "\n")
@@ -70,9 +81,93 @@ class ConsoleJourneyPrompter:
         self._spinner_idx += 1
         return frame
 
+    def _wrap_text(self, text: str, width: int) -> list[str]:
+        if not text:
+            return [""]
+        wrapped: list[str] = []
+        for raw_line in text.splitlines() or [text]:
+            chunks = textwrap.wrap(
+                raw_line,
+                width=max(8, width),
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+            wrapped.extend(chunks or [""])
+        return wrapped or [""]
+
+    def _clear_previous_frame(self, line_count: int) -> None:
+        if line_count <= 0:
+            return
+        self._write_inline(f"\033[{line_count}A")
+        for idx in range(line_count):
+            self._write_inline("\r\033[2K")
+            if idx < line_count - 1:
+                self._write_inline("\033[1B")
+        if line_count > 1:
+            self._write_inline(f"\033[{line_count - 1}A")
+        self._write_inline("\r")
+
+    def _read_key(self) -> str:
+        if self._key_reader is not None:
+            return self._key_reader()
+        if not self._stdin_is_tty:
+            return ""
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            char = sys.stdin.read(1)
+            if char in ("\r", "\n"):
+                return "ENTER"
+            if char == "\x1b":
+                next_char = sys.stdin.read(1)
+                if next_char == "[":
+                    arrow = sys.stdin.read(1)
+                    return {"A": "UP", "B": "DOWN"}.get(arrow, "")
+                return ""
+            if char in ("k", "K"):
+                return "UP"
+            if char in ("j", "J"):
+                return "DOWN"
+            return char
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+    def _render_select_frame(
+        self,
+        prompt: str,
+        options: list[dict[str, str]],
+        current_index: int,
+        *,
+        first_frame: bool,
+        default: str | None,
+    ) -> int:
+        lines: list[str] = []
+        body_width = max(24, self._width - 4)
+        lines.append(self._style(prompt, "1"))
+        lines.append("Use ↑/↓ to move. Press Enter to confirm.")
+        for idx, opt in enumerate(options):
+            label = opt.get("label", opt["value"]).strip()
+            suffix = " [Recommended]" if opt.get("value") == default else ""
+            pointer = "›" if idx == current_index else " "
+            option_line = f"{pointer} {label}{suffix}"
+            lines.append(self._style(option_line, "1;36" if idx == current_index else "0"))
+            description = opt.get("description", "").strip()
+            if description:
+                for chunk in self._wrap_text(description, body_width):
+                    prefix = "  "
+                    rendered = f"{prefix}{chunk}"
+                    lines.append(self._style(rendered, "36" if idx == current_index else "0"))
+
+        if not first_frame:
+            self._clear_previous_frame(len(lines))
+        for line in lines:
+            self._write(line)
+        return len(lines)
+
     def intro(self, text: str) -> None:
         title = self._style(text, "1;36")
-        border = self._style("━" * max(len(text), 28), "36")
+        border = self._style("━" * min(max(len(text), 28), self._width), "36")
         self._write("")
         self._write(border)
         self._write(title)
@@ -85,26 +180,53 @@ class ConsoleJourneyPrompter:
         self._write("")
 
     def note(self, title: str, body: str) -> None:
-        rendered_title = self._style(title, "1;34")
-        lines = body.splitlines() or [body]
-        width = max(len(title) + 4, *(len(line) for line in lines)) + 2
-        top = f"┌{'─' * width}┐"
-        divider = f"├{'─' * width}┤"
-        bottom = f"└{'─' * width}┘"
+        content_width = max(24, self._width - 4)
+        title_lines = self._wrap_text(title, content_width)
+        body_lines = self._wrap_text(body, content_width)
+        top = f"┌{'─' * (content_width + 2)}┐"
+        divider = f"├{'─' * (content_width + 2)}┤"
+        bottom = f"└{'─' * (content_width + 2)}┘"
         self._write(top)
-        self._write(f"│ {rendered_title.ljust(width - 1)}│")
+        for title_line in title_lines:
+            self._write(self._style(f"│ {title_line.ljust(content_width)} │", "1;34"))
         self._write(divider)
-        for line in lines:
-            self._write(f"│ {line.ljust(width - 1)}│")
+        for line in body_lines:
+            self._write(f"│ {line.ljust(content_width)} │")
         self._write(bottom)
         self._write("")
 
     def select(self, prompt: str, options: list[dict[str, str]], *, default: str | None = None) -> str:
+        if self._is_tty and (self._key_reader is not None or self._stdin_is_tty):
+            values = [opt["value"] for opt in options]
+            try:
+                current_index = values.index(default) if default is not None else 0
+            except ValueError:
+                current_index = 0
+            rendered_line_count = self._render_select_frame(
+                prompt, options, current_index, first_frame=True, default=default
+            )
+            while True:
+                key = self._read_key()
+                if key == "UP":
+                    current_index = (current_index - 1) % len(options)
+                    rendered_line_count = self._render_select_frame(
+                        prompt, options, current_index, first_frame=False, default=default
+                    )
+                elif key == "DOWN":
+                    current_index = (current_index + 1) % len(options)
+                    rendered_line_count = self._render_select_frame(
+                        prompt, options, current_index, first_frame=False, default=default
+                    )
+                elif key == "ENTER":
+                    self._write("")
+                    return options[current_index]["value"]
+
         self._write(self._style(prompt, "1"))
         allowed: dict[str, str] = {}
+        default_value = default
         for idx, opt in enumerate(options, 1):
             label = opt.get("label", opt["value"]).strip()
-            suffix = " [Recommended]" if opt.get("value") == default else ""
+            suffix = " [Recommended]" if opt.get("value") == default_value else ""
             self._write(f"{idx}. {label}{suffix}")
             description = opt.get("description", "").strip()
             if description:
@@ -126,29 +248,49 @@ class ConsoleJourneyPrompter:
         return _prompt_yes_no(self._input_fn, prompt, default=default)
 
     def progress(self, title: str):
+        stop_event = threading.Event()
+        current_message = {"text": title}
+
+        def _render_line() -> None:
+            frame = self._next_spinner_frame()
+            self._write_inline(self._style(f"\r{frame} {current_message['text']}", "1;33"))
+
         if self._is_tty:
-            self._write_inline(self._style(f"{self._next_spinner_frame()} {title}\r", "1;33"))
+            _render_line()
+
+            def _spin() -> None:
+                while not stop_event.wait(0.08):
+                    _render_line()
+
+            thread = threading.Thread(target=_spin, daemon=True)
+            thread.start()
         else:
+            thread = None
             self._write(self._style(f"… {title}", "1;33"))
         prompter = self
 
         class _Progress:
             def update(self, message: str) -> None:
                 if prompter._is_tty:
-                    prompter._write_inline(
-                        prompter._style(f"{prompter._next_spinner_frame()} {message}\r", "1;33")
-                    )
+                    current_message["text"] = message
+                    _render_line()
                 else:
                     prompter._write(f"  {message}")
 
             def finish(self, message: str) -> None:
                 if prompter._is_tty:
-                    prompter._write_inline("\r")
+                    stop_event.set()
+                    if thread is not None:
+                        thread.join(timeout=0.2)
+                    prompter._write_inline("\r\033[K")
                 prompter._write(prompter._style(f"  OK: {message}", "32"))
 
             def fail(self, message: str) -> None:
                 if prompter._is_tty:
-                    prompter._write_inline("\r")
+                    stop_event.set()
+                    if thread is not None:
+                        thread.join(timeout=0.2)
+                    prompter._write_inline("\r\033[K")
                 prompter._write(prompter._style(f"  FAIL: {message}", "31"))
 
         return _Progress()
