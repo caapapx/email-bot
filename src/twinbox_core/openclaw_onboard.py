@@ -113,21 +113,36 @@ class ConsoleJourneyPrompter:
 
     @staticmethod
     def _visible_length(text: str) -> int:
-        return len(re.sub(r"\x1b\[[0-9;]*[mK]", "", text))
+        plain = re.sub(r"\x1b\[[0-9;]*[mK]", "", text)
+        n = len(plain)
+        # Common emoji (e.g. 📮) occupy two terminal columns on typical emulators.
+        for ch in plain:
+            if 0x1F300 <= ord(ch) <= 0x1FAFF:
+                n += 1
+        return n
 
     def _pad_center_visual(self, styled_segment: str, inner_width: int) -> str:
         pad = max(0, (inner_width - self._visible_length(styled_segment)) // 2)
         return " " * pad + styled_segment
 
+    def _pad_inner_row_exact(self, styled_segment: str, inner_width: int) -> str:
+        """Pad to exact visual width so the right box border aligns (no stray-looking │)."""
+        vis = self._visible_length(styled_segment)
+        if vis >= inner_width:
+            return styled_segment
+        left = max(0, (inner_width - vis) // 2)
+        right = inner_width - vis - left
+        return " " * left + styled_segment + " " * right
+
     def _logo_frame_lines(self) -> list[str]:
-        """README-aligned wordmark + tagline in an OpenClaw-style framed header."""
+        """README tagline + OpenClaw-style framed header; wordmark TWINBOX for CLI emphasis."""
         inner_w = min(68, max(44, self._width - 8))
         tagline_wrapped = self._wrap_text(_README_WORDMARK_TAGLINE, inner_w)
 
         if not self._is_tty:
             return [
                 "",
-                "twinbox 📮",
+                "TWINBOX 📮",
                 "",
                 *tagline_wrapped,
                 "",
@@ -135,16 +150,13 @@ class ConsoleJourneyPrompter:
 
         m = self._muted
         bar = "─" * (inner_w + 2)
+        # Large wordmark: wide inverse block + emoji; pad row so right │ is the box edge only.
+        wordmark = self._style("    TWINBOX    ", "1;97;48;5;208") + "  📮"
         lines: list[str] = [
             "",
             m("╭" + bar + "╮"),
             m("│ ") + " " * inner_w + m(" │"),
-            m("│ ")
-            + self._pad_center_visual(
-                self._style("  twinbox  ", "1;97;48;5;208") + "  📮",
-                inner_w,
-            )
-            + m(" │"),
+            m("│ ") + self._pad_inner_row_exact(wordmark, inner_w) + m(" │"),
             m("│ ") + " " * inner_w + m(" │"),
         ]
         for tl in tagline_wrapped:
@@ -424,7 +436,14 @@ class ConsoleJourneyPrompter:
 
     def secret(self, prompt: str, *, allow_empty: bool = False) -> str:
         suffix = " (press Enter to keep current value)" if allow_empty else ""
-        return _prompt_secret(getpass.getpass, f"{prompt}{suffix}: ")
+        value = _prompt_secret(getpass.getpass, f"{prompt}{suffix}: ")
+        # Show masked feedback after input
+        if value:
+            mask = "***" + ("*" * min(len(value) - 3, 5))
+            self._write(self._dim_preview(f"  → {mask}"))
+        elif allow_empty:
+            self._write(self._dim_preview("  → (keeping current value)"))
+        return value
 
     def confirm(self, prompt: str, *, default: bool = True) -> bool:
         return _prompt_yes_no(self._input_fn, prompt, default=default)
@@ -839,6 +858,8 @@ def _apply_llm_updates(
     api_url: str,
     dry_run: bool,
 ) -> tuple[bool, dict[str, Any], dict[str, str]]:
+    from .llm import validate_backend
+
     key_name, model_name, url_name = _provider_env_keys(provider)
     opposite_key, opposite_model, opposite_url = _opposite_provider_keys(provider)
     merged = dict(dotenv)
@@ -871,6 +892,24 @@ def _apply_llm_updates(
             },
             merged,
         )
+
+    # Validate the backend with a real API call
+    if not dry_run:
+        success, error_msg = validate_backend(backend)
+        if not success:
+            return (
+                False,
+                {
+                    "prompted": True,
+                    "configured": False,
+                    "backend": backend.backend,
+                    "model": backend.model,
+                    "url": backend.url,
+                    "error": error_msg,
+                },
+                merged,
+            )
+
     return (
         True,
         {
