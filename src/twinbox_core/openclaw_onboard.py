@@ -188,14 +188,17 @@ class ConsoleJourneyPrompter:
             for idx, opt in enumerate(options):
                 label = opt.get("label", opt["value"]).strip()
                 pointer = "›" if idx == current_index else " "
+                description = opt.get("description", "").strip() if idx == current_index else ""
                 option_line = f"{pointer} {label}"
-                lines.append(self._style(option_line, "1;38;5;208" if idx == current_index else "0;37"))
-                if idx == current_index:
-                    description = opt.get("description", "").strip()
-                    if description:
-                        wrapped = self._wrap_text(f"({description})", body_width - 2)
-                        for chunk in wrapped:
-                            lines.append(self._dim_preview(f"  {chunk}"))
+                if description:
+                    option_line = f"{option_line} ({description})"
+                wrapped = self._wrap_text(option_line, body_width)
+                for line_index, chunk in enumerate(wrapped):
+                    if line_index == 0:
+                        rendered = chunk
+                    else:
+                        rendered = f"  {chunk}"
+                    lines.append(self._style(rendered, "1;38;5;208" if idx == current_index else "0;37"))
 
         if not first_frame:
             self._clear_previous_frame(len(lines))
@@ -960,15 +963,15 @@ def run_openclaw_onboard_v2(
         options=[
             {
                 "value": "continue",
-                "label": "I understand",
-                "selected_glyph": "◆",
-                "unselected_glyph": "◇",
+                "label": "Yes",
+                "selected_glyph": "●",
+                "unselected_glyph": "○",
             },
             {
                 "value": "cancel",
-                "label": "Stop here",
-                "selected_glyph": "◆",
-                "unselected_glyph": "◇",
+                "label": "No",
+                "selected_glyph": "●",
+                "unselected_glyph": "○",
             },
         ],
         default="continue",
