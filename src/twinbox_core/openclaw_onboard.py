@@ -28,6 +28,7 @@ InputFn = Callable[[str], str]
 SecretInputFn = Callable[[str], str]
 DeployRunner = Callable[..., OpenClawDeployReport]
 LLMUpdateRunner = Callable[..., tuple[bool, dict[str, Any], dict[str, str]]]
+MailboxApplyRunner = Callable[..., tuple[bool, dict[str, Any], dict[str, str]]]
 
 
 class JourneyPrompter(Protocol):
@@ -1013,6 +1014,8 @@ def run_openclaw_onboard_v2(
     openclaw_bin: str = "openclaw",
     prompter: JourneyPrompter | None = None,
     deploy_runner: DeployRunner | None = None,
+    mailbox_apply_runner: MailboxApplyRunner = _apply_mailbox_updates,
+    mailbox_validation_timeout_seconds: float = 15.0,
     llm_update_runner: LLMUpdateRunner = _apply_llm_updates,
     llm_validation_timeout_seconds: float = 15.0,
     run_onboard: Callable[..., OpenClawOnboardReport] = run_openclaw_onboard,
@@ -1128,21 +1131,52 @@ def run_openclaw_onboard_v2(
             )
         else:
             mailbox_action = "customize_mailbox"
-        mailbox_progress = prompter.progress("Checking mailbox settings")
+        mailbox_progress = None
         try:
             mailbox_updates = None
             if mailbox_action == "customize_mailbox":
-                mailbox_progress.update("Collecting mailbox configuration")
                 mailbox_updates = _prompt_mailbox_customization(prompter, dotenv=dotenv)
-            mailbox_ready, report.mailbox, dotenv = _apply_mailbox_updates(
-                state_root=state_root,
-                env_file=env_file,
-                dotenv=dotenv,
-                updates=mailbox_updates,
-                dry_run=dry_run,
+            mailbox_progress = prompter.progress("Checking mailbox settings")
+            mailbox_result = _run_with_timeout(
+                lambda: mailbox_apply_runner(
+                    state_root=state_root,
+                    env_file=env_file,
+                    dotenv=dotenv,
+                    updates=mailbox_updates,
+                    dry_run=dry_run,
+                ),
+                timeout_seconds=mailbox_validation_timeout_seconds,
             )
+            if mailbox_result is None:
+                mailbox_progress.fail("Mailbox validation timed out")
+                report.error = (
+                    f"Mailbox validation timed out after {mailbox_validation_timeout_seconds:.1f}s."
+                )
+                report.mailbox = {
+                    "prompted": mailbox_action == "customize_mailbox",
+                    "configured": False,
+                    "missing_required": missing_required_mail_values(dotenv),
+                    "status": "timeout",
+                    "mail_address": (mailbox_updates or dotenv).get("MAIL_ADDRESS", ""),
+                    "env_file_path": str(env_file),
+                }
+                report.onboarding = _sync_onboarding_state(
+                    state_root,
+                    mailbox_ready=False,
+                    llm_ready=False,
+                    dry_run=dry_run,
+                )
+                prompter.note(
+                    "Recovery",
+                    "Twinbox could not finish validating the mailbox settings in time. Check the mailbox endpoint and try again.",
+                    complete=None,
+                )
+                prompter.outro(report.error)
+                return report
+            mailbox_ready, report.mailbox, dotenv = mailbox_result
         except ValueError as exc:
-            mailbox_progress.fail(str(exc))
+            if mailbox_progress is not None:
+                mailbox_progress.fail(str(exc))
             report.error = str(exc)
             report.mailbox = {
                 "prompted": mailbox_action == "customize_mailbox",
