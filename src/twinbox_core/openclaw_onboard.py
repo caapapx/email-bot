@@ -618,12 +618,21 @@ class ConsoleJourneyPrompter:
     def secret(self, prompt: str, *, allow_empty: bool = False) -> str:
         suffix = " (press Enter to keep current value)" if allow_empty else ""
         rendered_prompt = f"{prompt}{suffix}: "
+        inline_prompt = rendered_prompt
+        if allow_empty:
+            max_mask_chars = 8
+            prompt_would_wrap = self._visible_length(rendered_prompt) + max_mask_chars >= self._width
+            if prompt_would_wrap:
+                self._write(self._dim_preview("Press Enter to keep current value."))
+                inline_prompt = f"{prompt}: "
+        else:
+            max_mask_chars = 8
+        rendered_prompt = inline_prompt
         styled_prompt = rendered_prompt
         if self._is_tty:
-            styled_prompt, _ = self._style_parenthetical_chunk(rendered_prompt, main_code="0")
+            styled_prompt, _ = self._style_parenthetical_chunk(inline_prompt, main_code="0")
         if self._supports_inline_secret_input():
             chars: list[str] = []
-            max_mask_chars = 8
 
             def _render() -> None:
                 self._write_inline(f"\r\033[K{styled_prompt}{'*' * min(len(chars), max_mask_chars)}")
