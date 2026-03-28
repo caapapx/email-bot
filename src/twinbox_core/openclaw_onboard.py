@@ -386,8 +386,6 @@ class ConsoleJourneyPrompter:
         """Start a left vertical rail (OpenClaw-style) that connects subsequent `note()` panels."""
         self._journey_rail = True
         self._journey_gap_before_next_note = False
-        self._write(self._muted("│"))
-        self._write("")
 
     def outro(self, text: str) -> None:
         self._write("")
@@ -418,10 +416,10 @@ class ConsoleJourneyPrompter:
     def _note_journey_tee(self, title: str, body: str, *, complete: bool | None) -> None:
         """Spine: one continuous │ between cards (no extra │+blank that looks broken). Tee row: ◇  Title  ──┐ with spaced dashes."""
         if self._journey_gap_before_next_note:
-            # Card already ends with │; only add vertical breathing room (avoid │ │ blank │ “dashed” look).
-            self._write("")
+            self._write(self._muted("│"))
 
-        inner = max(28, min(76, self._width - 6))
+        rail_prefix = self._muted("│") + "  "
+        inner = max(28, min(76, self._width - 10))
         title_lines = self._wrap_text(title, max(8, inner - 4))
         body_lines: list[str] = []
         for raw_line in body.splitlines() or [body]:
@@ -451,15 +449,12 @@ class ConsoleJourneyPrompter:
         n_dash = max_w - vis0
         if n_dash < 1:
             n_dash = 1
-        self._write(node + "  " + title0 + "  " + m("─" * n_dash) + m("┐"))
+        self._write(rail_prefix + node + "  " + title0 + "  " + m("─" * n_dash) + m("┐"))
         for content in cells:
             pad = max_w - self._visible_length(content)
             padded = content + (" " * pad if pad > 0 else "")
-            self._write(m("│") + side_pad + padded + side_pad + m("│"))
-        self._write(m("└") + m("─" * inner_bar) + m("┘"))
-        # Trailing spine only — no blank here: `gap_before` adds exactly one line of spacing
-        # before the next tee, matching `journey_rail_begin` (│ + one blank + tee).
-        self._write(m("│"))
+            self._write(rail_prefix + m("│") + side_pad + padded + side_pad + m("│"))
+        self._write(rail_prefix + m("└") + m("─" * inner_bar) + m("┘"))
 
     def note(self, title: str, body: str, *, complete: bool | None = None) -> None:
         """Closed box. Journey rail: T-pipe + junction node — green ◆ configured, hollow ◇ pending."""
@@ -1767,7 +1762,22 @@ def run_openclaw_onboard_v2(
             if llm_ready:
                 llm_progress.finish("LLM configuration validated")
             else:
-                llm_progress.fail(report.llm.get("error", "LLM validation failed"))
+                err_detail = report.llm.get("error", "LLM validation failed")
+                llm_progress.fail(err_detail)
+                report.error = err_detail if isinstance(err_detail, str) else str(err_detail)
+                report.onboarding = _sync_onboarding_state(
+                    state_root,
+                    mailbox_ready=mailbox_ready,
+                    llm_ready=False,
+                    dry_run=dry_run,
+                )
+                prompter.note(
+                    "Recovery",
+                    "Twinbox could not validate the LLM settings. Check API URL, key, and model id, then rerun the wizard.",
+                    complete=None,
+                )
+                prompter.outro(report.error)
+                return report
 
         if llm_ready and (not initial_llm_configured or llm_choice != "use_existing"):
             llm_info_final = _inspect_llm(env_file, dotenv)
