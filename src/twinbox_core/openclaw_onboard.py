@@ -1475,6 +1475,20 @@ def run_openclaw_onboard_v2(
             prompter.outro("Setup stopped before any host changes were applied.")
             return report
 
+        prompter.note(
+            "TwinBox setup",
+            "Phase 1 of 2. Security check complete — host wiring steps follow.",
+            complete=True,
+        )
+        prompter.note(
+            "Security",
+            (
+                "You acknowledged the personal-by-default policy. "
+                "Shared or multi-user hosts still need explicit lock-down beyond this wizard."
+            ),
+            complete=True,
+        )
+
         flow = prompter.select(
         "Choose onboarding flow",
         options=[
@@ -1487,7 +1501,8 @@ def run_openclaw_onboard_v2(
         advanced = flow == "advanced"
 
         missing_mail = missing_required_mail_values(dotenv)
-        mailbox_ready = not missing_mail
+        initial_mailbox_ready = not missing_mail
+        mailbox_ready = initial_mailbox_ready
         mailbox_body = (
             f"{_mailbox_summary(dotenv)}\n\n"
             "Twinbox needs mailbox access before the agent can keep onboarding."
@@ -1590,8 +1605,15 @@ def run_openclaw_onboard_v2(
             prompter.outro(report.error)
             return report
         mailbox_progress.finish("Mailbox settings validated")
+        if (not initial_mailbox_ready) or (mailbox_action != "use_existing"):
+            prompter.note(
+                "Mailbox",
+                f"{_mailbox_summary(dotenv)}\n\nMailbox settings validated for onboarding.",
+                complete=True,
+            )
 
         llm_info = _inspect_llm(env_file, dotenv)
+        initial_llm_configured = bool(llm_info.get("configured"))
         llm_body = (
             f"{_llm_summary(llm_info)}\n\n"
             "Twinbox needs an LLM backend for the Phase 1-4 pipeline. Choose a provider to review or update it, or skip for now."
@@ -1741,6 +1763,14 @@ def run_openclaw_onboard_v2(
             else:
                 llm_progress.fail(report.llm.get("error", "LLM validation failed"))
 
+        if llm_ready and (not initial_llm_configured or llm_choice != "use_existing"):
+            llm_info_final = _inspect_llm(env_file, dotenv)
+            prompter.note(
+                "LLM",
+                f"{_llm_summary(llm_info_final)}\n\nLLM backend ready for Twinbox phases.",
+                complete=True,
+            )
+
         integration_body = (
             "This adds the small Twinbox integration config that helps OpenClaw discover Twinbox tools and stay on the recommended wiring path.\n\n"
             f"Integration fragment: {fragment_path if fragment_exists else 'not found'}"
@@ -1781,6 +1811,17 @@ def run_openclaw_onboard_v2(
             "restart_gateway": True,
         }
         save_twinbox_config(config_path, twinbox_config)
+
+        integration_done = (
+            "Using the recommended Twinbox tools fragment."
+            if fragment_selected
+            else "Continuing without the bundled tools fragment."
+        )
+        prompter.note(
+            "Twinbox tools integration",
+            f"{integration_done}\n\nSaved integration choice to twinbox config.",
+            complete=True,
+        )
 
         summary_lines = [
             f"Mailbox: {report.mailbox.get('mail_address') or 'configured'}",
@@ -1856,6 +1897,11 @@ def run_openclaw_onboard_v2(
             prompter.outro(report.error)
             return report
         deploy_progress.finish("Host wiring applied")
+        prompter.note(
+            "Apply setup",
+            "\n".join(summary_lines) + "\n\nOpenClaw host wiring applied.",
+            complete=True,
+        )
 
         report.onboarding = _sync_onboarding_state(
             state_root,
