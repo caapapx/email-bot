@@ -56,5 +56,5 @@ bash scripts/seed_modular_mail_sim.sh
 
 ## 与历史文档的关系
 
-- `docs/core-refactor.md` 中 **「Go 暂缓」** 指不全量 Go 重写 Phase 管线；**不排斥** Go 薄壳与安装辅助。
+- `ROADMAP.md` 与历史归档中 **「Go 暂缓」** 指不全量 Go 重写 Phase 管线；**不排斥** Go 薄壳与安装辅助。
 - 归档计划若未提及上述能力，视为文档未更新，不以之否定当前实现。

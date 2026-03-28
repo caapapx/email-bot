@@ -7,7 +7,7 @@
 评估范围基于当前主干实现与文档契约：
 
 - `docs/ref/architecture.md`
-- `docs/core-refactor.md`
+- 仓库根 `ROADMAP.md`（历史计划已合并）
 - `docs/ref/runtime.md`
 - `docs/ref/validation.md`
 - `docs/ref/orchestration.md`

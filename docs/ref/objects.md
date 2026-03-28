@@ -264,4 +264,4 @@ graph TD
 
 - [task-facing-cli.md](./cli.md) - CLI 命令规范
 - [architecture.md](./architecture.md) - 整体架构
-- [core-refactor-plan.md](../core-refactor.md) - 重构计划
+- [ROADMAP.md](../../ROADMAP.md) - 路线与待办

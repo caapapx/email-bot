@@ -297,7 +297,7 @@ twinbox-orchestrate run --phase 4
 
 ## 参考文档
 
-- [core-refactor-plan.md](../core-refactor.md) - 焦点 3：cadence 运行策略
+- [ROADMAP.md](../../ROADMAP.md) - cadence 与待办见索引
 - [architecture.md](./architecture.md) - cadence truth/projection 部分
 - [object-contract.md](./objects.md) - DigestView 定义
 - [task-facing-cli.md](./cli.md) - digest 命令规范

@@ -1302,7 +1302,7 @@ twinbox context refresh
 
 ## 参考文档
 
-- [core-refactor-plan.md](../core-refactor.md)
+- [ROADMAP.md](../../ROADMAP.md)
 - [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)
 - [architecture.md](./architecture.md)
 - [pipeline-orchestration-contract.md](./orchestration.md)

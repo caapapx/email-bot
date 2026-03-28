@@ -477,10 +477,10 @@
 ```text
 twinbox/
 ├── AGENTS.md
+├── ROADMAP.md
 ├── .env
 ├── docs/
 │   ├── README.md
-│   ├── core-refactor.md
 │   ├── ref/
 │   │   ├── architecture.md
 │   │   ├── orchestration.md
