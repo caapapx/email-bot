@@ -279,6 +279,7 @@ twinbox onboard openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
 - `Mailbox` 不允许跳过；若检测到现有值，会先显示 `Existing config detected` 和 `Config handling`，再显式选择 `Use existing values` / `Update values` / `Reset`。
 - `LLM` 只会在 `state root/twinbox.json` 中已经显式存在完整当前值（key + model + api-url/base-url）时显示同样的 `Existing config detected` + `Config handling`；否则直接显示 `Configure OpenAI` / `Configure Anthropic` / `Skip for now`。
 - Twinbox 不再内置默认 LLM 模型或默认 API URL；必须显式配置。
+- OpenAI 兼容路径：若 `LLM_API_URL` 只配到文档中的 **Base URL**（例如讯飞 Coding Plan 的 `https://…/v2`），Twinbox 会自动请求 `{URL}/chat/completions`；若已写完整路径则不再改写。
 - 选择 `Configure OpenAI` / `Configure Anthropic` 时，会先按 `API URL -> API key -> Model ID` 的顺序采集覆盖值，再执行显式验证；验证阶段带超时失败出口，不会无限转圈。
 - `Twinbox tools integration` 用 OpenClaw 风格的 `Yes (Recommended) / No` 单选确认是否并入 `openclaw.fragment.json`。
 - `Apply setup` 会先汇总本轮选择，再显式决定 `Apply now` 或 `Skip for now`。
