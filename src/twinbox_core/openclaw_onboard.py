@@ -1098,17 +1098,38 @@ def run_openclaw_onboard_v2(
         if llm_info.get("configured"):
             llm_body += "\nPress Enter on a field to keep the current model or API URL."
         prompter.note("LLM", llm_body)
-        llm_choice = prompter.select(
-            "Choose LLM setup",
-            options=[
+        llm_options: list[dict[str, str]] = []
+        if llm_info.get("configured"):
+            llm_options.append(
+                {
+                    "value": "use_current_llm",
+                    "label": "Use current value",
+                    "description": "Keep the current provider, model, and API URL as they are.",
+                }
+            )
+        llm_options.extend(
+            [
                 {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
                 {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
                 {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
-            ],
-            default=llm_info.get("backend") or "openai",
+            ]
+        )
+        llm_choice = prompter.select(
+            "Choose LLM setup",
+            options=llm_options,
+            default="use_current_llm" if llm_info.get("configured") else (llm_info.get("backend") or "openai"),
         )
         llm_ready = bool(llm_info.get("configured"))
-        if llm_choice == "skip":
+        if llm_choice == "use_current_llm":
+            report.llm = {
+                "prompted": False,
+                "configured": llm_ready,
+                "backend": llm_info.get("backend", ""),
+                "model": llm_info.get("model", ""),
+                "url": llm_info.get("url", ""),
+                "status": "configured" if llm_ready else "missing",
+            }
+        elif llm_choice == "skip":
             report.llm = {
                 "prompted": False,
                 "configured": llm_ready,
@@ -1194,7 +1215,7 @@ def run_openclaw_onboard_v2(
 
         summary_lines = [
             f"Mailbox: {report.mailbox.get('mail_address') or 'configured'}",
-            f"LLM: {report.llm.get('backend') or report.llm.get('status', 'not configured')}",
+            f"LLM: {report.llm.get('model') or report.llm.get('backend') or report.llm.get('status', 'not configured')}",
             f"Twinbox tools integration: {'yes' if fragment_selected else 'no'}",
             f"Repo root: {resolved_code_root}",
             f"OpenClaw home: {resolved_openclaw_home}",
