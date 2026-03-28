@@ -74,6 +74,13 @@ twinbox                      # task-facing CLI 入口
   onboard                    # OpenClaw 安装总向导（宿主机；推荐）
     openclaw [--dry-run] [--json] ...
 
+  config                     # Twinbox 单配置文件（state root/twinbox.json）
+    show [--json]
+    set-llm [--provider ... --model ... --api-url ... --json]
+    mailbox-set [--email ... --json]
+    integration-set [--use-fragment yes|no --fragment-path PATH --json]
+    openclaw-set [--home PATH] [--bin NAME] [...] [--json]
+
   deploy                     # OpenClaw 宿主接线（仅宿主机；高级入口）
     openclaw [--rollback] [--strict] [--fragment PATH] [--no-fragment] [--remove-config] [--dry-run] [--json] ...
 
@@ -270,14 +277,36 @@ twinbox onboard openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
 - `manual`：同样逐页展示，并额外补充 repo root / state root / OpenClaw home 等宿主语义。
 - `Security` 是第一页，必须显式确认后才会继续。
 - `Mailbox` 不允许跳过；若检测到现有值，会先显示 `Existing config detected` 和 `Config handling`，再显式选择 `Use existing values` / `Update values` / `Reset`。
-- `LLM` 只会在 `.env` 中已经显式存在完整当前值（key + model + api-url/base-url）时显示同样的 `Existing config detected` + `Config handling`；否则直接显示 `Configure OpenAI` / `Configure Anthropic` / `Skip for now`。
+- `LLM` 只会在 `state root/twinbox.json` 中已经显式存在完整当前值（key + model + api-url/base-url）时显示同样的 `Existing config detected` + `Config handling`；否则直接显示 `Configure OpenAI` / `Configure Anthropic` / `Skip for now`。
 - Twinbox 不再内置默认 LLM 模型或默认 API URL；必须显式配置。
 - 选择 `Configure OpenAI` / `Configure Anthropic` 时，会先按 `API URL -> API key -> Model ID` 的顺序采集覆盖值，再执行显式验证；验证阶段带超时失败出口，不会无限转圈。
 - `Twinbox tools integration` 用 OpenClaw 风格的 `Yes (Recommended) / No` 单选确认是否并入 `openclaw.fragment.json`。
 - `Apply setup` 会先汇总本轮选择，再显式决定 `Apply now` 或 `Skip for now`。
-- 底层仍复用同一组 mailbox / llm / deploy primitive；当前 CLI 只保留这一条公开向导入口。
+- 底层仍复用同一组 mailbox / llm / deploy primitive；当前 CLI 只保留这一条公开向导入口，并把配置统一维护在 `state root/twinbox.json`。
 - 成功后的人类可读输出会把宿主接线表述为 **Phase 1 of 2**，并明确提示用户继续在 OpenClaw 的 `twinbox` agent 中完成 **Phase 2 of 2**。
 - `--json` 仍输出低层 report JSON；非 JSON 路径则使用新的 journey shell。
+
+### config show / set-llm / mailbox-set / integration-set / openclaw-set
+
+Twinbox 单配置文件入口。所有手动配置都收口到 `state root/twinbox.json`；历史 `.env` 仅在迁移期继续被兼容读取。
+
+**常用命令**：
+
+```bash
+twinbox config show --json
+twinbox config set-llm --provider openai --model MODEL --api-url URL --json
+TWINBOX_SETUP_IMAP_PASS=<app_password> twinbox config mailbox-set --email you@example.com --json
+twinbox config integration-set --use-fragment yes --fragment-path /path/to/openclaw.fragment.json --json
+twinbox config openclaw-set --home ~/.openclaw --strict --json
+```
+
+**说明**：
+
+- `config show` 会输出当前单配置文件，并自动对 secret 做 masked 展示。
+- `config set-llm` 与向导中的 LLM 步骤共享同一份配置；写入后会立即做后端校验。
+- `config mailbox-set` 与 `mailbox setup` 共享同一份配置；若未显式传 IMAP/SMTP 主机参数，则自动探测。
+- `config integration-set` 用于设置 `fragment_path` 和 `use_fragment` 默认值；`onboard openclaw` 与 `deploy openclaw` 会读取这些默认值。
+- `config openclaw-set` 用于设置 OpenClaw 默认值；`onboard openclaw` 与 `deploy openclaw` 会读取这些默认值。
 
 ### deploy openclaw
 
@@ -296,7 +325,7 @@ twinbox deploy openclaw --rollback [--remove-config] [--dry-run] [--no-restart] 
 
 - `--rollback`：撤销上述接线（删除 `skills.entries.twinbox`、`~/.openclaw/skills/twinbox/`），**不删除** `~/.twinbox`；全量卸载见 `openclaw-skill/DEPLOY.md` §5 `uninstall_openclaw_twinbox.sh`。
 - `--remove-config`：仅在与 `--rollback` 联用时删除 `~/.config/twinbox/`（code-root / state-root 指针）。
-- `--strict`：默认从 state `.env` 同步邮箱键时，若缺少 `SKILL.md` 声明的 `requires.env` 任一必填项，则失败并跳过后续写盘（与未加 `--strict` 时仅 warning 不同）。
+- `--strict`：默认从 `state root/twinbox.json` 同步邮箱键时，若缺少 `SKILL.md` 声明的 `requires.env` 任一必填项，则失败并跳过后续写盘（与未加 `--strict` 时仅 warning 不同）。
 - `--fragment` / `--no-fragment`：可选将 JSON 片段深度合并进 `openclaw.json`（在写入 `skills.entries.twinbox` 之前）；默认若存在 `openclaw-skill/openclaw.fragment.json` 则读取。示例见 `openclaw-skill/openclaw.fragment.example.json`。
 - `scripts/reset_twinbox_state.sh` 只清 `runtime/` 与 twinbox 会话，不动 `openclaw.json` / skill 文件。
 
@@ -329,9 +358,9 @@ twinbox mailbox preflight [--json] [--account NAME] [--folder INBOX] [--page-siz
 
 **配置来源语义**：
 
-- process env 优先，其次才是 `state root/.env`
+- process env 优先，其次才是 `state root/twinbox.json`
 - OpenClaw-native 部署推荐把邮箱配置注入 skill process env
-- repo `.env` / `state root/.env` 主要作为本地开发或自托管 fallback
+- 历史 `.env` 仅作为迁移期 fallback；当前推荐单真源为 `state root/twinbox.json`
 
 **只读边界**：
 
@@ -355,7 +384,7 @@ twinbox mailbox preflight [--json] [--account NAME] [--folder INBOX] [--page-siz
 
 **实现映射**：
 
-- 解析 `.env` 与进程环境变量
+- 解析 `state root/twinbox.json` 与进程环境变量
 - 应用默认值：`MAIL_ACCOUNT_NAME=myTwinbox`、`MAIL_DISPLAY_NAME={MAIL_ACCOUNT_NAME}`、`IMAP_ENCRYPTION=tls`、`SMTP_ENCRYPTION=tls`
 - 解析 `himalaya` 可执行文件：先 `PATH`，再 `$TWINBOX_STATE_ROOT/runtime/bin/himalaya`；若仍没有且在 **Linux x86_64 / aarch64** 上，则从随 `twinbox_core` 分发的官方 `himalaya.*-linux.tgz` 解压到 `runtime/bin/himalaya`（便于离线宿主）
 - 渲染 `runtime/himalaya/config.toml`

@@ -59,7 +59,7 @@ twinbox-orchestrate --help
 
 > **两个目录概念**：
 > - **code root**：twinbox 仓库本身（代码、脚本）所在路径，通常是你 `git clone` 的位置。
-> - **state root**：运行时数据目录，存放 `.env`（邮箱/LLM 凭据）、phase 产物、日志等。默认为 `~/.twinbox`，与代码仓库分离，不会进 git。
+> - **state root**：运行时数据目录，存放 `twinbox.json`（邮箱/LLM/集成配置）、phase 产物、日志等。默认为 `~/.twinbox`，与代码仓库分离，不会进 git。
 
 在仓库根执行初始化脚本，将两个路径写入 `~/.config/twinbox/`：
 
@@ -86,7 +86,7 @@ cat ~/.config/twinbox/state-root
 
 ### 3.4 配置邮箱与 LLM（门槛）
 
-此时 state root 已初始化为 `~/.twinbox`，凭据将写入 `~/.twinbox/.env`。
+此时 state root 已初始化为 `~/.twinbox`，Twinbox 的唯一配置真源为 `~/.twinbox/twinbox.json`（历史 `.env` 仅作迁移期兼容读取）。
 
 **配置邮箱**（密码通过环境变量注入，不会出现在命令行历史）：
 
@@ -94,7 +94,7 @@ cat ~/.config/twinbox/state-root
 TWINBOX_SETUP_IMAP_PASS=<app_password> twinbox mailbox setup --email you@example.com --json
 ```
 
-命令自动探测 IMAP/SMTP 服务器配置，写入 `~/.twinbox/.env`，并运行连通预检。`"status": "ok"` 表示成功。失败时日志见 `~/.twinbox/runtime/validation/preflight/mailbox-smoke.stderr.log`。
+命令自动探测 IMAP/SMTP 服务器配置，写入 `~/.twinbox/twinbox.json`，并运行连通预检。`"status": "ok"` 表示成功。失败时日志见 `~/.twinbox/runtime/validation/preflight/mailbox-smoke.stderr.log`。
 
 **配置 LLM API**（Phase 1-4 流水线必需）：
 
@@ -103,7 +103,7 @@ TWINBOX_SETUP_API_KEY=<your_key> twinbox config set-llm --provider openai --json
 # 或 --provider anthropic
 ```
 
-写入 `~/.twinbox/.env` 并验证后端可连通。`"backend_validated": true` 表示成功。
+写入 `~/.twinbox/twinbox.json` 并验证后端可连通。`"backend_validated": true` 表示成功。
 
 **可选：手动验证邮箱连通**：
 
@@ -117,7 +117,7 @@ twinbox mailbox preflight --json
 
 #### Markdown skill
 
-**推荐**：优先使用 `twinbox onboard openclaw`；如果你在打磨人工交互体验或想逐页确认每个步骤，可使用 `twinbox onboard openclaw-v2`。两者都会检查邮箱/LLM 门槛、执行宿主接线，并在最后交接到对话 onboarding。`twinbox deploy openclaw` 保留为高级/脚本化入口。旧版曾使用 `state_root/skills/twinbox/SKILL.md`，升级后若存在该路径可手动删除以免混淆。
+**推荐**：优先使用 `twinbox onboard openclaw`。它会检查邮箱/LLM 门槛、执行宿主接线，并在最后交接到对话 onboarding。`twinbox deploy openclaw` 保留为高级/脚本化入口。旧版曾使用 `state_root/skills/twinbox/SKILL.md`，升级后若存在该路径可手动删除以免混淆。
 
 仅手工时：
 
@@ -137,14 +137,14 @@ twinbox onboard openclaw --json
 
 向导默认会：
 
-- 检查 `openclaw`、`code-root`、`state-root`、state `.env`、当前 onboarding stage
+- 检查 `openclaw`、`code-root`、`state-root`、`state root/twinbox.json`、当前 onboarding stage
 - 在缺少邮箱或 LLM 配置时补做最小门槛配置
 - 调用宿主接线（见下方高级入口）
 - 把 onboarding 进度同步到下一个应进入的对话阶段，并给出后续动作
 
 #### 一键宿主接线（高级入口）
 
-在仓库根、已激活 venv 的前提下，可用 CLI 串行完成：**roots 初始化**、`~/.openclaw/openclaw.json` 中 `skills.entries.twinbox` 合并（默认从 **state root** 的 `.env` 同步邮箱相关键）、**按宿主 OS/CPU 检查或释放 `himalaya`**（`--json` 中 `ensure_himalaya` 步；Linux x86_64/aarch64 可自动从 twinbox 内置包解压到 `runtime/bin`，其它平台为 `skipped` 时需自行安装）、**同步 `SKILL.md`**（先写入 `$TWINBOX_STATE_ROOT/SKILL.md`，再对 `~/.openclaw/skills/twinbox/SKILL.md` **创建指向该文件的符号链接**；若宿主不支持软链则回退为复制）、**`openclaw gateway restart`**：
+在仓库根、已激活 venv 的前提下，可用 CLI 串行完成：**roots 初始化**、`~/.openclaw/openclaw.json` 中 `skills.entries.twinbox` 合并（默认从 **state root** 的 `twinbox.json` 同步邮箱相关键）、**按宿主 OS/CPU 检查或释放 `himalaya`**（`--json` 中 `ensure_himalaya` 步；Linux x86_64/aarch64 可自动从 twinbox 内置包解压到 `runtime/bin`，其它平台为 `skipped` 时需自行安装）、**同步 `SKILL.md`**（先写入 `$TWINBOX_STATE_ROOT/SKILL.md`，再对 `~/.openclaw/skills/twinbox/SKILL.md` **创建指向该文件的符号链接**；若宿主不支持软链则回退为复制）、**`openclaw gateway restart`**：
 
 ```bash
 cd /path/to/twinbox
@@ -162,7 +162,7 @@ twinbox deploy openclaw --json
 
 CLI：`--fragment PATH` 指定其它 JSON 片段；`--no-fragment` 不读默认路径 `openclaw-skill/openclaw.fragment.json`。
 
-常用选项：`--dry-run`（只输出计划、不写盘）；`--no-restart`；`--no-env-sync`（仅 `enabled: true`，不覆盖已有 `env`）；`--strict`（在默认从 state `.env` 同步邮箱键时，若缺任一 OpenClaw 必填键则**失败退出**、不写 `openclaw.json`、不复制 SKILL）。若未使用 `--strict` 且 state `.env` 尚未含完整邮箱字段，合并后 OpenClaw 仍可能缺键，需先完成 §3.4 或手改 JSON。
+常用选项：`--dry-run`（只输出计划、不写盘）；`--no-restart`；`--no-env-sync`（仅 `enabled: true`，不覆盖已有 `env`）；`--strict`（在默认从 `state root/twinbox.json` 同步邮箱键时，若缺任一 OpenClaw 必填键则**失败退出**、不写 `openclaw.json`、不复制 SKILL）。若未使用 `--strict` 且单配置文件尚未含完整邮箱字段，合并后 OpenClaw 仍可能缺键，需先完成 §3.4 或手改 JSON。
 
 ##### 撤销本次宿主接线（与 deploy 对称，非全量卸载）
 
@@ -327,7 +327,7 @@ twinbox-orchestrate run --phase 4
 
 **如果失败**：日志位置取决于失败阶段：
 - Phase 1（邮件拉取）：`~/.twinbox/runtime/validation/preflight/mailbox-smoke.stderr.log`
-- Phase 2-4（LLM 处理）：stderr 直接输出；若 LLM 调用失败，检查 `~/.twinbox/.env` 中 API key 是否有效
+- Phase 2-4（LLM 处理）：stderr 直接输出；若 LLM 调用失败，检查 `~/.twinbox/twinbox.json` 中 LLM 配置是否有效
 
 首次运行需要真实邮件数据，若 INBOX 为空会产出空 YAML，属正常现象。
 
@@ -358,21 +358,29 @@ twinbox deploy openclaw --json
 
 **从旧版本迁移**（state root 从仓库根迁到 `~/.twinbox`）：
 
-旧版本的 `.env` 和 `runtime/` 数据存放在仓库根目录。升级后需要手动迁移一次：
+旧版本的 `.env` 和 `runtime/` 数据存放在仓库根目录。升级后需要手动迁移一次到 `~/.twinbox/twinbox.json` + `runtime/`：
 
 ```bash
 # 1. 运行初始化脚本（创建 ~/.twinbox，写入新路径）
 bash scripts/install_openclaw_twinbox_init.sh
 
 # 2. 迁移现有数据
-mv /path/to/twinbox/.env ~/.twinbox/.env
+python3 - <<'PY'
+from pathlib import Path
+from twinbox_core.env_writer import load_env_file, write_env_file
+root = Path("/path/to/twinbox")
+state = Path.home() / ".twinbox"
+legacy_env = load_env_file(root / ".env")
+if legacy_env:
+    write_env_file(state / ".env", legacy_env)
+PY
 mv /path/to/twinbox/runtime ~/.twinbox/runtime
 
 # 3. 验证路径生效
 twinbox mailbox preflight --json
 ```
 
-迁移后仓库根目录下不再保留 `.env` 和 `runtime/`，git 状态更干净。
+迁移后仓库根目录下不再保留旧 `.env` 和 `runtime/`，git 状态更干净。
 
 ---
 

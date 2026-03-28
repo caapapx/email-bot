@@ -23,6 +23,11 @@ from .openclaw_deploy import run_openclaw_deploy
 from .openclaw_deploy_types import OpenClawDeployReport
 from .openclaw_json_io import default_openclaw_fragment_path
 from .paths import PathResolutionError, resolve_code_root, resolve_state_root
+from .twinbox_config import (
+    config_path_for_state_root,
+    load_twinbox_config,
+    save_twinbox_config,
+)
 
 InputFn = Callable[[str], str]
 SecretInputFn = Callable[[str], str]
@@ -903,6 +908,14 @@ def run_openclaw_onboard(
         state_root = Path(os.environ.get("TWINBOX_STATE_ROOT", str(default_state_root))).expanduser()
 
     resolved_openclaw_home = (openclaw_home or Path.home() / ".openclaw").expanduser()
+    config_path = config_path_for_state_root(state_root)
+    twinbox_config = load_twinbox_config(config_path)
+    openclaw_defaults = twinbox_config.get("openclaw", {}) if isinstance(twinbox_config.get("openclaw"), dict) else {}
+    integration_defaults = twinbox_config.get("integration", {}) if isinstance(twinbox_config.get("integration"), dict) else {}
+    if openclaw_home is None and openclaw_defaults.get("home"):
+        resolved_openclaw_home = Path(str(openclaw_defaults["home"])).expanduser()
+    if openclaw_bin == "openclaw" and openclaw_defaults.get("bin"):
+        openclaw_bin = str(openclaw_defaults["bin"])
     report.code_root = str(resolved_code_root)
     report.state_root = str(state_root)
     report.openclaw_home = str(resolved_openclaw_home)
@@ -1020,14 +1033,14 @@ def run_openclaw_onboard(
             "url": backend.url,
         }
 
-    fragment_path = default_openclaw_fragment_path(resolved_code_root)
+    fragment_path = Path(str(integration_defaults.get("fragment_path", ""))).expanduser() if integration_defaults.get("fragment_path") else default_openclaw_fragment_path(resolved_code_root)
     use_fragment = False
     if fragment_path.is_file():
         if fragment_decision is None:
             use_fragment = _prompt_yes_no(
                 input_fn,
                 f"Include OpenClaw fragment from {fragment_path}?",
-                default=True,
+                default=bool(integration_defaults.get("use_fragment", True)),
             )
         else:
             use_fragment = fragment_decision
@@ -1036,6 +1049,19 @@ def run_openclaw_onboard(
         "exists": fragment_path.is_file(),
         "selected": use_fragment,
     }
+    twinbox_config["integration"] = {
+        "fragment_path": str(fragment_path),
+        "use_fragment": bool(use_fragment),
+    }
+    twinbox_config["openclaw"] = {
+        **openclaw_defaults,
+        "home": str(resolved_openclaw_home),
+        "bin": openclaw_bin,
+        "strict": True,
+        "sync_env_from_dotenv": True,
+        "restart_gateway": True,
+    }
+    save_twinbox_config(config_path, twinbox_config)
 
     deploy_report = deploy_runner(
         code_root=resolved_code_root,
@@ -1113,7 +1139,14 @@ def run_openclaw_onboard_v2(
         except PathResolutionError:
             state_root = Path(os.environ.get("TWINBOX_STATE_ROOT", str(default_state_root))).expanduser()
 
-        resolved_openclaw_home = (openclaw_home or Path.home() / ".openclaw").expanduser()
+        config_path = config_path_for_state_root(state_root)
+        twinbox_config = load_twinbox_config(config_path)
+        openclaw_defaults = twinbox_config.get("openclaw", {}) if isinstance(twinbox_config.get("openclaw"), dict) else {}
+        integration_defaults = twinbox_config.get("integration", {}) if isinstance(twinbox_config.get("integration"), dict) else {}
+        configured_home = str(openclaw_defaults.get("home", "") or "").strip()
+        resolved_openclaw_home = (openclaw_home or (Path(configured_home).expanduser() if configured_home else Path.home() / ".openclaw")).expanduser()
+        if openclaw_bin == "openclaw" and openclaw_defaults.get("bin"):
+            openclaw_bin = str(openclaw_defaults["bin"])
         report.code_root = str(resolved_code_root)
         report.state_root = str(state_root)
         report.openclaw_home = str(resolved_openclaw_home)
@@ -1123,7 +1156,7 @@ def run_openclaw_onboard_v2(
 
         env_file = state_root / ".env"
         dotenv = load_env_file(env_file)
-        fragment_path = default_openclaw_fragment_path(resolved_code_root)
+        fragment_path = Path(str(integration_defaults.get("fragment_path", ""))).expanduser() if integration_defaults.get("fragment_path") else default_openclaw_fragment_path(resolved_code_root)
         fragment_exists = fragment_path.is_file()
 
         prompter.intro("TwinBox setup")
@@ -1451,7 +1484,7 @@ def run_openclaw_onboard_v2(
                         {"value": "yes", "label": "Yes (Recommended)", "selected_glyph": "●", "unselected_glyph": "○"},
                         {"value": "no", "label": "No", "selected_glyph": "●", "unselected_glyph": "○"},
                     ],
-                    default="yes",
+                    default="yes" if integration_defaults.get("use_fragment", True) else "no",
                     layout="horizontal",
                 )
                 == "yes"
@@ -1463,6 +1496,19 @@ def run_openclaw_onboard_v2(
             "exists": fragment_exists,
             "selected": fragment_selected,
         }
+        twinbox_config["integration"] = {
+            "fragment_path": str(fragment_path),
+            "use_fragment": bool(fragment_selected),
+        }
+        twinbox_config["openclaw"] = {
+            **openclaw_defaults,
+            "home": str(resolved_openclaw_home),
+            "bin": openclaw_bin,
+            "strict": True,
+            "sync_env_from_dotenv": True,
+            "restart_gateway": True,
+        }
+        save_twinbox_config(config_path, twinbox_config)
 
         summary_lines = [
             f"Mailbox: {report.mailbox.get('mail_address') or 'configured'}",
