@@ -1467,7 +1467,7 @@ def run_openclaw_onboard_v2(
                 "unselected_glyph": "○",
             },
         ],
-        default="continue",
+        default="cancel",
         layout="horizontal",
         )
         if security_choice != "continue":

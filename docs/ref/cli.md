@@ -275,7 +275,7 @@ twinbox onboard openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
 - 这是默认推荐入口，面向人工操作员。
 - `quickstart`：默认推荐，但仍会逐页展示每个环节，已有值不会静默跳过。
 - `manual`：同样逐页展示，并额外补充 repo root / state root / OpenClaw home 等宿主语义。
-- `Security` 是第一页，必须显式确认后才会继续。
+- `Security` 是第一页：交互默认选中 **No**，直接按 Enter 会退出；必须显式选 **Yes** 才会继续。
 - `Mailbox` 不允许跳过；若检测到现有值，会先显示 `Existing config detected` 和 `Config handling`，再显式选择 `Use existing values` / `Update values` / `Reset`。
 - `LLM` 只会在 `state root/twinbox.json` 中已经显式存在完整当前值（key + model + api-url/base-url）时显示同样的 `Existing config detected` + `Config handling`；否则直接显示 `Configure OpenAI` / `Configure Anthropic` / `Skip for now`。
 - Twinbox 不再内置默认 LLM 模型或默认 API URL；必须显式配置。
