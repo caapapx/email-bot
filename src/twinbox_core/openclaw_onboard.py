@@ -27,6 +27,7 @@ from .paths import PathResolutionError, resolve_code_root, resolve_state_root
 InputFn = Callable[[str], str]
 SecretInputFn = Callable[[str], str]
 DeployRunner = Callable[..., OpenClawDeployReport]
+LLMUpdateRunner = Callable[..., tuple[bool, dict[str, Any], dict[str, str]]]
 
 
 class JourneyPrompter(Protocol):
@@ -202,9 +203,12 @@ class ConsoleJourneyPrompter:
             lines.append("Use ↑/↓ to move. Press Enter to confirm.")
             for idx, opt in enumerate(options):
                 label = opt.get("label", opt["value"]).strip()
-                pointer = "›" if idx == current_index else " "
+                selected = idx == current_index
+                glyph = opt.get("selected_glyph" if selected else "unselected_glyph")
+                if not glyph:
+                    glyph = "●" if selected else "○"
                 description = opt.get("description", "").strip() if idx == current_index else ""
-                option_line = f"{pointer} {label}"
+                option_line = f"{glyph} {label}"
                 if description:
                     option_line = f"{option_line} ({description})"
                 wrapped = self._wrap_text(option_line, body_width)
@@ -213,7 +217,21 @@ class ConsoleJourneyPrompter:
                         rendered = chunk
                     else:
                         rendered = f"  {chunk}"
-                    lines.append(self._style(rendered, "1;38;5;208" if idx == current_index else "0;37"))
+                    if selected:
+                        glyph_prefix = f"{glyph} "
+                        if rendered.startswith(glyph_prefix):
+                            styled = (
+                                self._style(glyph, "1;32")
+                                + self._style(rendered[len(glyph):], "1;97")
+                            )
+                        else:
+                            styled = self._style(rendered, "0;97")
+                    else:
+                        if rendered.startswith(f"{glyph} "):
+                            styled = self._style(glyph, "0;90") + self._style(rendered[len(glyph):], "0;90")
+                        else:
+                            styled = self._style(rendered, "0;90")
+                    lines.append(styled)
 
         if not first_frame:
             self._clear_previous_frame(len(lines))
@@ -757,6 +775,30 @@ def _apply_llm_updates(
     )
 
 
+def _run_with_timeout(
+    func: Callable[[], tuple[bool, dict[str, Any], dict[str, str]]],
+    *,
+    timeout_seconds: float,
+) -> tuple[bool, dict[str, Any], dict[str, str]] | None:
+    result: dict[str, tuple[bool, dict[str, Any], dict[str, str]]] = {}
+    error: dict[str, BaseException] = {}
+
+    def _target() -> None:
+        try:
+            result["value"] = func()
+        except BaseException as exc:  # pragma: no cover - forwarded to caller
+            error["value"] = exc
+
+    thread = threading.Thread(target=_target, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_seconds)
+    if thread.is_alive():
+        return None
+    if "value" in error:
+        raise error["value"]
+    return result["value"]
+
+
 def run_openclaw_onboard(
     *,
     code_root: Path | None = None,
@@ -971,6 +1013,8 @@ def run_openclaw_onboard_v2(
     openclaw_bin: str = "openclaw",
     prompter: JourneyPrompter | None = None,
     deploy_runner: DeployRunner | None = None,
+    llm_update_runner: LLMUpdateRunner = _apply_llm_updates,
+    llm_validation_timeout_seconds: float = 15.0,
     run_onboard: Callable[..., OpenClawOnboardReport] = run_openclaw_onboard,
 ) -> OpenClawOnboardReport:
     del run_onboard
@@ -1220,15 +1264,45 @@ def run_openclaw_onboard_v2(
             model = prompter.text("Model", default=current_model)
             api_url = prompter.text("API URL", default=current_url)
             llm_progress = prompter.progress("Validating LLM configuration")
-            llm_ready, report.llm, dotenv = _apply_llm_updates(
-                env_file=env_file,
-                dotenv=dotenv,
-                provider=llm_choice,
-                api_key=api_key,
-                model=model,
-                api_url=api_url,
-                dry_run=dry_run,
+            llm_result = _run_with_timeout(
+                lambda: llm_update_runner(
+                    env_file=env_file,
+                    dotenv=dotenv,
+                    provider=llm_choice,
+                    api_key=api_key,
+                    model=model,
+                    api_url=api_url,
+                    dry_run=dry_run,
+                ),
+                timeout_seconds=llm_validation_timeout_seconds,
             )
+            if llm_result is None:
+                llm_progress.fail("LLM validation timed out")
+                report.error = (
+                    f"LLM validation timed out after {llm_validation_timeout_seconds:.1f}s."
+                )
+                report.llm = {
+                    "prompted": True,
+                    "configured": False,
+                    "backend": llm_choice,
+                    "model": model,
+                    "url": api_url,
+                    "error": report.error,
+                }
+                report.onboarding = _sync_onboarding_state(
+                    state_root,
+                    mailbox_ready=mailbox_ready,
+                    llm_ready=False,
+                    dry_run=dry_run,
+                )
+                prompter.note(
+                    "Recovery",
+                    "Twinbox could not finish validating the selected LLM provider in time. Check the endpoint and try again.",
+                    complete=False,
+                )
+                prompter.outro(report.error)
+                return report
+            llm_ready, report.llm, dotenv = llm_result
             if llm_ready:
                 llm_progress.finish("LLM configuration validated")
             else:
