@@ -457,8 +457,9 @@ class ConsoleJourneyPrompter:
             padded = content + (" " * pad if pad > 0 else "")
             self._write(m("│") + side_pad + padded + side_pad + m("│"))
         self._write(m("└") + m("─" * inner_bar) + m("┘"))
+        # Trailing spine only — no blank here: `gap_before` adds exactly one line of spacing
+        # before the next tee, matching `journey_rail_begin` (│ + one blank + tee).
         self._write(m("│"))
-        self._write("")
 
     def note(self, title: str, body: str, *, complete: bool | None = None) -> None:
         """Closed box. Journey rail: T-pipe + junction node — green ◆ configured, hollow ◇ pending."""
