@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import getpass
 import os
+import re
 import shutil
 import sys
 import termios
@@ -27,6 +28,11 @@ from .twinbox_config import (
     config_path_for_state_root,
     load_twinbox_config,
     save_twinbox_config,
+)
+
+# README.md headline — keep in sync with repo branding.
+_README_WORDMARK_TAGLINE = (
+    "Thread-level email intelligence that keeps important things from drowning."
 )
 
 InputFn = Callable[[str], str]
@@ -105,14 +111,47 @@ class ConsoleJourneyPrompter:
     def _accent(self, text: str) -> str:
         return self._style(text, "1;38;5;208")
 
-    def _banner_lines(self) -> list[str]:
-        raw_lines = [
-            "  TWINBOX  ",
-            "  TWINBOX  ",
-        ]
+    @staticmethod
+    def _visible_length(text: str) -> int:
+        return len(re.sub(r"\x1b\[[0-9;]*[mK]", "", text))
+
+    def _pad_center_visual(self, styled_segment: str, inner_width: int) -> str:
+        pad = max(0, (inner_width - self._visible_length(styled_segment)) // 2)
+        return " " * pad + styled_segment
+
+    def _logo_frame_lines(self) -> list[str]:
+        """README-aligned wordmark + tagline in an OpenClaw-style framed header."""
+        inner_w = min(68, max(44, self._width - 8))
+        tagline_wrapped = self._wrap_text(_README_WORDMARK_TAGLINE, inner_w)
+
         if not self._is_tty:
-            return ["TWINBOX"]
-        return [self._style(line, "1;30;47") for line in raw_lines]
+            return [
+                "",
+                "twinbox 📮",
+                "",
+                *tagline_wrapped,
+                "",
+            ]
+
+        m = self._muted
+        bar = "─" * (inner_w + 2)
+        lines: list[str] = [
+            "",
+            m("╭" + bar + "╮"),
+            m("│ ") + " " * inner_w + m(" │"),
+            m("│ ")
+            + self._pad_center_visual(
+                self._style("  twinbox  ", "1;97;48;5;208") + "  📮",
+                inner_w,
+            )
+            + m(" │"),
+            m("│ ") + " " * inner_w + m(" │"),
+        ]
+        for tl in tagline_wrapped:
+            lines.append(m("│ ") + self._muted(tl.ljust(inner_w)) + m(" │"))
+        lines.append(m("│ ") + " " * inner_w + m(" │"))
+        lines.append(m("╰" + bar + "╯"))
+        return lines
 
     def _next_spinner_frame(self) -> str:
         frame = self._SPINNER_FRAMES[self._spinner_idx % len(self._SPINNER_FRAMES)]
@@ -249,14 +288,8 @@ class ConsoleJourneyPrompter:
         return len(lines)
 
     def intro(self, text: str) -> None:
-        brand = self._accent("✉ TwinBox v1")
-        tagline = self._muted("Reads your inbox without making you babysit it.")
-        self._write("")
-        self._write(f"{brand} {self._muted('—')} {tagline}")
-        self._write("")
-        for line in self._banner_lines():
+        for line in self._logo_frame_lines():
             self._write(line)
-        self._write("")
         self._write(self._accent(text))
         self._write("")
 
