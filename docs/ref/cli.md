@@ -77,6 +77,7 @@ twinbox                      # task-facing CLI 入口
   config                     # Twinbox 单配置文件（state root/twinbox.json）
     show [--json]
     set-llm [--provider ... --model ... --api-url ... --json]
+    import-llm-from-openclaw [--openclaw-json PATH] [--dry-run] [--json]
     mailbox-set [--email ... --json]
     integration-set [--use-fragment yes|no --fragment-path PATH --json]
     openclaw-set [--home PATH] [--bin NAME] [...] [--json]
@@ -287,7 +288,7 @@ twinbox onboard openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
 - 成功后的人类可读输出会把宿主接线表述为 **Phase 1 of 2**，并明确提示用户继续在 OpenClaw 的 `twinbox` agent 中完成 **Phase 2 of 2**。
 - `--json` 仍输出低层 report JSON；非 JSON 路径则使用新的 journey shell。
 
-### config show / set-llm / mailbox-set / integration-set / openclaw-set
+### config show / set-llm / import-llm-from-openclaw / mailbox-set / integration-set / openclaw-set
 
 Twinbox 单配置文件入口。所有手动配置都收口到 `state root/twinbox.json`；历史 `.env` 仅在迁移期继续被兼容读取。
 
@@ -296,6 +297,7 @@ Twinbox 单配置文件入口。所有手动配置都收口到 `state root/twinb
 ```bash
 twinbox config show --json
 twinbox config set-llm --provider openai --model MODEL --api-url URL --json
+twinbox config import-llm-from-openclaw --json
 TWINBOX_SETUP_IMAP_PASS=<app_password> twinbox config mailbox-set --email you@example.com --json
 twinbox config integration-set --use-fragment yes --fragment-path /path/to/openclaw.fragment.json --json
 twinbox config openclaw-set --home ~/.openclaw --strict --json
@@ -305,6 +307,7 @@ twinbox config openclaw-set --home ~/.openclaw --strict --json
 
 - `config show` 会输出当前单配置文件，并自动对 secret 做 masked 展示。
 - `config set-llm` 与向导中的 LLM 步骤共享同一份配置；写入后会立即做后端校验。
+- `config import-llm-from-openclaw`：从宿主 `~/.openclaw/openclaw.json`（或 `--openclaw-json`）读取 `agents.defaults.model` 指向的 `models.providers.*`（需明文 `apiKey` 与 `baseUrl`），写入与 `set-llm` 相同的 `.env` 键并校验。`--dry-run` 只打印将应用的 provider/model/url（不落盘）。OpenClaw 使用 SecretRef 而非内联 key 时本命令会失败，请改用 `set-llm`。
 - `config mailbox-set` 与 `mailbox setup` 共享同一份配置；若未显式传 IMAP/SMTP 主机参数，则自动探测。
 - `config integration-set` 用于设置 `fragment_path` 和 `use_fragment` 默认值；`onboard openclaw` 与 `deploy openclaw` 会读取这些默认值。
 - `config openclaw-set` 用于设置 OpenClaw 默认值；`onboard openclaw` 与 `deploy openclaw` 会读取这些默认值。
