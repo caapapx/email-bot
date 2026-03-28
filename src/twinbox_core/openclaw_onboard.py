@@ -416,7 +416,7 @@ class ConsoleJourneyPrompter:
         return self._muted("·")
 
     def _note_journey_tee(self, title: str, body: str, *, complete: bool | None) -> None:
-        """T-junction: spine │ continues; each card is ├─┐ / │ … │ / └──╯; node on title row."""
+        """Spine column: node sits on the tee (◇/◆/· + ──┐), same line as the card top bar — not inside the box."""
         if self._journey_gap_before_next_note:
             self._write(self._muted("│"))
             self._write("")
@@ -434,7 +434,7 @@ class ConsoleJourneyPrompter:
         cells: list[str] = []
         for ti, tl in enumerate(title_lines):
             if ti == 0:
-                cells.append(node + " " + self._accent(tl))
+                cells.append(self._accent(tl))
             else:
                 cells.append(self._accent("  " + tl))
         cells.append(self._muted(""))
@@ -446,7 +446,7 @@ class ConsoleJourneyPrompter:
         inner_bar = max_w + 2
 
         m = self._muted
-        self._write(m("├") + m("─" * inner_bar) + m("┐"))
+        self._write(node + m("─" * inner_bar) + m("┐"))
         for content in cells:
             pad = max_w - self._visible_length(content)
             padded = content + (" " * pad if pad > 0 else "")
