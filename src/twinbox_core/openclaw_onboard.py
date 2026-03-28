@@ -416,9 +416,9 @@ class ConsoleJourneyPrompter:
         return self._muted("·")
 
     def _note_journey_tee(self, title: str, body: str, *, complete: bool | None) -> None:
-        """Spine column: node sits on the tee (◇/◆/· + ──┐), same line as the card top bar — not inside the box."""
+        """Spine: one continuous │ between cards (no extra │+blank that looks broken). Tee row: ◇  Title  ──┐ with spaced dashes."""
         if self._journey_gap_before_next_note:
-            self._write(self._muted("│"))
+            # Card already ends with │; only add vertical breathing room (avoid │ │ blank │ “dashed” look).
             self._write("")
 
         inner = max(28, min(76, self._width - 6))
@@ -431,26 +431,31 @@ class ConsoleJourneyPrompter:
                 body_lines.extend(self._wrap_text(raw_line, max(8, inner - 4)))
 
         node = self._journey_junction_node(complete)
+        title0 = self._accent(title_lines[0]) if title_lines else ""
+        vis0 = self._visible_length(title0)
+
         cells: list[str] = []
-        for ti, tl in enumerate(title_lines):
-            if ti == 0:
-                cells.append(self._accent(tl))
-            else:
-                cells.append(self._accent("  " + tl))
+        for ti in range(1, len(title_lines)):
+            cells.append(self._accent("  " + title_lines[ti]))
         cells.append(self._muted(""))
         for bl in body_lines:
             cells.append(self._muted("  " + bl) if bl else self._muted(""))
 
         max_w = max((self._visible_length(c) for c in cells), default=0)
-        max_w = max(max_w, 24)
-        inner_bar = max_w + 2
+        max_w = max(max_w, vis0, 24)
+        # Two spaces inside each │ … │ edge so glyphs/lines don’t crowd the border.
+        inner_bar = max_w + 4
+        side_pad = "  "
 
         m = self._muted
-        self._write(node + m("─" * inner_bar) + m("┐"))
+        n_dash = max_w - vis0
+        if n_dash < 1:
+            n_dash = 1
+        self._write(node + "  " + title0 + "  " + m("─" * n_dash) + m("┐"))
         for content in cells:
             pad = max_w - self._visible_length(content)
             padded = content + (" " * pad if pad > 0 else "")
-            self._write(m("│") + " " + padded + " " + m("│"))
+            self._write(m("│") + side_pad + padded + side_pad + m("│"))
         self._write(m("└") + m("─" * inner_bar) + m("┘"))
         self._write(m("│"))
         self._write("")
