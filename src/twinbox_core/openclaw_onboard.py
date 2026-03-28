@@ -36,6 +36,18 @@ _README_WORDMARK_TAGLINE = (
     "Thread-level email intelligence that keeps important things from drowning."
 )
 
+# OpenClaw CLI `openclaw onboard` wizard header ends with a lobster mark line:
+# `🦞 OPENCLAW 🦞` (see upstream `printWizardHeader` in commands/onboard-helpers).
+# Prose-sized variant for handoff copy.
+_OPENCLAW_ONBOARD_LOBSTER_MARK = "🦞 OpenClaw"
+
+# Phase-2 dialog onboarding in the twinbox agent (not another deploy). Matches
+# openclaw-skill/DEPLOY.md §3.8 bootstrap: read full SKILL.md, then onboarding start.
+_OPENCLAW_PHASE2_DIALOG_BOOTSTRAP = (
+    "Read ~/.openclaw/skills/twinbox/SKILL.md, then run twinbox onboarding start --json, and follow the prompt."
+)
+_OPENCLAW_PHASE2_HANDOFF_LABEL = "Handoff — paste into a new twinbox session:"
+
 InputFn = Callable[[str], str]
 SecretInputFn = Callable[[str], str]
 DeployRunner = Callable[..., OpenClawDeployReport]
@@ -46,7 +58,13 @@ MailboxApplyRunner = Callable[..., tuple[bool, dict[str, Any], dict[str, str]]]
 class JourneyPrompter(Protocol):
     def intro(self, text: str) -> None: ...
 
-    def outro(self, text: str) -> None: ...
+    def outro(
+        self,
+        text: str,
+        *,
+        paste_hint_label: str | None = None,
+        paste_hint_quote: str | None = None,
+    ) -> None: ...
 
     def cancel(self, summary_title: str, summary_value: str, message: str = "Setup cancelled.") -> None: ...
 
@@ -388,9 +406,21 @@ class ConsoleJourneyPrompter:
         self._journey_rail = True
         self._journey_gap_before_next_note = False
 
-    def outro(self, text: str) -> None:
+    def outro(
+        self,
+        text: str,
+        *,
+        paste_hint_label: str | None = None,
+        paste_hint_quote: str | None = None,
+    ) -> None:
         self._write("")
         self._write(self._style(text, "1;32"))
+        if paste_hint_label and paste_hint_quote:
+            self._write("")
+            self._write(self._style(paste_hint_label, "1;32"))
+            # Orange + italic; quotes part of the pasteable span (DEPLOY.md §3.8 bootstrap).
+            quoted = f'"{paste_hint_quote}"'
+            self._write(self._style(quoted, "1;3;38;5;208"))
         self._write("")
 
     def cancel(self, summary_title: str, summary_value: str, message: str = "Setup cancelled.") -> None:
@@ -679,7 +709,7 @@ class ConsoleJourneyPrompter:
                     chars.append(key)
                     _render()
             
-            value = "".join(chars)
+            value = "".join(chars).strip()
             if not value and allow_empty:
                 self._write(self._dim_preview("  → ********"))
             return value
@@ -2153,11 +2183,15 @@ def run_openclaw_onboard_v2(
             )
             prompter.note(
                 "Phase 2 of 2",
-                f"Continue in the twinbox agent inside OpenClaw. Your next guided conversation stage is {current_stage}.",
+                f"Continue in the twinbox agent inside {_OPENCLAW_ONBOARD_LOBSTER_MARK}. "
+                f"Your next guided conversation stage is {current_stage}.",
                 complete=True,
             )
             prompter.outro(
-                "Continue in the twinbox agent now. Ask it to keep onboarding and it should pick up from the next stage."
+                f"🎉 Successfully completed host 🔗 wiring. Open the twinbox agent in {_OPENCLAW_ONBOARD_LOBSTER_MARK} "
+                "and ask to continue onboarding — it'll pick up from the next stage.",
+                paste_hint_label=_OPENCLAW_PHASE2_HANDOFF_LABEL,
+                paste_hint_quote=_OPENCLAW_PHASE2_DIALOG_BOOTSTRAP,
             )
             return report
 
