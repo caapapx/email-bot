@@ -68,6 +68,8 @@ class JourneyPrompter(Protocol):
 
     def progress(self, title: str): ...
 
+    def journey_rail_begin(self) -> None: ...
+
 
 class ConsoleJourneyPrompter:
     _SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
@@ -88,6 +90,8 @@ class ConsoleJourneyPrompter:
         self._spinner_idx = 0
         detected_width = width or shutil.get_terminal_size((80, 20)).columns
         self._width = max(32, detected_width)
+        self._journey_rail = False
+        self._journey_gap_before_next_note = False
 
     def _write(self, text: str = "") -> None:
         self._stream.write(text + "\n")
@@ -374,7 +378,15 @@ class ConsoleJourneyPrompter:
     def intro(self, text: str) -> None:
         for line in self._logo_frame_lines():
             self._write(line)
-        self._write(self._accent(text))
+        if text.strip():
+            self._write(self._accent(text))
+            self._write("")
+
+    def journey_rail_begin(self) -> None:
+        """Start a left vertical rail (OpenClaw-style) that connects subsequent `note()` panels."""
+        self._journey_rail = True
+        self._journey_gap_before_next_note = False
+        self._write(self._muted("│"))
         self._write("")
 
     def outro(self, text: str) -> None:
@@ -397,7 +409,15 @@ class ConsoleJourneyPrompter:
 
     def note(self, title: str, body: str, *, complete: bool | None = None) -> None:
         """Draw a closed box; optional left rail glyph: ◆ = pending / not satisfied, ◇ = configured or done."""
-        inner = max(28, min(76, self._width - 8))
+        rail_cols = 3 if self._journey_rail else 0
+        inner = max(28, min(76, self._width - 8 - rail_cols))
+
+        if self._journey_rail and self._journey_gap_before_next_note:
+            self._write(self._muted("│"))
+            self._write("")
+
+        rp = (self._muted("│") + "  ") if self._journey_rail else ""
+
         glyph = ""
         if complete is True:
             glyph = "◇"
@@ -422,9 +442,9 @@ class ConsoleJourneyPrompter:
         max_w = max(max_w, 24)
         inner_bar = max_w + 2
 
-        top_rule = self._muted("┌" + "─" * inner_bar + "┐")
-        bot_rule = self._muted("└" + "─" * inner_bar + "┘")
-        self._write(top_rule)
+        top_rule = self._muted("╭" + "─" * inner_bar + "╮")
+        bot_rule = self._muted("╰" + "─" * inner_bar + "╯")
+        self._write(rp + top_rule)
 
         title_row_count = len(title_lines)
         for idx, row in enumerate(rows):
@@ -437,10 +457,12 @@ class ConsoleJourneyPrompter:
                     styled = self._accent(plain)
             else:
                 styled = self._muted(plain)
-            self._write(self._muted("│") + " " + styled + " " + self._muted("│"))
+            self._write(rp + self._muted("│") + " " + styled + " " + self._muted("│"))
 
-        self._write(bot_rule)
+        self._write(rp + bot_rule)
         self._write("")
+        if self._journey_rail:
+            self._journey_gap_before_next_note = True
 
     def select(
         self,
@@ -1361,11 +1383,12 @@ def run_openclaw_onboard_v2(
         fragment_path = Path(str(integration_defaults.get("fragment_path", ""))).expanduser() if integration_defaults.get("fragment_path") else default_openclaw_fragment_path(resolved_code_root)
         fragment_exists = fragment_path.is_file()
 
-        prompter.intro("TwinBox setup")
+        prompter.intro("")
+        prompter.journey_rail_begin()
         prompter.note(
             "TwinBox setup",
             "Phase 1 of 2. This wizard verifies host wiring first, then hands you off to the twinbox agent for profile, materials, rules, and notifications.",
-            complete=None,
+            complete=False,
         )
         prompter.note(
             "Security",
@@ -1677,7 +1700,7 @@ def run_openclaw_onboard_v2(
         )
         if advanced:
             integration_body += f"\nOpenClaw home: {resolved_openclaw_home}"
-        prompter.note("Twinbox tools integration", integration_body, complete=None)
+        prompter.note("Twinbox tools integration", integration_body, complete=False)
         if fragment_exists:
             fragment_selected = (
                 prompter.select(
@@ -1721,7 +1744,7 @@ def run_openclaw_onboard_v2(
         ]
         if advanced:
             summary_lines.append(f"State root: {state_root}")
-        prompter.note("Apply setup", "\n".join(summary_lines), complete=None)
+        prompter.note("Apply setup", "\n".join(summary_lines), complete=False)
         deploy_choice = prompter.select(
             "Apply the host setup now?",
             options=[
