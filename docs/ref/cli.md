@@ -285,7 +285,7 @@ twinbox onboard openclaw-v2 [--repo-root PATH] [--openclaw-home PATH] [--dry-run
 **说明**：
 
 - `quickstart`：默认推荐，但仍会逐页展示每个环节，已有值不会静默跳过。
-- `advanced`：同样逐页展示，并额外补充 repo root / state root / OpenClaw home 等宿主语义。
+- `manual`：同样逐页展示，并额外补充 repo root / state root / OpenClaw home 等宿主语义。
 - `Security` 是第一页，必须显式确认后才会继续。
 - `Mailbox` 不允许跳过；若已有值，可显式选择 `Use current value` 或 `Customize`。
 - `LLM` 提供 `Configure OpenAI` / `Configure Anthropic` / `Skip for now`，跳过时会保留现有值，若仍未配置则最终以 incomplete handoff 收尾。

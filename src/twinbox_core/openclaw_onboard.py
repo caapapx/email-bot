@@ -87,6 +87,9 @@ class ConsoleJourneyPrompter:
             return text
         return f"\033[{code}m{text}\033[0m"
 
+    def _dim_preview(self, text: str) -> str:
+        return self._style(text, "90")
+
     def _next_spinner_frame(self) -> str:
         frame = self._SPINNER_FRAMES[self._spinner_idx % len(self._SPINNER_FRAMES)]
         self._spinner_idx += 1
@@ -177,16 +180,15 @@ class ConsoleJourneyPrompter:
             lines.append("Use ↑/↓ to move. Press Enter to confirm.")
             for idx, opt in enumerate(options):
                 label = opt.get("label", opt["value"]).strip()
-                suffix = " [Recommended]" if opt.get("value") == default else ""
                 pointer = "›" if idx == current_index else " "
-                option_line = f"{pointer} {label}{suffix}"
-                lines.append(self._style(option_line, "1;36" if idx == current_index else "0"))
-                description = opt.get("description", "").strip()
-                if description:
-                    for chunk in self._wrap_text(description, body_width):
-                        prefix = "  "
-                        rendered = f"{prefix}{chunk}"
-                        lines.append(self._style(rendered, "36" if idx == current_index else "0"))
+                option_line = f"{pointer} {label}"
+                lines.append(self._style(option_line, "1;38;5;208" if idx == current_index else "0;37"))
+                if idx == current_index:
+                    description = opt.get("description", "").strip()
+                    if description:
+                        wrapped = self._wrap_text(f"({description})", body_width - 2)
+                        for chunk in wrapped:
+                            lines.append(self._dim_preview(f"  {chunk}"))
 
         if not first_frame:
             self._clear_previous_frame(len(lines))
@@ -262,11 +264,10 @@ class ConsoleJourneyPrompter:
         default_value = default
         for idx, opt in enumerate(options, 1):
             label = opt.get("label", opt["value"]).strip()
-            suffix = " [Recommended]" if opt.get("value") == default_value else ""
-            self._write(f"{idx}. {label}{suffix}")
+            self._write(f"{idx}. {label}")
             description = opt.get("description", "").strip()
             if description:
-                self._write(f"   {description}")
+                self._write(self._dim_preview(f"   ({description})"))
             allowed[str(idx)] = opt["value"]
             allowed[opt["value"]] = opt["value"]
             allowed[label.lower()] = opt["value"]
@@ -966,7 +967,7 @@ def run_openclaw_onboard_v2(
         "Choose onboarding flow",
         options=[
             {"value": "quickstart", "label": "Quickstart", "description": "Follow the recommended setup path with the fewest decisions."},
-            {"value": "advanced", "label": "Advanced", "description": "Review host wiring details and make each decision explicitly."},
+            {"value": "advanced", "label": "Manual", "description": "Configure port, network, Tailscale, and auth options."},
         ],
         default="quickstart",
     )
