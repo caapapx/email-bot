@@ -254,7 +254,7 @@ next_action: string
 
 ### onboard openclaw
 
-OpenClaw 安装总向导。默认交互式，负责按顺序检查并补足邮箱/LLM 门槛、执行宿主接线，并把状态交接到现有对话 onboarding。
+OpenClaw 安装总向导。默认交互式，负责按顺序完成 OpenClaw 风格的显式步骤向导：`Security`、`Quickstart/Manual`、`Mailbox`、`LLM`、`Twinbox tools integration`、`Apply setup`，再把状态交接到现有对话 onboarding。
 
 **用法**：
 
@@ -266,24 +266,6 @@ twinbox onboard openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
 **说明**：
 
 - 这是默认推荐入口，面向人工操作员。
-- 会在缺少邮箱配置时提示录入邮箱地址和 app password，并写入 `state_root/.env`。
-- 会在缺少 LLM 配置时提示 provider 与 API key，并写入 `state_root/.env`。
-- 然后调用 `deploy openclaw` 的推荐策略：env sync + strict + gateway restart。
-- 完成后只把 onboarding 进度推进到下一对话阶段；不会替你采集 profile/material/rules/push 的业务内容。
-
-### onboard openclaw-v2
-
-OpenClaw 风格的 Twinbox onboarding 旅程壳。保持底层 report / onboarding state 契约不变，但把交互提升为显式步骤向导：`Security`、`Mailbox`、`LLM`、`Twinbox tools integration`、`Apply setup`，并在最后给出更明确的 OpenClaw `twinbox` agent handoff。
-
-**用法**：
-
-```bash
-twinbox onboard openclaw-v2 [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
-                            [--openclaw-bin NAME] [--json]
-```
-
-**说明**：
-
 - `quickstart`：默认推荐，但仍会逐页展示每个环节，已有值不会静默跳过。
 - `manual`：同样逐页展示，并额外补充 repo root / state root / OpenClaw home 等宿主语义。
 - `Security` 是第一页，必须显式确认后才会继续。
@@ -293,8 +275,9 @@ twinbox onboard openclaw-v2 [--repo-root PATH] [--openclaw-home PATH] [--dry-run
 - 选择 `Configure OpenAI` / `Configure Anthropic` 时，会先按 `API URL -> API key -> Model ID` 的顺序采集覆盖值，再执行显式验证；验证阶段带超时失败出口，不会无限转圈。
 - `Twinbox tools integration` 用 OpenClaw 风格的 `Yes (Recommended) / No` 单选确认是否并入 `openclaw.fragment.json`。
 - `Apply setup` 会先汇总本轮选择，再显式决定 `Apply now` 或 `Skip for now`。
+- 底层仍复用同一组 mailbox / llm / deploy primitive；当前 CLI 只保留这一条公开向导入口。
 - 成功后的人类可读输出会把宿主接线表述为 **Phase 1 of 2**，并明确提示用户继续在 OpenClaw 的 `twinbox` agent 中完成 **Phase 2 of 2**。
-- `--json` 仍输出低层 report JSON；V2 主要增强非 JSON 终端体验。
+- `--json` 仍输出低层 report JSON；非 JSON 路径则使用新的 journey shell。
 
 ### deploy openclaw
 
@@ -457,7 +440,7 @@ twinbox onboarding next [--json]
 
 **人类可读输出**：
 
-- 以 “Twinbox Onboarding Journey / Phase 2 of 2” 开头，并展示刚完成阶段和当前阶段，保持与 `onboard openclaw-v2` 的 handoff 语言一致。
+- 以 “Twinbox Onboarding Journey / Phase 2 of 2” 开头，并展示刚完成阶段和当前阶段，保持与 `onboard openclaw` 的 handoff 语言一致。
 
 ### push subscribe
 
