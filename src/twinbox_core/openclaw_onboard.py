@@ -788,6 +788,9 @@ class OpenClawOnboardReport:
     next_action: str = ""
     error: str = ""
     notes: list[str] = field(default_factory=list)
+    phase2_ready: bool | None = None
+    plugin_tools: dict[str, Any] = field(default_factory=dict)
+    bridge: dict[str, Any] = field(default_factory=dict)
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
@@ -803,6 +806,9 @@ class OpenClawOnboardReport:
             "next_action": self.next_action,
             "error": self.error,
             "notes": self.notes,
+            "phase2_ready": self.phase2_ready,
+            "plugin_tools": self.plugin_tools,
+            "bridge": self.bridge,
         }
 
 
@@ -1273,6 +1279,7 @@ def run_openclaw_onboard(
     secret_input_fn: SecretInputFn | None = None,
     deploy_runner: DeployRunner = run_openclaw_deploy,
     fragment_decision: bool | None = None,
+    skip_bridge: bool = False,
 ) -> OpenClawOnboardReport:
     """Legacy stdin/getpass onboarding wizard (minimal prompts).
 
@@ -1466,8 +1473,12 @@ def run_openclaw_onboard(
         fragment_path=fragment_path if use_fragment else None,
         no_fragment=fragment_path.is_file() and not use_fragment,
         openclaw_bin=openclaw_bin,
+        skip_bridge=skip_bridge,
     )
     report.deploy = deploy_report.to_json_dict()
+    report.phase2_ready = deploy_report.phase2_ready
+    report.plugin_tools = deploy_report.plugin_tools
+    report.bridge = deploy_report.bridge
     if not deploy_report.ok:
         report.error = "OpenClaw deploy wiring failed."
         report.onboarding = _sync_onboarding_state(
@@ -1484,6 +1495,14 @@ def run_openclaw_onboard(
         llm_ready=llm_ready,
         dry_run=dry_run,
     )
+    prereq_ok = bool(skip_bridge or deploy_report.phase2_ready)
+    if not prereq_ok:
+        report.error = (
+            "OpenClaw Phase 2 prerequisites incomplete (plugin/tools + bridge timer + health). "
+            "Fix deploy output or use skip_bridge only as an escape hatch."
+        )
+        return report
+
     report.ok = True
     report.next_action = (
         "Continue inside OpenClaw with the twinbox agent; next conversational stage is "
@@ -1503,6 +1522,7 @@ def run_openclaw_onboard_v2(
     openclaw_bin: str = "openclaw",
     prompter: JourneyPrompter | None = None,
     deploy_runner: DeployRunner | None = None,
+    skip_bridge: bool = False,
     mailbox_apply_runner: MailboxApplyRunner = _apply_mailbox_updates,
     mailbox_validation_timeout_seconds: float = 15.0,
     llm_update_runner: LLMUpdateRunner = _apply_llm_updates,
@@ -2140,8 +2160,12 @@ def run_openclaw_onboard_v2(
             fragment_path=fragment_path if fragment_selected else None,
             no_fragment=fragment_exists and not fragment_selected,
             openclaw_bin=openclaw_bin,
+            skip_bridge=skip_bridge,
         )
         report.deploy = deploy_report.to_json_dict()
+        report.phase2_ready = deploy_report.phase2_ready
+        report.plugin_tools = deploy_report.plugin_tools
+        report.bridge = deploy_report.bridge
         if not deploy_report.ok:
             deploy_progress.fail("OpenClaw deploy wiring failed")
             report.error = "OpenClaw deploy wiring failed."
@@ -2172,7 +2196,8 @@ def run_openclaw_onboard_v2(
             dry_run=dry_run,
         )
         current_stage = report.onboarding.get("current_stage", "unknown")
-        if llm_ready:
+        prereq_ok = bool(skip_bridge or report.phase2_ready)
+        if llm_ready and prereq_ok:
             report.ok = True
             report.next_action = (
                 "Continue inside OpenClaw with the twinbox agent; "
@@ -2193,6 +2218,20 @@ def run_openclaw_onboard_v2(
                 paste_hint_label=_OPENCLAW_PHASE2_HANDOFF_LABEL,
                 paste_hint_quote=_OPENCLAW_PHASE2_DIALOG_BOOTSTRAP,
             )
+            return report
+
+        if llm_ready and not prereq_ok:
+            report.ok = False
+            report.error = (
+                "OpenClaw Phase 2 prerequisites are incomplete (plugin/tools + bridge timer + health check). "
+                "Fix deploy/bridge errors or rerun without --skip-bridge."
+            )
+            prompter.note(
+                "Recovery",
+                report.error,
+                complete=None,
+            )
+            prompter.outro(report.error)
             return report
 
         report.error = "LLM setup is still incomplete."
