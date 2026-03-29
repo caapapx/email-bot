@@ -1,7 +1,7 @@
 # Daemon、Go 薄壳与模组化测试（当前事实）
 
-日期：2026-03-27  
-状态：**以本仓库当前代码为准**；与旧计划/归档文档冲突时，优先本文 + `src/` + `tests/`。
+日期：2026-03-29  
+状态：**以本仓库当前代码为准**；与旧计划/归档文档冲突时，优先本文 + `src/` + `tests/`。**产品向 backlog** 见仓库根 [`ROADMAP.md`](../../ROADMAP.md)。
 
 ## 目的
 
@@ -13,7 +13,7 @@
 |------|------|
 | **Python 常驻 Daemon** | Unix socket + JSON-RPC 2.0（`ping`、`cli_invoke`、`imap_pool_stats`），`twinbox_version`；`logs/daemon.log` 使用 **轮转**（约 10MB×3）；路径在 `$TWINBOX_STATE_ROOT/run/` |
 | **CLI** | `twinbox daemon start\|stop\|status\|restart`；`cli_invoke` 支持 `cache_policy` / `timeout_ms`（见 [rpc-protocol.md](./rpc-protocol.md)） |
-| **Go 薄客户端** | `cmd/twinbox-go/`：RPC 或 `exec` Python；**`twinbox-go install --archive …`** 可从本地 tarball 或 HTTP URL 解压到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/` |
+| **Go 薄客户端** | 源码目录 `cmd/twinbox-go/`：RPC 或 `exec` Python；**交付给用户时默认命令名为 `twinbox`**，因此用 **`twinbox install --archive …`** 从本地 tarball 或 HTTP URL 解压到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/` |
 | **Profile** | `twinbox --profile NAME`：`TWINBOX_STATE_ROOT=~/.twinbox/profiles/NAME/state`，`TWINBOX_HOME=~/.twinbox`（共享 **vendor**） |
 | **Loading 入口** | `twinbox loading phase1|…|phase4` 全部走 Python 入口；`phase1/4` 已迁为 Python 编排，`scripts/phase1_loading.sh` / `scripts/phase4_loading.sh` 仅保留兼容 shim，mail transport 仍走 himalaya CLI |
 | **IMAP 池（可选）** | `TWINBOX_IMAP_POOL=1` 时 preflight 可走 `imaplib` 复用连接；统计经 RPC `imap_pool_stats` |
@@ -25,7 +25,7 @@
 
 ## 显式未包含（仍为 North Star / 后续 PR）
 
-- **Onboard / LSP**、daemon **自动监控重启**、Phase 4 **Go hot path** 重写等。
+- **LSP**、onboard **体验细化**、daemon **自动监控重启**、Phase 4 **Go hot path** 重写等。（**OpenClaw 宿主 `twinbox onboard openclaw` 总向导、单一 `twinbox.json` 等已落地** — 见仓库根 `ROADMAP.md`「已完成」。）
 - **Loading**：phase1/4 编排已迁 Python，但 mailbox transport 仍依赖 himalaya CLI；未改为纯 Python mail transport。
 
 ## 常用命令
@@ -35,9 +35,9 @@ twinbox daemon start
 twinbox daemon status --json
 twinbox --profile work daemon start
 
-./twinbox-go task todo --json
-./twinbox-go install --archive dist/twinbox_core-0.1.0.tar.gz
-./twinbox-go install --archive https://example.com/twinbox_core-0.1.0.tar.gz
+./twinbox task todo --json
+./twinbox install --archive dist/twinbox_core-0.1.0.tar.gz
+./twinbox install --archive https://example.com/twinbox_core-0.1.0.tar.gz
 
 twinbox vendor install
 twinbox vendor status --json
