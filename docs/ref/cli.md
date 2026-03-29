@@ -79,6 +79,7 @@ twinbox                      # task-facing CLI 入口
     set-llm [--provider ... --model ... --api-url ... --json]
     import-llm-from-openclaw [--openclaw-json PATH] [--dry-run] [--json]
     mailbox-set [--email ... --json]
+    set-preferences [--cc-downweight on|off --json]
     integration-set [--use-fragment yes|no --fragment-path PATH --json]
     openclaw-set [--home PATH] [--bin NAME] [...] [--json]
 
@@ -288,7 +289,7 @@ twinbox onboard openclaw [--repo-root PATH] [--openclaw-home PATH] [--dry-run]
 - 成功后的人类可读输出会把宿主接线表述为 **Phase 1 of 2**，并明确提示用户继续在 OpenClaw 的 `twinbox` agent 中完成 **Phase 2 of 2**。
 - `--json` 仍输出低层 report JSON；非 JSON 路径则使用新的 journey shell。
 
-### config show / set-llm / import-llm-from-openclaw / mailbox-set / integration-set / openclaw-set
+### config show / set-llm / import-llm-from-openclaw / mailbox-set / set-preferences / integration-set / openclaw-set
 
 Twinbox 单配置文件入口。所有手动配置都收口到 `state root/twinbox.json`；历史 `.env` 仅在迁移期继续被兼容读取。
 
@@ -299,6 +300,7 @@ twinbox config show --json
 twinbox config set-llm --provider openai --model MODEL --api-url URL --json
 twinbox config import-llm-from-openclaw --json
 TWINBOX_SETUP_IMAP_PASS=<app_password> twinbox config mailbox-set --email you@example.com --json
+twinbox config set-preferences --cc-downweight off --json
 twinbox config integration-set --use-fragment yes --fragment-path /path/to/openclaw.fragment.json --json
 twinbox config openclaw-set --home ~/.openclaw --strict --json
 ```
@@ -309,6 +311,7 @@ twinbox config openclaw-set --home ~/.openclaw --strict --json
 - `config set-llm` 与向导中的 LLM 步骤共享同一份配置；写入后会立即做后端校验。
 - `config import-llm-from-openclaw`：从宿主 `~/.openclaw/openclaw.json`（或 `--openclaw-json`）读取 `agents.defaults.model` 指向的 `models.providers.*`（需明文 `apiKey` 与 `baseUrl`），写入与 `set-llm` 相同的 `.env` 键并校验。`--dry-run` 只打印将应用的 provider/model/url（不落盘）。OpenClaw 使用 SecretRef 而非内联 key 时本命令会失败，请改用 `set-llm`。
 - `config mailbox-set` 与 `mailbox setup` 共享同一份配置；若未显式传 IMAP/SMTP 主机参数，则自动探测。
+- `config set-preferences --cc-downweight on|off` 用于控制 CC/group 线程是否做结构性分数衰减；`off` 时仍保留 `recipient_role` 标签，但不再乘 urgency score。
 - `config integration-set` 用于设置 `fragment_path` 和 `use_fragment` 默认值；`onboard openclaw` 与 `deploy openclaw` 会读取这些默认值。
 - `config openclaw-set` 用于设置 OpenClaw 默认值；`onboard openclaw` 与 `deploy openclaw` 会读取这些默认值。
 
@@ -461,7 +464,7 @@ twinbox onboarding status [--json]
 **用法**：
 
 ```bash
-twinbox onboarding next [--json] [--profile-notes TEXT] [--calibration-notes TEXT]
+twinbox onboarding next [--json] [--profile-notes TEXT] [--calibration-notes TEXT] [--cc-downweight on|off]
 ```
 
 **输出字段**（JSON）：
@@ -475,6 +478,7 @@ twinbox onboarding next [--json] [--profile-notes TEXT] [--calibration-notes TEX
 
 - 当当前阶段为 `profile_setup` 时，可用 `--profile-notes` 保存职位/习惯/偏好摘要到 `runtime/context/human-context.yaml` 的 `profile_notes`
 - 同阶段可用 `--calibration-notes` 保存“关注谁/忽略什么/本周重点”摘要到同文件的 `calibration`
+- 同阶段可用 `--cc-downweight on|off` 写入 `twinbox.json.preferences.cc_downweight.enabled`；`off` 适合大量通过 CC 跟进工作的角色
 - Phase 2/3/4 loading 统一从 `runtime/context/human-context.yaml` 读取；旧的 `manual-facts.yaml` / `manual-habits.yaml` / `instance-calibration-notes.md` / onboarding `profile_data.*` 会在首次读取时自动迁移
 
 **人类可读输出**：
