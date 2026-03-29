@@ -461,7 +461,7 @@ twinbox onboarding status [--json]
 **用法**：
 
 ```bash
-twinbox onboarding next [--json]
+twinbox onboarding next [--json] [--profile-notes TEXT] [--calibration-notes TEXT]
 ```
 
 **输出字段**（JSON）：
@@ -470,6 +470,12 @@ twinbox onboarding next [--json]
 - `current_stage`：推进后的当前阶段（可能为 `completed`）
 - `completed_stages`：已完成阶段列表
 - `prompt`：下一阶段提示文案
+
+**阶段特定写入**：
+
+- 当当前阶段为 `profile_setup` 时，可用 `--profile-notes` 保存职位/习惯/偏好摘要到 `profile_data.notes`
+- 同阶段可用 `--calibration-notes` 保存“关注谁/忽略什么/本周重点”摘要到 `profile_data.calibration`
+- Phase 2/3/4 loading 读取时，`runtime/context/instance-calibration-notes.md` 仍优先；若该文件不存在，再回退到 `profile_data.calibration`
 
 **人类可读输出**：
 
