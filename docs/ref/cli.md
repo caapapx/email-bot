@@ -1346,14 +1346,14 @@ twinbox context refresh
 ## daemon 与可选 Go 入口
 
 - **Python daemon**：`twinbox daemon start|stop|restart|status [--json]`；协议与路径见 [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)。
-- **Go 薄客户端**：仓库 `cmd/twinbox-go/`（构建与 `TWINBOX_DAEMON_SOCKET` 等见该目录 `README.md`）。当前 fallback 已会自动补 `PYTHONPATH` / `TWINBOX_STATE_ROOT` / `TWINBOX_CANONICAL_ROOT`，并在 Python import 前处理 `--profile`，因此可作为 PATH 上替代 `scripts/twinbox` 的单一入口；若走 vendor 模式，会校验 `vendor/MANIFEST.json.twinbox_version` 与 Go 客户端版本一致。
+- **Go 薄客户端**：源码目录仍在 `cmd/twinbox-go/`，但**交付给用户时默认应构建为 `twinbox`**（构建与 `TWINBOX_DAEMON_SOCKET` 等见该目录 `README.md`）。当前 fallback 已会自动补 `PYTHONPATH` / `TWINBOX_STATE_ROOT` / `TWINBOX_CANONICAL_ROOT`，并在 Python import 前处理 `--profile`，因此可作为 PATH 上替代 `scripts/twinbox` 的单一入口；若走 vendor 模式，会校验 `vendor/MANIFEST.json.twinbox_version` 与 Go 客户端版本一致。
 - **模组化模拟邮箱（无 IMAP）**：`python3 -m twinbox_core.modular_mail_sim` 或 `bash scripts/seed_modular_mail_sim.sh`，用于 OpenClaw 对话验收前灌数据。
 
 ## vendor（state-root 下的 Python 包副本）
 
 - **`twinbox vendor install`**：从当前 **code root** 的 `src/twinbox_core/` 复制到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/`，并写入 `vendor/MANIFEST.json`（`--dry-run` 仅打印路径；`--json` 输出结构化结果）。
 - **`twinbox vendor status`**：是否已安装、`MANIFEST` 摘要、`.py` 文件数量等（`--json`）。
-- **`twinbox-go install --archive …`**：也会写 `vendor/MANIFEST.json`，供 Go fallback 做 `twinbox_version` attestation。
+- **`twinbox install --archive …`**：也会写 `vendor/MANIFEST.json`，供 Go fallback 做 `twinbox_version` attestation。若你手工把二进制命名为 `twinbox-go`，子命令形状保持不变。
 - 不改变默认 `resolve_code_root` / `resolve_state_root`；宿主使用方式见 [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)。实现：`twinbox_core.vendor_sync`、`task_cli_vendor.py`。
 
 ## 参考文档

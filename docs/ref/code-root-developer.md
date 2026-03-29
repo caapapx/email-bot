@@ -5,7 +5,7 @@ Twinbox 将 **安装/源码树**（code root）与 **用户数据**（state root
 ## 谁需要 code root
 
 - **仓库内开发**：当前目录或配置的 code root 指向本仓库；`resolve_code_root` 解析到含 `src/twinbox_core` 的树。
-- **仅宿主 / OpenClaw**：可在只配置 state root + `twinbox vendor install` 或 Go `twinbox-go install` 解压 vendor 后，用 `PYTHONPATH=$TWINBOX_HOME/vendor` 运行；**不必**在网关上保留 git 仓库。
+- **仅宿主 / OpenClaw**：可在只配置 state root + `twinbox vendor install` 或 Go 交付物 `twinbox install` 解压 vendor 后，用 `PYTHONPATH=$TWINBOX_HOME/vendor` 运行；**不必**在网关上保留 git 仓库。源码目录仍是 `cmd/twinbox-go/`。
 
 ## 与 profile 的关系
 
