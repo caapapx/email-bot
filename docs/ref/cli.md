@@ -473,9 +473,9 @@ twinbox onboarding next [--json] [--profile-notes TEXT] [--calibration-notes TEX
 
 **阶段特定写入**：
 
-- 当当前阶段为 `profile_setup` 时，可用 `--profile-notes` 保存职位/习惯/偏好摘要到 `profile_data.notes`
-- 同阶段可用 `--calibration-notes` 保存“关注谁/忽略什么/本周重点”摘要到 `profile_data.calibration`
-- Phase 2/3/4 loading 读取时，`runtime/context/instance-calibration-notes.md` 仍优先；若该文件不存在，再回退到 `profile_data.calibration`
+- 当当前阶段为 `profile_setup` 时，可用 `--profile-notes` 保存职位/习惯/偏好摘要到 `runtime/context/human-context.yaml` 的 `profile_notes`
+- 同阶段可用 `--calibration-notes` 保存“关注谁/忽略什么/本周重点”摘要到同文件的 `calibration`
+- Phase 2/3/4 loading 统一从 `runtime/context/human-context.yaml` 读取；旧的 `manual-facts.yaml` / `manual-habits.yaml` / `instance-calibration-notes.md` / onboarding `profile_data.*` 会在首次读取时自动迁移
 
 **人类可读输出**：
 
@@ -1180,7 +1180,7 @@ twinbox context upsert-fact --id ID --type TYPE --content CONTENT [--source SRC]
 
 ```text
 已添加事实: customer-tier
-保存到: runtime/context/manual-facts.yaml
+保存到: runtime/context/human-context.yaml
 ```
 
 > 注：当前不支持 `--json` 输出。

@@ -509,8 +509,7 @@ twinbox/
     ├── context/
     │   ├── material-manifest.json
     │   ├── material-extracts/
-    │   ├── manual-habits.yaml
-    │   ├── manual-facts.yaml
+    │   ├── human-context.yaml
     │   └── context-pack.json
     ├── himalaya/
     ├── validation/
