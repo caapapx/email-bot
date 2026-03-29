@@ -1013,12 +1013,15 @@ twinbox digest weekly [--json]
 
 - 文本模式输出为 Markdown
 - 周报文本模式会补全 `material_summary`、`flow_summary`、`top_actions`、`action_now`、`backlog`、`important_changes`、`rhythm_observation`
+- `digest weekly` 当前表示“当前周视图快照”，基于当前邮箱状态生成，不是本周 daily 的自动累计
 - 稳定集成或下游消费请使用 `--json`
 
 **输出**（文本模式）：
 
 ```markdown
 # 每周简报
+
+> 当前周视图快照：基于当前邮箱状态生成，不是本周 daily 的自动累计。
 
 ## Overview
 
