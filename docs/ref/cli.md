@@ -1092,6 +1092,13 @@ twinbox context import-material SOURCE [--intent INTENT]
   - `reference`：参考数据，用于排序和判断提示；如标记为 synthetic 会隔离到 material_summary
   - `template_hint`：输出格式参考，LLM 会按类似结构组织相关数据；忽略 synthetic 标记
 
+**标准路径**：
+
+- 会议纪要、项目台账、外部 CSV/XLSX/Markdown 等需要进入周报的材料，统一走 `twinbox context import-material FILE --intent reference`
+- 导入后重新运行 `twinbox-orchestrate run --phase 4` 或常规调度，Phase 4 会把抽取内容合并进 `human_context.material_extracts_notes`
+- `digest weekly` 的 `material_summary`、`action_now`、`backlog` 会基于这些 reference 材料和当前邮件线程一起生成
+- 如果材料只是“周报模板长什么样”的提示，不是业务事实，请改用 `--intent template_hint`
+
 **输出**：
 
 ```text
@@ -1101,6 +1108,14 @@ twinbox context import-material SOURCE [--intent INTENT]
 ```
 
 对 `.csv`、`.xlsx` / `.xlsm`、`.docx`、`.pptx`、`.md`、`.txt` 会额外生成同目录下的 `*.extracted.md`（表格转 Markdown 表，Office 为 OOXML 内文本抽取）。`twinbox-orchestrate run --phase 4` 的 context-pack 会将这些抽取合并进 `human_context.material_extracts_notes`。旧版 `.doc` / `.ppt` 需先另存为 `.docx` / `.pptx`；`.xlsx` 需安装 `openpyxl`。
+
+**周报示例**：
+
+```bash
+twinbox context import-material weekly-notes.md --intent reference
+twinbox-orchestrate run --phase 4
+twinbox digest weekly
+```
 
 > 注：当前不支持 `--json` 输出。
 
