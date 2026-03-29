@@ -1016,33 +1016,38 @@ twinbox digest weekly [--json]
 **说明**：
 
 - 文本模式输出为 Markdown
-- 周报文本模式会补全 `material_summary`、`flow_summary`、`top_actions`、`action_now`、`backlog`、`important_changes`、`rhythm_observation`
+- 周报文本模式按 `config/weekly-template.md` 的默认章节渲染；如存在最新导入的 `template_hint` 材料，则优先采用该模板的标题和章节顺序
+- 默认模板会把 `flow_summary` + `action_now` 合并到“本周完成”，`important_changes` + `sla_risks` 合并到“遇到的问题”，`backlog` 映射到“下周计划”，`rhythm_observation` 映射到“本周节奏”
 - `digest weekly` 当前表示“当前周视图快照”，基于当前邮箱状态生成，不是本周 daily 的自动累计
 - 稳定集成或下游消费请使用 `--json`
 
 **输出**（文本模式）：
 
 ```markdown
-# 每周简报
+# 周报 · 2026-03-18 ~ 2026-03-24
 
 > 当前周视图快照：基于当前邮箱状态生成，不是本周 daily 的自动累计。
 
-## Overview
+- 窗口周期: 2026-03-18 ~ 2026-03-24
+- 窗口线程数: 12
 
-- Period: 2026-03-18 ~ 2026-03-24
-- Total threads in window: 12
+## 本周完成
 
-## Action Now
-
+- [部署] 3 条线程: 审批链条仍是主要阻塞
 - [deploy] thread-abc123: 回复审批意见 (今天要确认)
 
-## Backlog
+## 遇到的问题
+
+- thread-mno345: 需求已确认 -> 可进入部署
+- thread-risk-001: 客户还未确认部署窗口 (waiting_on=customer, 5d)
+
+## 下周计划
 
 - [support] thread-ghi789: 周三前追问供应商 (仍需跟进)
 
-## Important Changes
+## 本周节奏
 
-- thread-mno345: 需求已确认 -> 可进入部署
+本周上午审批类线程明显增多。
 ```
 
 **输出**（JSON 模式）：
@@ -1098,6 +1103,7 @@ twinbox context import-material SOURCE [--intent INTENT]
 - 导入后重新运行 `twinbox-orchestrate run --phase 4` 或常规调度，Phase 4 会把抽取内容合并进 `human_context.material_extracts_notes`
 - `digest weekly` 的 `material_summary`、`action_now`、`backlog` 会基于这些 reference 材料和当前邮件线程一起生成
 - 如果材料只是“周报模板长什么样”的提示，不是业务事实，请改用 `--intent template_hint`
+- 默认模板文件位于 `config/weekly-template.md`；用户想改周报标题、章节顺序或措辞时，可让 agent 基于自然语言生成 Markdown 模板后用 `--intent template_hint` 导入
 
 **输出**：
 
