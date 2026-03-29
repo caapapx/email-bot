@@ -1018,6 +1018,7 @@ twinbox digest weekly [--json]
 - 文本模式输出为 Markdown
 - 周报文本模式按 `config/weekly-template.md` 的默认章节渲染；如存在最新导入的 `template_hint` 材料，则优先采用该模板的标题和章节顺序
 - 默认模板会把 `flow_summary` + `action_now` 合并到“本周完成”，`important_changes` + `sla_risks` 合并到“遇到的问题”，`backlog` 映射到“下周计划”，`rhythm_observation` 映射到“本周节奏”
+- 若 `runtime/validation/phase-4/daily-ledger/` 内已有本周 daily snapshots，weekly 的 `important_changes` 会补回“本周早些时候进入行动面、当前已退出”的线程轨迹
 - `digest weekly` 当前表示“当前周视图快照”，基于当前邮箱状态生成，不是本周 daily 的自动累计
 - 稳定集成或下游消费请使用 `--json`
 
