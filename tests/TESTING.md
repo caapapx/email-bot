@@ -46,6 +46,19 @@ tests/test_task_cli.py::TestActionCard::test_risk_boundary_80_is_high ... PASSED
 python3 -m pytest tests/test_task_cli.py -v
 ```
 
+如果你这次改的是 daemon / vendor / Go 入口这一整片运行时，也可以直接跑仓库里整理好的验证脚本：
+
+```bash
+bash scripts/verify_runtime_slice.sh
+```
+
+先看它会跑哪些检查：
+
+```bash
+bash scripts/verify_runtime_slice.sh --list
+bash scripts/verify_runtime_slice.sh --dry-run
+```
+
 ---
 
 ## 第四步：只跑某一个测试
