@@ -87,7 +87,7 @@ twinbox                      # task-facing CLI 入口
     openclaw [--rollback] [--strict] [--fragment PATH] [--no-fragment] [--remove-config] [--dry-run] [--json] ...
 
   daemon                     # 后台 JSON-RPC（Unix socket；省 Python 冷启动）
-    start | stop | restart | status [--json]
+    start [--supervise] | stop | restart [--supervise] | status [--json]
 
   vendor                     # 将 src/twinbox_core 同步到 $TWINBOX_STATE_ROOT/vendor
     install [--dry-run] [--json]
@@ -1345,7 +1345,7 @@ twinbox context refresh
 
 ## daemon 与可选 Go 入口
 
-- **Python daemon**：`twinbox daemon start|stop|restart|status [--json]`；协议与路径见 [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)。
+- **Python daemon**：`twinbox daemon start|stop|restart|status [--json]`；若希望 daemon 异常退出后自动拉起，可用 `twinbox daemon start --supervise` 或 `twinbox daemon restart --supervise`。`status --json` 在 supervised 模式下会额外返回 `supervised` / `supervisor_pid`。协议与路径见 [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)。
 - **Go 薄客户端**：源码目录仍在 `cmd/twinbox-go/`，但**交付给用户时默认应构建为 `twinbox`**（构建与 `TWINBOX_DAEMON_SOCKET` 等见该目录 `README.md`）。当前 fallback 已会自动补 `PYTHONPATH` / `TWINBOX_STATE_ROOT` / `TWINBOX_CANONICAL_ROOT`，并在 Python import 前处理 `--profile`，因此可作为 PATH 上替代 `scripts/twinbox` 的单一入口；若走 vendor 模式，会校验 `vendor/MANIFEST.json.twinbox_version` 与 Go 客户端版本一致。
 - **模组化模拟邮箱（无 IMAP）**：`python3 -m twinbox_core.modular_mail_sim` 或 `bash scripts/seed_modular_mail_sim.sh`，用于 OpenClaw 对话验收前灌数据。
 
