@@ -1346,7 +1346,7 @@ twinbox context refresh
 ## daemon 与可选 Go 入口
 
 - **Python daemon**：`twinbox daemon start|stop|restart|status [--json]`；协议与路径见 [daemon-and-runtime-slice.md](./daemon-and-runtime-slice.md)。
-- **Go 薄客户端**：仓库 `cmd/twinbox-go/`（构建与 `TWINBOX_DAEMON_SOCKET` 等见该目录 `README.md`）。
+- **Go 薄客户端**：仓库 `cmd/twinbox-go/`（构建与 `TWINBOX_DAEMON_SOCKET` 等见该目录 `README.md`）。当前 fallback 已会自动补 `PYTHONPATH` / `TWINBOX_STATE_ROOT` / `TWINBOX_CANONICAL_ROOT`，并在 Python import 前处理 `--profile`，因此可作为 PATH 上替代 `scripts/twinbox` 的单一入口。
 - **模组化模拟邮箱（无 IMAP）**：`python3 -m twinbox_core.modular_mail_sim` 或 `bash scripts/seed_modular_mail_sim.sh`，用于 OpenClaw 对话验收前灌数据。
 
 ## vendor（state-root 下的 Python 包副本）
