@@ -85,6 +85,8 @@ scripts/twinbox_openclaw_bridge.sh \
 scripts/twinbox_openclaw_bridge_poll.sh --format json
 ```
 
+**Vendor / 无仓库 checkout**：生产推荐 `twinbox host bridge poll --format json`（systemd unit 直接调用已安装 `twinbox`，不依赖 `scripts/` 下的 poll wrapper）。
+
 ## Phase Surface
 
 | Phase | 依赖 | Loading | Thinking | 关键产物 |
@@ -105,7 +107,7 @@ scripts/twinbox_openclaw_bridge_poll.sh --format json
 
 - CLI -> shell -> Python core
 - Host service / OpenClaw system-event -> `scripts/twinbox_openclaw_bridge.sh` -> `twinbox-orchestrate bridge --event-text ...` -> `twinbox-orchestrate schedule --job ...`
-- User-level host poller -> `scripts/twinbox_openclaw_bridge_poll.sh` -> `twinbox-orchestrate bridge-poll` -> `gateway call cron.list` / `cron.runs` -> `bridge` -> `schedule`
+- User-level host poller -> `twinbox host bridge poll`（或开发机：`scripts/twinbox_openclaw_bridge_poll.sh`）-> `twinbox-orchestrate bridge-poll` -> `gateway call cron.list` / `cron.runs` -> `bridge` -> `schedule`
 
 根路径约束：
 
@@ -130,13 +132,13 @@ scripts/twinbox_openclaw_bridge_poll.sh --format json
 - 归档策略：默认归档 `nightly-full`、`friday-weekly`、以及所有失败运行到 `runtime/archive/phase-4/`
 - `daytime-sync` 现在覆盖了数据拉取、recipient-role 解析、线程聚合与 Phase 4 打分（serial 模式），保证日内 `twinbox task todo` 可见最新的 [CC]/[GRP] 状态
 - `daytime-sync` 成功后会刷新 `activity-pulse`，并更新去重状态，保证“同线程无新邮件且无状态变化则不重复推送”
-- `daytime-sync` 成功且存在启用订阅时，会自动触发一次 push dispatcher（`openclaw sessions send`），并把分发结果写入 `schedule` 返回载荷与 `runtime/audit/schedule-runs.jsonl` 的 `push_dispatch` 字段
+- `daytime-sync` 成功且存在 **启用 daily cadence** 的订阅时，会触发 **daily** push dispatcher（`openclaw sessions send`），结果写入 `schedule` 返回载荷与 `runtime/audit/schedule-runs.jsonl` 的 `push_dispatch` 字段（`cadence: daily`）
+- `friday-weekly` 成功且存在 **启用 weekly cadence** 的订阅时，会触发 **weekly** push（完整 `weekly-brief.md`），结果写入同一审计日志的 `push_dispatch_weekly`（按 `run_id` 去重）
+- `twinbox push subscribe/configure` 会按订阅聚合 enable/disable `daily-refresh` 与 `weekly-refresh`（schedule ownership），避免误关其他 session 仍需要的 cron
 - `bridge` 当前支持两种事件文本：JSON `{"kind":"twinbox.schedule","job":"daytime-sync"}`，或紧凑文本 `twinbox.schedule:daytime-sync`
 - `bridge-poll` 通过 OpenClaw Gateway 的 `cron.list` / `cron.runs` 公开 RPC 轮询新完成的 `systemEvent` 运行记录，并用 `jobId|runAtMs|ts` 做用户态宿主侧去重
 - OpenClaw 平台当前没有“直接执行宿主命令”的现成入口；因此宿主适配层要么显式拿到事件文本走 `bridge`，要么定时轮询 `cron.runs` 走 `bridge-poll`
-- 推荐安装方式是用户态 systemd：
-  - `openclaw gateway install --force`
-  - `bash scripts/install_openclaw_bridge_user_units.sh`
+- 推荐安装方式是用户态 systemd：`twinbox host bridge install`（`onboard openclaw` / `deploy openclaw` 默认执行）。兼容旧路径：`bash scripts/install_openclaw_bridge_user_units.sh`（依赖仓库 checkout）
 - 线程去重语义属于 `daytime-sync` / `activity-pulse`，不是 `bridge-poll` 本身：
   - `bridge-poll` 负责避免同一 `cron run` 被重复消费
   - `activity-pulse` 负责避免同一线程在 `fingerprint` 未变化时重复进入通知载荷

@@ -11,9 +11,9 @@
 架构文档将入口分为两类，**不能互相替代**：
 
 - **用户态初始化**：邮箱探测、画像、材料、路由规则、推送订阅等，通过**对话式渐进流程**完成，写入标准化 context / profile / rule / subscription 状态（同一 **state root**）。
-- **宿主态部署**：OpenClaw skill 文件同步、Gateway reload、`skills.entries.twinbox.env`、可选 bridge / poller / systemd，属于**宿主执行面**，不能假设仅靠渠道消息框自动闭环。
+- **宿主态部署**：OpenClaw skill 文件同步、Gateway reload、`skills.entries.twinbox.env`、**默认** vendor-safe bridge user timer + health，属于**宿主执行面**，不能假设仅靠渠道消息框自动闭环。
 
-因此：**操作文档 §3 前几步是「接线」；`twinbox onboard openclaw` 负责把这些宿主步骤串成默认路径；§3.8 起仍是「在已接线的 agent 里引导用户完成配置」**。
+因此：**操作文档 §3 前几步是「接线」；`twinbox onboard openclaw` 负责把宿主步骤（含 bridge）串成默认路径；仅当 JSON 报告中 `phase2_ready=true`（或显式 `--skip-bridge`）时才应进入 §3.8 起的对话 onboarding**。
 
 ---
 
@@ -21,9 +21,9 @@
 
 | 层次 | 做什么 | 谁触发 | 典型入口 |
 |------|--------|--------|----------|
-| **宿主态接线** | OpenClaw 安装、Twinbox CLI、`code-root` / `state-root`、安装根 SKILL.md、`skills.entries.twinbox.env`、Gateway 重启、可选 bridge/timer | 运维 / 你在 shell | `twinbox onboard openclaw`（默认总向导）或 `twinbox deploy openclaw`（高级入口）；操作文档 §3.1–§3.5、§3.9 |
-| **用户态对话引导** | 在 `twinbox` agent 会话中，由模型按 SKILL.md 调用 CLI，分阶段完成邮箱、画像、材料、路由、推送订阅 | 用户与 agent 多轮对话 | `twinbox onboarding start \| status \| next --json`，辅以 `mailbox detect`、`task mailbox-status` 等 |
-| **后台刷新与推送** | 长耗时 phase 流水线**不占用**聊天 turn；由宿主机调度驱动 `twinbox-orchestrate schedule --job …`；`daytime-sync` 成功且存在启用订阅时可触发推送分发 | systemd timer、或 OpenClaw `cron` → 宿主消费 | [orchestration.md](./orchestration.md)（`daytime-sync`、`push_dispatch`、`bridge` / `bridge-poll`） |
+| **宿主态接线** | OpenClaw 安装、Twinbox CLI、`code-root` / `state-root`、安装根 SKILL.md、`skills.entries.twinbox.env`、Gateway 重启、**默认 bridge/timer + health** | 运维 / 你在 shell | `twinbox onboard openclaw`（默认总向导）或 `twinbox deploy openclaw`（高级入口；`--skip-bridge` 为逃生口）；操作文档 §3.1–§3.5、§3.9 |
+| **用户态对话引导** | 在 `twinbox` agent 会话中，由模型按 SKILL.md 调用 CLI / 原生插件工具，分阶段完成邮箱、画像、材料、路由、推送订阅 | 用户与 agent 多轮对话 | 推荐插件 `twinbox_onboarding_*`；shell 仍可用 `twinbox onboarding start \| status \| next --json` |
+| **后台刷新与推送** | 长耗时 phase 流水线**不占用**聊天 turn；由宿主机调度驱动 `twinbox-orchestrate schedule --job …`；`daytime-sync` / `friday-weekly` 成功且存在对应 cadence 订阅时触发推送 | systemd timer、或 OpenClaw `cron` → `twinbox host bridge poll` | [orchestration.md](./orchestration.md)（`push_dispatch`、`push_dispatch_weekly`、`bridge-poll`） |
 
 ---
 
@@ -39,7 +39,7 @@ flowchart LR
   subgraph host["宿主机"]
     CLI["twinbox / twinbox-orchestrate"]
     SR["state root\nruntime/…"]
-    BR["bridge.sh /\nbridge_poll.sh /\nuser systemd"]
+    BR["twinbox host bridge poll /\nuser systemd"]
   end
   U((用户)) --> AG
   AG -->|"exec CLI"| CLI
@@ -55,7 +55,7 @@ flowchart LR
 
 - **对话引导路径**：`用户 ↔ twinbox agent →（工具/exec）twinbox … → state root`。
 - **后台路径**：OpenClaw 没有「直接在宿主跑 twinbox」的一等入口；宿主侧需显式用 `bridge` 或 `bridge-poll` 再调用 `twinbox-orchestrate schedule`。
-- **`push_dispatch`**：`daytime-sync` 成功且存在启用订阅时，编排层触发推送分发（`openclaw sessions send`），结果写入 `runtime/audit/schedule-runs.jsonl`。与「用户在聊天里订阅」（`twinbox push subscribe SESSION_ID`）是前后衔接关系。
+- **`push_dispatch` / `push_dispatch_weekly`**：`daytime-sync` 触发 **daily**（行动面，urgent+pending）；`friday-weekly` 触发 **weekly**（完整 `weekly-brief.md`，`run_id` 去重）。订阅支持 `daily` / `weekly` 独立开关与 schedule ownership（见 `twinbox push configure`）。
 
 ---
 
@@ -63,7 +63,7 @@ flowchart LR
 
 1. **接线完成前**：不要指望在聊天里完成 `cp SKILL.md`、`openclaw.json` 编辑或 systemd 安装。
 2. **接线完成后**：在 `twinbox` agent、且 skill 已注入当前会话后，走 onboarding 流程（`onboarding start` → 多轮对话 → `onboarding next` 直到 `completed`）；`twinbox onboard openclaw` 只负责把宿主步骤与这个对话阶段交接起来，不替代业务信息采集本身。
-3. **需要定时刷新时**：启用宿主调度（bridge + systemd timer），使 `daytime-sync` 等 job 按钟点运行。
+3. **需要定时刷新时**：`onboard`/`deploy` 默认安装 bridge timer；再按需 `twinbox schedule enable/update` 同步 OpenClaw cron。
 4. **日常只读查询**：在 `twinbox` agent 用显式 `twinbox task …` 或插件工具，不要把长 `twinbox-orchestrate run` 塞进普通聊天 turn。
 
 ---
@@ -81,7 +81,7 @@ flowchart LR
 | # | 问题 | 若选「是」通常意味着 |
 |---|------|----------------------|
 | 1 | 是否需要**日内多次**刷新 Phase 4 产物？ | 必须落实宿主调度（§3.9），不能只依赖用户手动在聊天里跑 orchestrate。 |
-| 2 | 推送是否要**稳定到达**某一 OpenClaw session？ | 对话阶段完成 `push subscribe` + 后台 `daytime-sync` 成功；核对 [orchestration.md](./orchestration.md) 与审计日志。 |
+| 2 | 推送是否要**稳定到达**某一 OpenClaw session？ | 对话阶段完成 `twinbox_onboarding_confirm_push`（或 `push subscribe`）+ bridge timer 健康 + 后台 job 成功；核对 [orchestration.md](./orchestration.md) 与审计日志。 |
 | 3 | 团队是否多人使用同一 state root？ | 共享单一 `state root`；调度去重见 orchestration 中 `schedule.lock` 与 `activity-pulse` 说明。 |
 | 4 | 是否允许依赖 OpenClaw**自动消费** skill schedule metadata？ | 当前仍属**待验/未见正面证据**；生产路径以 **bridge + 显式 cron** 为准。 |
 

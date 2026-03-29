@@ -9,6 +9,8 @@
 
 注意：截至 2026-03-26，本机 OpenClaw 仍没有“自动消费 skill schedule metadata 并注册 job”的实测证据。当前已跑通的最小闭环是 `openclaw cron -> system-event -> 宿主 bridge/poller -> twinbox-orchestrate schedule --job ...`。因此本文档目前应读作“Twinbox 默认 schedule 配置 + bridge cron 集成说明”，不是平台已完全接通的事实说明。
 
+**Push 与 schedule ownership（2026-03-29）**：`twinbox push subscribe/configure` 在 **daily / weekly** cadence 维度上聚合需求：只要仍有任一订阅需要 `daily-refresh`（或 `weekly-refresh`），对应 Twinbox↔OpenClaw cron 同步路径就应保持启用；关闭单个 session 的某一 cadence 不应误关其他 session 仍依赖的 job。首次开启 **daily** push 且无既有 `daily-refresh` runtime override 时，Twinbox 会尝试写入 **hourly** override（`0 * * * *`）以匹配“日内多次刷新”产品默认。
+
 **核心原则**：
 
 - `config/schedules.yaml` 是 Twinbox 默认 schedule 配置的 source of truth
