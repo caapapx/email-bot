@@ -817,6 +817,11 @@ twinbox thread progress QUERY [--limit 5] [--json]
 twinbox digest daily [--json]
 ```
 
+**说明**：
+
+- 文本模式输出为 Markdown（`#` / `##` / `-`），便于直接贴给人看
+- 稳定集成或下游消费请使用 `--json`
+
 ### digest pulse
 
 显示小时级日内脉冲，用于“今天发生了什么 / 哪些线程有推进 / 哪些待我跟进”的最小推送载荷。
@@ -830,6 +835,11 @@ twinbox digest pulse [--json]
 **参数**：
 
 - `--json`：输出 JSON 格式
+
+**说明**：
+
+- 文本模式输出为 Markdown（概览 + 分节列表）
+- 稳定集成或下游消费请使用 `--json`
 
 **实现映射**：
 
@@ -999,23 +1009,33 @@ twinbox digest weekly [--json]
 
 - `--json`：输出 JSON 格式
 
+**说明**：
+
+- 文本模式输出为 Markdown
+- 周报文本模式会补全 `material_summary`、`flow_summary`、`top_actions`、`action_now`、`backlog`、`important_changes`、`rhythm_observation`
+- 稳定集成或下游消费请使用 `--json`
+
 **输出**（文本模式）：
 
-```text
-Weekly Brief (2026-03-23T09:00:00Z)
+```markdown
+# 每周简报
 
-Action now (必须今天/下周一前处理):
-- thread-abc123: Customer escalation, no response in 48h
-- thread-def456: ...
+## Overview
 
-Backlog (仍待处理但不紧急):
-- thread-ghi789: ...
-- ...
+- Period: 2026-03-18 ~ 2026-03-24
+- Total threads in window: 12
 
-Important changes this week:
-- 3 new escalations
-- 5 threads closed
-- 2 threads moved to monitor_only
+## Action Now
+
+- [deploy] thread-abc123: 回复审批意见 (今天要确认)
+
+## Backlog
+
+- [support] thread-ghi789: 周三前追问供应商 (仍需跟进)
+
+## Important Changes
+
+- thread-mno345: 需求已确认 -> 可进入部署
 ```
 
 **输出**（JSON 模式）：
