@@ -1673,7 +1673,8 @@ def run_openclaw_onboard(
                         "Recovery",
                         (
                             f"LLM validation timed out after {llm_validation_timeout_seconds:.1f}s. "
-                            "Check the endpoint or try again — or skip for now (pipeline stays incomplete until configured)."
+                            "The credentials were saved to twinbox.json — you can skip for now and sync will retry once the endpoint is reachable. "
+                            "Or try again if you want to confirm connectivity before proceeding."
                         ),
                         complete=None,
                     )
@@ -1706,9 +1707,11 @@ def run_openclaw_onboard(
                     "Recovery",
                     (
                         f"{err_detail}\n\n"
+                        "The credentials were saved to twinbox.json even though the API call failed — "
+                        "you can skip for now and the pipeline will use them on the next run.\n\n"
                         "OpenAI-compatible bases such as https://…/v2 only need the base URL; Twinbox appends /chat/completions. "
                         "If you still see 401, confirm the API key matches the console (often `appid:secret` as one token) with no extra text.\n\n"
-                        "Choose LLM setup again, or skip for now (host wiring can continue without a validated LLM)."
+                        "Choose LLM setup again to retry, or skip for now."
                     ),
                     complete=None,
                 )
