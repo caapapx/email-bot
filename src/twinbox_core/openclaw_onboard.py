@@ -22,7 +22,7 @@ from .mail_env_contract import missing_required_mail_values
 from .onboarding import STAGE_ORDER, load_state, save_state
 from .openclaw_deploy import run_openclaw_deploy
 from .openclaw_deploy_types import OpenClawDeployReport
-from .openclaw_json_io import default_openclaw_fragment_path
+from .openclaw_json_io import default_openclaw_fragment_path, resolve_integration_fragment_path
 from .openclaw_llm_import import OpenClawLlmImportError, import_llm_from_openclaw_path
 from .paths import PathResolutionError, resolve_code_root, resolve_state_root
 from .twinbox_config import (
@@ -1448,7 +1448,7 @@ def run_openclaw_onboard(
             "url": backend.url,
         }
 
-    fragment_path = Path(str(integration_defaults.get("fragment_path", ""))).expanduser() if integration_defaults.get("fragment_path") else default_openclaw_fragment_path(resolved_code_root)
+    fragment_path = resolve_integration_fragment_path(resolved_code_root, integration_defaults)
     use_fragment = False
     if fragment_path.is_file():
         if fragment_decision is None:
@@ -1584,7 +1584,7 @@ def run_openclaw_onboard_v2(
 
         env_file = state_root / ".env"
         dotenv = load_env_file(env_file)
-        fragment_path = Path(str(integration_defaults.get("fragment_path", ""))).expanduser() if integration_defaults.get("fragment_path") else default_openclaw_fragment_path(resolved_code_root)
+        fragment_path = resolve_integration_fragment_path(resolved_code_root, integration_defaults)
         fragment_exists = fragment_path.is_file()
 
         prompter.intro("")
@@ -2097,7 +2097,7 @@ def run_openclaw_onboard_v2(
                         {"value": "yes", "label": "Yes (Recommended)", "selected_glyph": "●", "unselected_glyph": "○"},
                         {"value": "no", "label": "No", "selected_glyph": "●", "unselected_glyph": "○"},
                     ],
-                    default="yes" if integration_defaults.get("use_fragment", True) else "no",
+                    default=None,
                     layout="horizontal",
                 )
                 == "yes"
