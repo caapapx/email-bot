@@ -42,7 +42,7 @@ _README_WORDMARK_TAGLINE = (
 _OPENCLAW_ONBOARD_LOBSTER_MARK = "🦞 OpenClaw"
 
 # Phase-2 dialog onboarding in the twinbox agent (not another deploy). Matches
-# openclaw-skill/DEPLOY.md §3.8 bootstrap: read full SKILL.md, then onboarding start.
+# integrations/openclaw/DEPLOY.md §3.8 bootstrap: read full SKILL.md, then onboarding start.
 _OPENCLAW_PHASE2_DIALOG_BOOTSTRAP = (
     "Read ~/.openclaw/skills/twinbox/SKILL.md, then run twinbox onboarding start --json, and follow the prompt."
 )
@@ -2081,7 +2081,7 @@ def run_openclaw_onboard_v2(
             integration_lines += [
                 "",
                 "Status: not found — there is nothing to merge, so the Yes/No step is skipped (this is normal in that situation).",
-                "How to get the file: run scripts/package_vendor_tarball.sh (or use a release tarball) so vendor/openclaw-skill/ exists; "
+                "How to get the file: run scripts/package_vendor_tarball.sh (or use a release tarball) so vendor/integrations/openclaw/ exists; "
                 "twinbox install --archive also writes ~/.config/twinbox/code-root to that vendor directory. "
                 "For development, point TWINBOX_CODE_ROOT at a git checkout instead.",
             ]

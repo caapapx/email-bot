@@ -1,7 +1,7 @@
 # Twinbox × OpenClaw 部署模型
 
 > **本文面向理解设计**：三层分工、数据流、交付形态选型、部署前决策清单。
-> 操作步骤见 [openclaw-skill/DEPLOY.md](../../openclaw-skill/DEPLOY.md)。
+> 操作步骤见 [integrations/openclaw/DEPLOY.md](../../integrations/openclaw/DEPLOY.md)。
 > 权威架构表述见 [architecture.md](./architecture.md)；编排边界见 [orchestration.md](./orchestration.md)。
 
 ---
@@ -72,7 +72,7 @@ flowchart LR
 
 - 对话引导**不能**代替宿主接线（无法仅靠聊天写入 `~/.openclaw/openclaw.json` 或替你执行 `cp SKILL.md`）。
 - 一旦托管侧 env 与 skill 就绪，**推荐**把 Twinbox 用户配置主路径放在 OpenClaw 对话里走 onboarding，而非要求用户 SSH 手改文件。
-- `openclaw skills info twinbox` 显示 `Ready` **不等于**当前会话 prompt 已包含 `twinbox`（见 [TROUBLESHOOT.md §1](../../openclaw-skill/TROUBLESHOOT.md)）。
+- `openclaw skills info twinbox` 显示 `Ready` **不等于**当前会话 prompt 已包含 `twinbox`（见 [TROUBLESHOOT.md §1](../../integrations/openclaw/TROUBLESHOOT.md)）。
 
 ---
 
@@ -95,8 +95,8 @@ flowchart LR
 | 插件 `registerTool` | 稳定 schema、确定性任务 | **按需**（见操作文档 §3.5） |
 
 - **方案 A：直接使用仓库根**：适合自托管与快速迭代；根 SKILL.md 即 manifest。
-- **方案 B：从 `openclaw-skill/` 导出独立包**：适合版本化发布；需额外维护导出流程（仓库内尚未定型）。
+- **方案 B：从 `integrations/openclaw/` 导出独立包**：适合版本化发布；需额外维护导出流程（仓库内尚未定型）。
 
 ---
 
-**文档版本**：本文为设计模型；操作主路径见 [openclaw-skill/DEPLOY.md](../../openclaw-skill/DEPLOY.md)。
+**文档版本**：本文为设计模型；操作主路径见 [integrations/openclaw/DEPLOY.md](../../integrations/openclaw/DEPLOY.md)。

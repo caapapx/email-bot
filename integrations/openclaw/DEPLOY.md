@@ -12,7 +12,7 @@
 **覆盖**：Twinbox 作为 OpenClaw 托管 Markdown skill（及可选插件工具）的安装路径、`openclaw.json` 配置、roots 初始化、验证与常见误判。
 **不覆盖**：OpenClaw 本体安装与升级（以 [docs.openclaw.ai](https://docs.openclaw.ai) 为准）；Claude Code / Opencode 本地 `.claude/` skill。
 
-**路径约定**：文中 `bash scripts/...` 默认在 **Twinbox 仓库根目录** 执行。若在 `openclaw-skill/` 下，请用 `bash ../scripts/...`。
+**路径约定**：文中 `bash scripts/...` 默认在 **Twinbox 仓库根目录** 执行。若在 `integrations/openclaw/` 子目录下，请用 `bash ../../scripts/...`。
 
 ---
 
@@ -157,11 +157,11 @@ twinbox deploy openclaw --json
 
 需要把 **插件**、`twinboxBin` 绝对路径等一并写入宿主 `~/.openclaw/openclaw.json` 时，在仓库内维护片段文件（**先于** `skills.entries.twinbox` 做深度合并）：
 
-1. 复制示例：`cp openclaw-skill/openclaw.fragment.example.json openclaw-skill/openclaw.fragment.json`
+1. 复制示例：`cp integrations/openclaw/openclaw.fragment.example.json integrations/openclaw/openclaw.fragment.json`
 2. 将示例中的 `REPLACE_ME` 换成本机 **Twinbox 仓库绝对路径**（勿把含本机路径的 `openclaw.fragment.json` 提交到 git，见仓库根 `.gitignore`）。
 3. 照常执行 `twinbox deploy openclaw`；若该文件不存在则跳过此步。
 
-CLI：`--fragment PATH` 指定其它 JSON 片段；`--no-fragment` 不读默认路径 `openclaw-skill/openclaw.fragment.json`。
+CLI：`--fragment PATH` 指定其它 JSON 片段；`--no-fragment` 不读默认路径 `integrations/openclaw/openclaw.fragment.json`。
 
 常用选项：`--dry-run`（只输出计划、不写盘）；`--no-restart`；`--no-env-sync`（仅 `enabled: true`，不覆盖已有 `env`）；`--strict`（在默认从 `state root/twinbox.json` 同步邮箱键时，若缺任一 OpenClaw 必填键则**失败退出**、不写 `openclaw.json`、不复制 SKILL）。若未使用 `--strict` 且单配置文件尚未含完整邮箱字段，合并后 OpenClaw 仍可能缺键，需先完成 §3.4 或手改 JSON。
 
@@ -211,7 +211,7 @@ twinbox deploy openclaw --rollback --json
 | 位置 | [plugin-twinbox-task/](./plugin-twinbox-task/) |
 | 入口 | [index.mjs](./plugin-twinbox-task/index.mjs)、[register-twinbox-tools.mjs](./plugin-twinbox-task/register-twinbox-tools.mjs) |
 | 配置 | `twinboxBin`：可选，建议写 Gateway 宿主机上的绝对路径；`cwd`：Twinbox code root。若未显式配置 `twinboxBin`，插件会先尝试 `<cwd>/scripts/twinbox`，再退回 PATH 中的 `twinbox` |
-| 测试 | `node --test openclaw-skill/plugin-twinbox-task/register-twinbox-tools.test.mjs` |
+| 测试 | `node --test integrations/openclaw/plugin-twinbox-task/register-twinbox-tools.test.mjs` |
 
 安装方式以 OpenClaw 当前插件文档为准（见 [DEPLOY-APPENDIX.md §A.1](./DEPLOY-APPENDIX.md)）。插件与 Markdown skill 可并存。
 
@@ -222,7 +222,7 @@ twinbox deploy openclaw --rollback --json
   "plugins": {
     "load": {
       "paths": [
-        "/abs/path/to/twinbox/openclaw-skill/plugin-twinbox-task"
+        "/abs/path/to/twinbox/integrations/openclaw/plugin-twinbox-task"
       ]
     },
     "entries": {
