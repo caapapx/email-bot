@@ -1,6 +1,6 @@
 # Code root（开发者模式）
 
-Twinbox 将 **安装/源码树**（code root）与 **用户数据**（state root，默认 `~/.twinbox`）分开。`code_root` 由 `TWINBOX_CODE_ROOT` 或 `~/.config/twinbox/code-root` 等解析（见 [`paths.py`](../../src/twinbox_core/paths.py)）。
+Twinbox 将 **安装/源码树**（code root）与 **用户数据**（state root，默认 `~/.twinbox`）分开。指针文件（`code-root`、`state-root`、`canonical-root`）默认写在 **`~/.twinbox/`** 根目录下；仍可读旧版 **`~/.config/twinbox/`** 中的同名文件。`code_root` 由 `TWINBOX_CODE_ROOT` 或上述指针文件解析（见 [`paths.py`](../../src/twinbox_core/paths.py)）。测试或特殊布局可用 **`TWINBOX_POINTER_DIR`** 覆盖指针目录。
 
 ## 谁需要 code root
 

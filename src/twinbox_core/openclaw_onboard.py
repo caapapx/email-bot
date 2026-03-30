@@ -1284,258 +1284,6 @@ def run_openclaw_onboard(
     openclaw_home: Path | None = None,
     dry_run: bool = False,
     openclaw_bin: str = "openclaw",
-    input_fn: InputFn | None = None,
-    secret_input_fn: SecretInputFn | None = None,
-    deploy_runner: DeployRunner = run_openclaw_deploy,
-    fragment_decision: bool | None = None,
-    skip_bridge: bool = False,
-    start_daemon: bool = True,
-) -> OpenClawOnboardReport:
-    """Legacy stdin/getpass onboarding wizard (minimal prompts).
-
-    Not used by ``twinbox onboard openclaw``; the CLI uses the journey wizard instead.
-    Retained for tests and programmatic callers that need the old flow.
-    """
-    report = OpenClawOnboardReport(ok=False)
-    input_fn = input_fn or input
-    secret_input_fn = secret_input_fn or getpass.getpass
-
-    try:
-        resolved_code_root = resolve_code_root(code_root or Path.cwd())
-    except PathResolutionError as exc:
-        report.error = str(exc)
-        return report
-
-    default_state_root = Path.home() / ".twinbox"
-    try:
-        configured_default = (
-            Path(os.environ["TWINBOX_STATE_ROOT"]).expanduser()
-            if "TWINBOX_STATE_ROOT" in os.environ
-            else default_state_root
-        )
-        state_root = resolve_state_root(configured_default)
-    except PathResolutionError:
-        state_root = Path(os.environ.get("TWINBOX_STATE_ROOT", str(default_state_root))).expanduser()
-
-    resolved_openclaw_home = (openclaw_home or Path.home() / ".openclaw").expanduser()
-    config_path = config_path_for_state_root(state_root)
-    twinbox_config = load_twinbox_config(config_path)
-    openclaw_defaults = twinbox_config.get("openclaw", {}) if isinstance(twinbox_config.get("openclaw"), dict) else {}
-    integration_defaults = twinbox_config.get("integration", {}) if isinstance(twinbox_config.get("integration"), dict) else {}
-    if openclaw_home is None and openclaw_defaults.get("home"):
-        resolved_openclaw_home = Path(str(openclaw_defaults["home"])).expanduser()
-    if openclaw_bin == "openclaw" and openclaw_defaults.get("bin"):
-        openclaw_bin = str(openclaw_defaults["bin"])
-    report.code_root = str(resolved_code_root)
-    report.state_root = str(state_root)
-    report.openclaw_home = str(resolved_openclaw_home)
-
-    if shutil.which(openclaw_bin) is None:
-        report.error = f"Missing executable on PATH: {openclaw_bin}"
-        return report
-
-    env_file = state_root / ".env"
-    dotenv = load_env_file(env_file)
-
-    missing_mail = missing_required_mail_values(dotenv)
-    mailbox_ready = not missing_mail
-    report.mailbox = {
-        "prompted": False,
-        "configured": mailbox_ready,
-        "missing_required": missing_mail,
-        "status": "configured" if mailbox_ready else "missing",
-        "mail_address": dotenv.get("MAIL_ADDRESS", ""),
-        "env_file_path": str(env_file),
-    }
-
-    if not mailbox_ready:
-        from .mailbox import run_preflight
-        from .mailbox_detect import detect_to_env
-
-        email = _prompt_text(input_fn, "Mailbox email: ")
-        if not email:
-            report.error = "Mailbox email is required."
-            return report
-        password = _prompt_secret(secret_input_fn, "Mailbox app password: ")
-        if not password:
-            report.error = "Mailbox password is required."
-            return report
-        detected = detect_to_env(email, verbose=False)
-        if detected is None:
-            report.error = f"Could not auto-detect mailbox servers for {email}"
-            return report
-        updates = {
-            "MAIL_ADDRESS": email,
-            "IMAP_HOST": detected["IMAP_HOST"],
-            "IMAP_PORT": detected["IMAP_PORT"],
-            "IMAP_ENCRYPTION": detected["IMAP_ENCRYPTION"],
-            "IMAP_LOGIN": email,
-            "IMAP_PASS": password,
-            "SMTP_HOST": detected["SMTP_HOST"],
-            "SMTP_PORT": detected["SMTP_PORT"],
-            "SMTP_ENCRYPTION": detected["SMTP_ENCRYPTION"],
-            "SMTP_LOGIN": email,
-            "SMTP_PASS": password,
-        }
-        if not dry_run:
-            merged = merge_env_file(env_file, updates)
-            write_env_file(env_file, merged)
-        else:
-            merged = dict(updates)
-        validation_env = dict(os.environ)
-        validation_env.update(merged)
-        exit_code, preflight = run_preflight(state_root=state_root, env=validation_env)
-        mailbox_ready = exit_code == 0
-        report.mailbox = {
-            "prompted": True,
-            "configured": mailbox_ready,
-            "missing_required": [],
-            "status": preflight.get("status", "unknown"),
-            "login_stage": preflight.get("login_stage", ""),
-            "mail_address": email,
-            "env_file_path": str(env_file),
-        }
-        if not mailbox_ready:
-            report.error = "Mailbox setup failed preflight."
-            return report
-        dotenv = load_env_file(env_file)
-
-    llm_ready = True
-    try:
-        backend = resolve_backend(env_file=env_file, env={})
-        report.llm = {
-            "prompted": False,
-            "configured": True,
-            "backend": backend.backend,
-            "model": backend.model,
-            "url": backend.url,
-        }
-    except LLMError:
-        llm_ready = False
-        provider = _prompt_choice(input_fn, "LLM provider [openai/anthropic]: ", ("openai", "anthropic"))
-        api_key = _prompt_secret(secret_input_fn, "LLM API key: ")
-        if not api_key:
-            report.error = "LLM API key is required."
-            return report
-        model_prompt = "LLM model: " if provider == "openai" else "Anthropic model: "
-        model = _prompt_text(input_fn, model_prompt)
-        if not model:
-            report.error = "LLM model is required."
-            return report
-        url_prompt = "LLM API URL: " if provider == "openai" else "Anthropic base URL: "
-        api_url = _prompt_text(input_fn, url_prompt)
-        if not api_url:
-            report.error = "LLM API URL is required."
-            return report
-        updates = (
-            {"LLM_API_KEY": api_key, "LLM_MODEL": model, "LLM_API_URL": api_url}
-            if provider == "openai"
-            else {"ANTHROPIC_API_KEY": api_key, "ANTHROPIC_MODEL": model, "ANTHROPIC_BASE_URL": api_url}
-        )
-        if not dry_run:
-            write_env_file(env_file, merge_env_file(env_file, updates))
-        try:
-            backend = resolve_backend(env_file=env_file, env=updates if dry_run else {})
-        except LLMError as exc:
-            report.error = str(exc)
-            return report
-        llm_ready = True
-        report.llm = {
-            "prompted": True,
-            "configured": True,
-            "backend": backend.backend,
-            "model": backend.model,
-            "url": backend.url,
-        }
-
-    fragment_path = resolve_integration_fragment_path(resolved_code_root, integration_defaults)
-    use_fragment = False
-    if fragment_path.is_file():
-        if fragment_decision is None:
-            use_fragment = _prompt_yes_no(
-                input_fn,
-                f"Include OpenClaw fragment from {fragment_path}?",
-                default=bool(integration_defaults.get("use_fragment", True)),
-            )
-        else:
-            use_fragment = fragment_decision
-    report.fragment = {
-        "path": str(fragment_path),
-        "exists": fragment_path.is_file(),
-        "selected": use_fragment,
-    }
-    twinbox_config["integration"] = {
-        "fragment_path": str(fragment_path),
-        "use_fragment": bool(use_fragment),
-    }
-    twinbox_config["openclaw"] = {
-        **openclaw_defaults,
-        "home": str(resolved_openclaw_home),
-        "bin": openclaw_bin,
-        "strict": True,
-        "sync_env_from_dotenv": True,
-        "restart_gateway": True,
-    }
-    save_twinbox_config(config_path, twinbox_config)
-
-    deploy_report = deploy_runner(
-        code_root=resolved_code_root,
-        openclaw_home=resolved_openclaw_home,
-        dry_run=dry_run,
-        restart_gateway=True,
-        sync_env_from_dotenv=True,
-        strict=True,
-        fragment_path=fragment_path if use_fragment else None,
-        no_fragment=fragment_path.is_file() and not use_fragment,
-        openclaw_bin=openclaw_bin,
-        skip_bridge=skip_bridge,
-        start_daemon=start_daemon,
-    )
-    report.deploy = deploy_report.to_json_dict()
-    report.phase2_ready = deploy_report.phase2_ready
-    report.plugin_tools = deploy_report.plugin_tools
-    report.bridge = deploy_report.bridge
-    if not deploy_report.ok:
-        report.error = "OpenClaw deploy wiring failed."
-        report.onboarding = _sync_onboarding_state(
-            state_root,
-            mailbox_ready=mailbox_ready,
-            llm_ready=llm_ready,
-            dry_run=dry_run,
-        )
-        return report
-
-    report.onboarding = _sync_onboarding_state(
-        state_root,
-        mailbox_ready=mailbox_ready,
-        llm_ready=llm_ready,
-        dry_run=dry_run,
-    )
-    prereq_ok = bool(skip_bridge or deploy_report.phase2_ready)
-    if not prereq_ok:
-        report.error = (
-            "OpenClaw Phase 2 prerequisites incomplete (plugin/tools + bridge timer + health). "
-            "Fix deploy output or use skip_bridge only as an escape hatch."
-        )
-        return report
-
-    report.ok = True
-    report.next_action = (
-        "Continue inside OpenClaw with the twinbox agent; next conversational stage is "
-        f"{report.onboarding['current_stage']}."
-    )
-    report.notes.append(
-        "Host wiring is verified locally; OpenClaw session prompt injection can still lag behind on some models."
-    )
-    return report
-
-
-def run_openclaw_onboard_v2(
-    *,
-    code_root: Path | None = None,
-    openclaw_home: Path | None = None,
-    dry_run: bool = False,
-    openclaw_bin: str = "openclaw",
     prompter: JourneyPrompter | None = None,
     deploy_runner: DeployRunner | None = None,
     skip_bridge: bool = False,
@@ -1545,6 +1293,11 @@ def run_openclaw_onboard_v2(
     llm_update_runner: LLMUpdateRunner = _apply_llm_updates,
     llm_validation_timeout_seconds: float = 15.0,
 ) -> OpenClawOnboardReport:
+    """Guided OpenClaw host wiring: TTY journey, mailbox/LLM validation, deploy, onboarding sync.
+
+    ``twinbox onboard openclaw`` calls this with :class:`ConsoleJourneyPrompter`. Tests inject
+    a :class:`JourneyPrompter` implementation.
+    """
     prompter = prompter or ConsoleJourneyPrompter()
     deploy_runner = deploy_runner or run_openclaw_deploy
     report = OpenClawOnboardReport(ok=False)
@@ -1582,7 +1335,7 @@ def run_openclaw_onboard_v2(
             report.error = f"Missing executable on PATH: {openclaw_bin}"
             return report
 
-        env_file = state_root / ".env"
+        env_file = config_path_for_state_root(state_root)
         dotenv = load_env_file(env_file)
         fragment_path = resolve_integration_fragment_path(resolved_code_root, integration_defaults)
         fragment_exists = fragment_path.is_file()
@@ -2109,6 +1862,8 @@ def run_openclaw_onboard_v2(
             "exists": fragment_exists,
             "selected": fragment_selected,
         }
+        twinbox_config = load_twinbox_config(config_path)
+        openclaw_defaults = twinbox_config.get("openclaw", {}) if isinstance(twinbox_config.get("openclaw"), dict) else {}
         twinbox_config["integration"] = {
             "fragment_path": str(fragment_path),
             "use_fragment": bool(fragment_selected),

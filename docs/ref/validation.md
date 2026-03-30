@@ -81,7 +81,7 @@
 
 `mailbox-census.json`、`intent-distribution.yaml`、`contact-distribution.json` 当前更接近 derived state view：
 
-- 如果它们存在，`phase2_loading.sh` / `phase3_loading.sh` 会直接读取
+- 如果它们存在，Phase 2/3 的 Python loading（`context_builder`）会直接读取
 - 如果它们不存在，脚本仍可从 `phase1-context.json` + `intent-classification.json` 派生回兼容视图
 
 因此在当前实现里，Phase 1 的最小 authoritative state 应定义为：

@@ -91,21 +91,21 @@ scripts/twinbox_openclaw_bridge_poll.sh --format json
 
 | Phase | 依赖 | Loading | Thinking | 关键产物 |
 |------|------|---------|----------|----------|
-| 1 | 无 | `scripts/phase1_loading.sh` | `scripts/phase1_thinking.sh` | `phase1-context.json`, `intent-classification.json` |
-| 2 | 1 | `scripts/phase2_loading.sh` | `scripts/phase2_thinking.sh` | `context-pack.json`, `persona-hypotheses.yaml`, `business-hypotheses.yaml` |
-| 3 | 1 + 2 | `scripts/phase3_loading.sh` | `scripts/phase3_thinking.sh` | `context-pack.json`, `lifecycle-model.yaml`, `thread-stage-samples.json` |
-| 4 | 1 + 2 + 3 | `scripts/phase4_loading.sh` | `scripts/phase4_thinking.sh` 或 `scripts/phase4_thinking_parallel.sh` | `context-pack.json`, `daily-urgent.yaml`, `pending-replies.yaml`, `sla-risks.yaml`, `weekly-brief.md` |
+| 1 | 无 | `python -m twinbox_core.loading_pipeline phase1` | `python -m twinbox_core.phase1_intent` | `phase1-context.json`, `intent-classification.json` |
+| 2 | 1 | `python -m twinbox_core.context_builder phase2` | `python -m twinbox_core.phase2_persona` | `context-pack.json`, `persona-hypotheses.yaml`, `business-hypotheses.yaml` |
+| 3 | 1 + 2 | `python -m twinbox_core.context_builder phase3` | `python -m twinbox_core.phase3_lifecycle` | `context-pack.json`, `lifecycle-model.yaml`, `thread-stage-samples.json` |
+| 4 | 1 + 2 + 3 | `python -m twinbox_core.loading_pipeline phase4` | `python -m twinbox_core.phase4_value single-run` 或 `parallel-run` | `context-pack.json`, `daily-urgent.yaml`, `pending-replies.yaml`, `sla-risks.yaml`, `weekly-brief.md` |
 
 ## 面向 Skill 化的解耦判断
 
 如果后续把 twinbox 改造成通过 CLI 执行的 skill，这层 contract 已经提供了最关键的稳定边界：
 
-- skill 只需要调用 `scripts/twinbox_orchestrate.sh run ...`
+- skill 只需要调用 `twinbox orchestrate run ...` 或 `python -m twinbox_core.orchestration run ...`
 - skill 可以先读 `contract --format json` 再决定跑整条 pipeline、单 phase，或只跑 Phase 4 的 serial fallback
 
 当前路径：
 
-- CLI -> shell -> Python core
+- CLI（`twinbox` / `twinbox orchestrate`）-> `python -m twinbox_core.orchestration` / `task_cli` -> Python core
 - Host service / OpenClaw system-event -> `scripts/twinbox_openclaw_bridge.sh` -> `twinbox-orchestrate bridge --event-text ...` -> `twinbox-orchestrate schedule --job ...`
 - User-level host poller -> `twinbox host bridge poll`（或开发机：`scripts/twinbox_openclaw_bridge_poll.sh`）-> `twinbox-orchestrate bridge-poll` -> `gateway call cron.list` / `cron.runs` -> `bridge` -> `schedule`
 
@@ -121,7 +121,7 @@ scripts/twinbox_openclaw_bridge_poll.sh --format json
 
 | Job | 目的 | 默认步骤 | 关键产物 |
 |-----|------|----------|----------|
-| `daytime-sync` | 小时级日内刷新与去重推送 | `phase1_loading` + `phase3_loading` + `phase4_loading` + `phase4_thinking` (serial) | `runtime/validation/phase-4/activity-pulse.json`、`daily-urgent.yaml`、`recipient_role` 信号 |
+| `daytime-sync` | 小时级日内刷新与去重推送 | `twinbox_core.incremental_sync` + Phase 3/4 loading + `phase4_value single-run` (serial) | `runtime/validation/phase-4/activity-pulse.json`、`daily-urgent.yaml`、`recipient_role` 信号 |
 | `nightly-full` | 夜间全量校正 | Phase 1→4 全量 | Phase 1-4 全套产物 + 归档快照 |
 | `friday-weekly` | 周五正式周报刷新 | Phase 1→4 全量 | Phase 1-4 全套产物 + 周报归档快照 |
 

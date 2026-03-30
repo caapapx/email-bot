@@ -322,7 +322,7 @@ twinbox config openclaw-set --home ~/.openclaw --strict --json
 
 - `config show` 会输出当前单配置文件，并自动对 secret 做 masked 展示。
 - `config set-llm` 与向导中的 LLM 步骤共享同一份配置；写入后会立即做后端校验。
-- `config import-llm-from-openclaw`：从宿主 `~/.openclaw/openclaw.json`（或 `--openclaw-json`）读取 `agents.defaults.model` 指向的 `models.providers.*`（需明文 `apiKey` 与 `baseUrl`），写入与 `set-llm` 相同的 `.env` 键并校验。`--dry-run` 只打印将应用的 provider/model/url（不落盘）。OpenClaw 使用 SecretRef 而非内联 key 时本命令会失败，请改用 `set-llm`。
+- `config import-llm-from-openclaw`：从宿主 `~/.openclaw/openclaw.json`（或 `--openclaw-json`）读取 `agents.defaults.model` 指向的 `models.providers.*`（需明文 `apiKey` 与 `baseUrl`），写入与 `set-llm` 相同的 **`twinbox.json` `llm` 字段**（语义等同旧 `.env` 键）并校验。`--dry-run` 只打印将应用的 provider/model/url（不落盘）。OpenClaw 使用 SecretRef 而非内联 key 时本命令会失败，请改用 `set-llm`。
 - `config mailbox-set` 与 `mailbox setup` 共享同一份配置；若未显式传 IMAP/SMTP 主机参数，则自动探测。
 - `config set-preferences --cc-downweight on|off` 用于控制 CC/group 线程是否做结构性分数衰减；`off` 时仍保留 `recipient_role` 标签，但不再乘 urgency score。
 - `config integration-set` 用于设置 `fragment_path` 和 `use_fragment` 默认值；`onboard openclaw` 与 `deploy openclaw` 会读取这些默认值。
