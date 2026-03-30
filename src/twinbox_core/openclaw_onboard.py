@@ -1106,7 +1106,9 @@ def _apply_mailbox_updates(
         }
         ready = True
     else:
-        exit_code, preflight = run_preflight(state_root=state_root)
+        validation_env = dict(os.environ)
+        validation_env.update(merged)
+        exit_code, preflight = run_preflight(state_root=state_root, env=validation_env)
         ready = exit_code == 0
         merged = load_env_file(env_file)
     return (
@@ -1368,8 +1370,13 @@ def run_openclaw_onboard(
             "SMTP_PASS": password,
         }
         if not dry_run:
-            write_env_file(env_file, merge_env_file(env_file, updates))
-        exit_code, preflight = run_preflight(state_root=state_root)
+            merged = merge_env_file(env_file, updates)
+            write_env_file(env_file, merged)
+        else:
+            merged = dict(updates)
+        validation_env = dict(os.environ)
+        validation_env.update(merged)
+        exit_code, preflight = run_preflight(state_root=state_root, env=validation_env)
         mailbox_ready = exit_code == 0
         report.mailbox = {
             "prompted": True,
