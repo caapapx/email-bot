@@ -13,7 +13,7 @@
 |------|------|
 | **Python 常驻 Daemon** | Unix socket + JSON-RPC 2.0（`ping`、`cli_invoke`、`imap_pool_stats`），`twinbox_version`；`logs/daemon.log` 使用 **轮转**（约 10MB×3）；路径在 `$TWINBOX_STATE_ROOT/run/` |
 | **CLI** | `twinbox daemon start\|stop\|status\|restart`；`cli_invoke` 支持 `cache_policy` / `timeout_ms`（见 [rpc-protocol.md](./rpc-protocol.md)） |
-| **Go 薄客户端** | 源码目录 `cmd/twinbox-go/`：RPC 或 `exec` Python；**交付给用户时默认命令名为 `twinbox`**，因此用 **`twinbox install --archive …`** 从本地 tarball 或 HTTP URL 解压到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/` |
+| **Go 薄客户端** | 源码目录 `cmd/twinbox-go/`：RPC 或 `exec` Python；**交付给用户时默认命令名为 `twinbox`**，因此用 **`twinbox install --archive …`** 从本地 tarball 或 HTTP URL 解压到 `$TWINBOX_STATE_ROOT/vendor/twinbox_core/`；**`onboard` / `onboarding` 始终直连 Python**（不走 daemon RPC），因 `cli_invoke` 子进程无交互 stdin，否则 `input()` 会 EOF；**`daemon stop` / `daemon restart` 也直连 Python**，避免经 RPC 停掉 daemon 导致连接先断、客户端见 EOF；**`daemon start` 同样直连 Python**（不走 RPC），避免懒启动路径递归；**懒启动**：其余走 RPC 的命令在 **dial 失败**（典型：socket 不存在、`connection refused`、`resource temporarily unavailable`）时，会先静默跑一次 Python `daemon start`，再 **重试 RPC 一次**；设 **`TWINBOX_NO_LAZY_DAEMON=1`** 可关闭。部署/引导成功后仍会照常执行一次 `daemon start`（可用 `--no-start-daemon` 跳过） |
 | **Profile** | `twinbox --profile NAME`：`TWINBOX_STATE_ROOT=~/.twinbox/profiles/NAME/state`，`TWINBOX_HOME=~/.twinbox`（共享 **vendor**） |
 | **Loading 入口** | `twinbox loading phase1|…|phase4` 全部走 Python 入口；`phase1/4` 已迁为 Python 编排，`scripts/phase1_loading.sh` / `scripts/phase4_loading.sh` 仅保留兼容 shim，mail transport 仍走 himalaya CLI |
 | **IMAP 池（可选）** | `TWINBOX_IMAP_POOL=1` 时 preflight 可走 `imaplib` 复用连接；统计经 RPC `imap_pool_stats` |
