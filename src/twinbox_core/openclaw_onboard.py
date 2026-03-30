@@ -2081,9 +2081,9 @@ def run_openclaw_onboard_v2(
             integration_lines += [
                 "",
                 "Status: not found — there is nothing to merge, so the Yes/No step is skipped (this is normal in that situation).",
-                "How to get the file: it ships with the full Twinbox repo under openclaw-skill/openclaw.fragment.json. "
-                "The vendor tarball from twinbox install --archive only contains twinbox_core; set TWINBOX_CODE_ROOT to a checkout "
-                "or run this wizard from the repository root so this path resolves correctly.",
+                "How to get the file: run scripts/package_vendor_tarball.sh (or use a release tarball) so vendor/openclaw-skill/ exists; "
+                "twinbox install --archive also writes ~/.config/twinbox/code-root to that vendor directory. "
+                "For development, point TWINBOX_CODE_ROOT at a git checkout instead.",
             ]
         integration_body = "\n".join(integration_lines)
         if advanced:
