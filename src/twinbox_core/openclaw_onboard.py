@@ -1001,6 +1001,13 @@ def _prompt_mailbox_customization(
     *,
     dotenv: dict[str, str],
 ) -> dict[str, str]:
+    def _auto_login_value(login_key: str, new_email: str) -> str:
+        existing_login = str(dotenv.get(login_key, "") or "").strip()
+        existing_email = str(dotenv.get("MAIL_ADDRESS", "") or "").strip()
+        if existing_login and existing_email == new_email:
+            return existing_login
+        return new_email
+
     mode = prompter.select(
         "How should Twinbox configure your mailbox?",
         options=[
@@ -1043,12 +1050,12 @@ def _prompt_mailbox_customization(
             "IMAP_HOST": detected["IMAP_HOST"],
             "IMAP_PORT": detected["IMAP_PORT"],
             "IMAP_ENCRYPTION": detected["IMAP_ENCRYPTION"],
-            "IMAP_LOGIN": dotenv.get("IMAP_LOGIN") or email,
+            "IMAP_LOGIN": _auto_login_value("IMAP_LOGIN", email),
             "IMAP_PASS": resolved_password,
             "SMTP_HOST": detected["SMTP_HOST"],
             "SMTP_PORT": detected["SMTP_PORT"],
             "SMTP_ENCRYPTION": detected["SMTP_ENCRYPTION"],
-            "SMTP_LOGIN": dotenv.get("SMTP_LOGIN") or email,
+            "SMTP_LOGIN": _auto_login_value("SMTP_LOGIN", email),
             "SMTP_PASS": resolved_password,
         }
 
