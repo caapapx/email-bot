@@ -220,7 +220,7 @@ def _strip_ansi(text: str) -> str:
     return re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", text)
 
 
-def test_run_openclaw_onboard_console_prompter_prints_english_shell(
+def test_run_openclaw_onboard_console_prompter_prints_zh_shell(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -257,24 +257,24 @@ def test_run_openclaw_onboard_console_prompter_prints_english_shell(
 
     assert "TWINBOX" in out
     assert "📮" in out
-    assert "Thread-level email intelligence" in out
-    assert "TwinBox setup" in out
+    assert "邮件线程" in out
+    assert "Twinbox 设置" in out
     assert out.count("│") >= 4
     assert "┐" in out and "└" in out
-    assert "Security" in out
-    assert "Choose onboarding flow" in out
-    assert "Mailbox" in out
+    assert "安全说明" in out
+    assert "选择引导模式" in out
+    assert "邮箱" in out
     assert "LLM" in out
-    assert "Phase 2 of 2" in out
+    assert "阶段 2/2" in out
     assert "🎉" in out
-    assert "Successfully completed host 🔗 wiring" in out
+    assert "宿主 🔗 接线已完成" in out
     assert "🔗" in out
     assert "🦞" in out
     assert "onboarding start --json" in out
-    assert "Handoff — paste into a new twinbox session:" in out
+    assert "交接：请粘贴到新的 twinbox agent 会话中：" in out
     plain = _strip_ansi(out)
     assert (
-        '"Read ~/.openclaw/skills/twinbox/SKILL.md, then run twinbox onboarding start --json, and follow the prompt."'
+        '"请先阅读 ~/.openclaw/skills/twinbox/SKILL.md，再执行 twinbox onboarding start --json，并按提示继续。"'
         in plain
     )
 
@@ -284,11 +284,11 @@ def test_console_journey_prompter_outro_handoff_quote_orange_italic_when_tty() -
     prompter = ConsoleJourneyPrompter(stream=stream)
     prompter.outro(
         "Main success line.",
-        paste_hint_label="Handoff — paste into a new twinbox session:",
+        paste_hint_label="交接：请粘贴到新的 twinbox agent 会话中：",
         paste_hint_quote="Read SKILL, run twinbox onboarding start --json.",
     )
     out = stream.getvalue()
-    assert "\033[1;32mHandoff — paste into a new twinbox session:\033[0m" in out
+    assert "\033[1;32m交接：请粘贴到新的 twinbox agent 会话中：\033[0m" in out
     assert '\033[1;3;38;5;208m"Read SKILL, run twinbox onboarding start --json."\033[0m' in out
 
 
@@ -310,8 +310,8 @@ def test_console_journey_prompter_select_shows_descriptions_and_reprompts() -> N
     assert choice == "quickstart"
     assert "Use the recommended path with fewer decisions." in out
     assert "Configure port, network, Tailscale, and auth options." in out
-    assert "Enter choice" in out
-    assert "Invalid choice" in out
+    assert "请输入选项" in out
+    assert "无效选项" in out
 
 
 def test_console_journey_prompter_select_supports_arrow_navigation() -> None:
@@ -331,8 +331,8 @@ def test_console_journey_prompter_select_supports_arrow_navigation() -> None:
     out = stream.getvalue()
     plain = _strip_ansi(out)
     assert choice == "manual"
-    assert "Use ↑/↓ to move" in plain
-    assert "Press Enter to confirm" in plain
+    assert "使用 ↑/↓ 移动" in plain
+    assert "Enter 确认" in plain
     assert "● Manual (Configure port, network, Tailscale, and auth options.)" in plain
     assert "○ Quickstart" in plain
     assert "[Recommended]" not in plain
@@ -486,7 +486,7 @@ def test_console_journey_prompter_cancel_prints_compact_footer() -> None:
     plain = _strip_ansi(stream.getvalue())
     assert "■  Setup mode" in plain
     assert "│  Manual" in plain
-    assert "└  Setup cancelled." in plain
+    assert "└  已取消设置。" in plain
 
 
 def test_console_journey_prompter_note_wraps_to_terminal_width() -> None:
@@ -494,16 +494,16 @@ def test_console_journey_prompter_note_wraps_to_terminal_width() -> None:
     prompter = ConsoleJourneyPrompter(stream=stream, width=48)
 
     prompter.note(
-        "TwinBox setup",
-        "This wizard verifies host wiring first, then hands you off to the twinbox agent for profile, materials, rules, and notifications.",
+        "Twinbox 设置",
+        "阶段 1/2：先完成宿主侧接线，再交给 OpenClaw 里的 twinbox agent。",
     )
 
     plain = _strip_ansi(stream.getvalue())
     lines = [line for line in plain.splitlines() if line]
     assert max(len(line) for line in lines) <= 50
-    assert "hands you off" in plain
+    assert "宿主侧" in plain
     assert "twinbox agent" in plain
-    assert "TwinBox setup" in plain
+    assert "Twinbox 设置" in plain
     assert plain.count("│") >= 2
 
 
@@ -674,30 +674,30 @@ def test_run_openclaw_onboard_requires_explicit_steps_even_with_existing_values(
 
     assert report.ok is True
     note_titles = [event[1]["title"] for event in prompter.events if event[0] == "note"]
-    assert note_titles.count("Existing config detected") == 2
+    assert note_titles.count("检测到已有配置") == 2
     assert all(
         title in note_titles
-        for title in ["TwinBox setup", "Security", "Mailbox", "LLM", "Twinbox tools integration", "Apply setup"]
+        for title in ["Twinbox 设置", "安全说明", "邮箱", "LLM", "Twinbox 工具集成", "应用设置"]
     )
-    twinbox_notes = [e[1] for e in prompter.events if e[0] == "note" and e[1]["title"] == "TwinBox setup"]
+    twinbox_notes = [e[1] for e in prompter.events if e[0] == "note" and e[1]["title"] == "Twinbox 设置"]
     assert len(twinbox_notes) == 2
     assert twinbox_notes[0]["complete"] is False
     assert twinbox_notes[1]["complete"] is True
-    security_notes = [e[1] for e in prompter.events if e[0] == "note" and e[1]["title"] == "Security"]
+    security_notes = [e[1] for e in prompter.events if e[0] == "note" and e[1]["title"] == "安全说明"]
     assert len(security_notes) == 2
     assert security_notes[0]["complete"] is False
     assert security_notes[1]["complete"] is True
     config_handling_selects = [
-        event[1] for event in prompter.events if event[0] == "select" and event[1]["prompt"] == "◆  Config handling"
+        event[1] for event in prompter.events if event[0] == "select" and event[1]["prompt"] == "◆  配置处理方式"
     ]
     assert len(config_handling_selects) == 2
     assert [option["label"] for option in config_handling_selects[0]["options"]] == [
-        "Use existing values",
-        "Update values",
-        "Reset",
+        "沿用现有值",
+        "更新配置",
+        "清空重来",
     ]
-    assert not any(event[0] == "select" and event[1]["prompt"] == "Choose LLM setup" for event in prompter.events)
-    apply_notes = [e[1] for e in prompter.events if e[0] == "note" and e[1]["title"] == "Apply setup"]
+    assert not any(event[0] == "select" and event[1]["prompt"] == "选择 LLM 配置方式" for event in prompter.events)
+    apply_notes = [e[1] for e in prompter.events if e[0] == "note" and e[1]["title"] == "应用设置"]
     assert len(apply_notes) == 2
     assert apply_notes[0]["complete"] is False
     assert apply_notes[1]["complete"] is True
@@ -755,7 +755,7 @@ def test_run_openclaw_onboard_reads_existing_values_from_twinbox_json(
 
     assert report.ok is True
     apply_note = next(
-        event[1] for event in prompter.events if event[0] == "note" and event[1]["title"] == "Apply setup"
+        event[1] for event in prompter.events if event[0] == "note" and event[1]["title"] == "应用设置"
     )
     assert "Mailbox: user@example.com" in apply_note["body"]
     assert "LLM: test-model" in apply_note["body"]
@@ -820,12 +820,12 @@ def test_run_openclaw_onboard_collects_llm_inputs_before_validation_progress(
     model_index = next(
         index
         for index, event in enumerate(prompter.events)
-        if event[0] == "text" and event[1]["prompt"] == "Model ID"
+        if event[0] == "text" and event[1]["prompt"] == "模型 ID（Model）"
     )
     progress_index = next(
         index
         for index, event in enumerate(prompter.events)
-        if event[0] == "progress" and event[1] == "Validating LLM configuration"
+        if event[0] == "progress" and event[1] == "正在校验 LLM 配置…"
     )
     assert api_url_index < api_key_index
     assert api_key_index < progress_index
@@ -886,7 +886,7 @@ def test_run_openclaw_onboard_collects_mailbox_inputs_before_validation_progress
     mailbox_progress_index = next(
         index
         for index, event in enumerate(prompter.events)
-        if event[0] == "progress" and event[1] == "Checking mailbox settings"
+        if event[0] == "progress" and event[1] == "正在校验邮箱设置…"
     )
     assert mailbox_text_index < mailbox_progress_index
     assert mailbox_secret_index < mailbox_progress_index
@@ -1108,7 +1108,7 @@ def test_run_openclaw_onboard_starts_detection_progress_before_mailbox_auto_dete
     detect_progress_index = next(
         index
         for index, event in enumerate(prompter.events)
-        if event[0] == "progress" and event[1] == "Detecting mailbox settings"
+        if event[0] == "progress" and event[1] == "正在探测邮箱服务器…"
     )
     detect_call_index = next(index for index, event in enumerate(prompter.events) if event[0] == "detect")
     assert detect_progress_index < detect_call_index
@@ -1173,9 +1173,9 @@ def test_run_openclaw_onboard_times_out_llm_validation(
     )
 
     assert report.ok is False
-    assert ("progress.fail", "LLM validation timed out") in prompter.events
-    recovery_bodies = [e[1]["body"] for e in prompter.events if e[0] == "note" and e[1]["title"] == "Recovery"]
-    assert any("timed out" in b.lower() for b in recovery_bodies)
+    assert ("progress.fail", "LLM 校验超时") in prompter.events
+    recovery_bodies = [e[1]["body"] for e in prompter.events if e[0] == "note" and e[1]["title"] == "恢复建议"]
+    assert any("超时" in b for b in recovery_bodies)
 
 
 def test_run_openclaw_onboard_llm_validation_failure_returns_to_llm_menu(
@@ -1239,13 +1239,13 @@ def test_run_openclaw_onboard_llm_validation_failure_returns_to_llm_menu(
     )
 
     assert report.ok is False
-    choose_llm = [e for e in prompter.events if e[0] == "select" and e[1]["prompt"] == "Choose LLM setup"]
+    choose_llm = [e for e in prompter.events if e[0] == "select" and e[1]["prompt"] == "选择 LLM 配置方式"]
     assert len(choose_llm) == 2
     assert any(
-        event[0] == "select" and "Twinbox tools integration" in event[1].get("prompt", "")
+        event[0] == "select" and "Twinbox 工具集成" in event[1].get("prompt", "")
         for event in prompter.events
     )
-    recovery_bodies = [e[1]["body"] for e in prompter.events if e[0] == "note" and e[1]["title"] == "Recovery"]
+    recovery_bodies = [e[1]["body"] for e in prompter.events if e[0] == "note" and e[1]["title"] == "恢复建议"]
     assert any("401" in b or "Unauthorized" in b for b in recovery_bodies)
 
 
@@ -1301,8 +1301,8 @@ def test_run_openclaw_onboard_times_out_mailbox_validation(
     )
 
     assert report.ok is False
-    assert "timed out" in report.error.lower()
-    assert ("progress.fail", "Mailbox validation timed out") in prompter.events
+    assert "超时" in report.error
+    assert ("progress.fail", "邮箱校验超时") in prompter.events
 
 
 def test_run_openclaw_onboard_allows_llm_skip_and_returns_incomplete_handoff(
@@ -1363,17 +1363,17 @@ def test_run_openclaw_onboard_allows_llm_skip_and_returns_incomplete_handoff(
 
     assert report.ok is False
     llm_select = next(
-        event[1] for event in prompter.events if event[0] == "select" and event[1]["prompt"] == "Choose LLM setup"
+        event[1] for event in prompter.events if event[0] == "select" and event[1]["prompt"] == "选择 LLM 配置方式"
     )
     assert [option["label"] for option in llm_select["options"]] == [
-        "Configure OpenAI",
-        "Configure Anthropic",
-        "Import from OpenClaw",
-        "Skip for now",
+        "配置 OpenAI 兼容",
+        "配置 Anthropic",
+        "从 OpenClaw 导入",
+        "暂时跳过",
     ]
     assert report.onboarding["current_stage"] == "llm_setup"
     assert "llm" in report.error.lower()
-    assert "next guided conversation stage is llm_setup" in report.next_action.lower()
+    assert "llm_setup" in report.next_action.lower()
 
 
 def test_run_openclaw_onboard_hides_use_current_llm_when_only_api_key_exists(
@@ -1434,13 +1434,13 @@ def test_run_openclaw_onboard_hides_use_current_llm_when_only_api_key_exists(
     )
 
     llm_select = next(
-        event[1] for event in prompter.events if event[0] == "select" and event[1]["prompt"] == "Choose LLM setup"
+        event[1] for event in prompter.events if event[0] == "select" and event[1]["prompt"] == "选择 LLM 配置方式"
     )
     assert [option["label"] for option in llm_select["options"]] == [
-        "Configure OpenAI",
-        "Configure Anthropic",
-        "Import from OpenClaw",
-        "Skip for now",
+        "配置 OpenAI 兼容",
+        "配置 Anthropic",
+        "从 OpenClaw 导入",
+        "暂时跳过",
     ]
     assert report.ok is False
 
@@ -1576,9 +1576,9 @@ def test_run_openclaw_onboard_journey_openclaw_import_error_returns_to_llm_menu(
     )
 
     assert report.ok is False
-    llm_prompts = [e for e in prompter.events if e[0] == "select" and e[1]["prompt"] == "Choose LLM setup"]
+    llm_prompts = [e for e in prompter.events if e[0] == "select" and e[1]["prompt"] == "选择 LLM 配置方式"]
     assert len(llm_prompts) == 2
-    recovery = [e for e in prompter.events if e[0] == "note" and e[1]["title"] == "Recovery"]
+    recovery = [e for e in prompter.events if e[0] == "note" and e[1]["title"] == "恢复建议"]
     assert recovery and "openclaw.json" in recovery[0][1]["body"].lower()
 
 
@@ -1638,8 +1638,8 @@ def test_run_openclaw_onboard_validates_existing_llm_before_continue(
 
     assert report.ok is True
     assert validated == [state_root / "twinbox.json", state_root / "twinbox.json"]
-    assert ("progress", "Validating LLM configuration") in prompter.events
-    assert ("progress.finish", "LLM configuration validated") in prompter.events
+    assert ("progress", "正在校验 LLM 配置…") in prompter.events
+    assert ("progress.finish", "LLM 配置已通过校验") in prompter.events
     assert "llm_setup" in report.onboarding["completed_stages"]
 
 
@@ -1691,13 +1691,13 @@ def test_run_openclaw_onboard_stops_when_existing_llm_validation_fails(
     assert report.ok is False
     assert "llm_setup" not in report.onboarding["completed_stages"]
     assert report.onboarding["current_stage"] == "llm_setup"
-    assert ("progress", "Validating LLM configuration") in prompter.events
+    assert ("progress", "正在校验 LLM 配置…") in prompter.events
     assert ("progress.fail", "Existing LLM config is invalid") in prompter.events
     assert not any(
-        event[0] == "select" and "Twinbox tools integration" in event[1].get("prompt", "")
+        event[0] == "select" and "Twinbox 工具集成" in event[1].get("prompt", "")
         for event in prompter.events
     )
-    recovery_bodies = [e[1]["body"] for e in prompter.events if e[0] == "note" and e[1]["title"] == "Recovery"]
+    recovery_bodies = [e[1]["body"] for e in prompter.events if e[0] == "note" and e[1]["title"] == "恢复建议"]
     assert any("existing llm config is invalid" in body.lower() for body in recovery_bodies)
 
 

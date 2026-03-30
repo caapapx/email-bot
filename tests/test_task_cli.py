@@ -1567,8 +1567,8 @@ class TestOnboardingCli:
         assert main(["onboarding", "start"]) == 0
         out = capsys.readouterr().out
 
-        assert "Journey" in out
-        assert "Phase 2 of 2" in out
+        assert "Onboarding" in out
+        assert "阶段 2/2" in out
 
 
 class TestMailboxCli:

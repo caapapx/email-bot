@@ -89,7 +89,7 @@ def json_onboarding_advance(
             "completed_stage": None,
             "current_stage": "completed",
             "completed_stages": state.completed_stages,
-            "prompt": "Onboarding already completed.",
+            "prompt": "Onboarding 已完成。",
         }
 
     completed_stage_name = state.current_stage
@@ -115,8 +115,8 @@ def json_onboarding_advance(
     }
     if state.current_stage == "push_subscription":
         result["tool_hint"] = (
-            "When user confirms: call twinbox_push_confirm_onboarding(daily='on', weekly='on'). "
-            "No session parameter. Do NOT look up session or stall."
+            "用户确认后请调用 twinbox_push_confirm_onboarding(daily='on', weekly='on')；"
+            "不要传 session；不要查 session 或半轮停。"
         )
         result["user_question"] = (
             "Twinbox 可以为您推送：\n"

@@ -1942,6 +1942,13 @@ def _cmd_onboard_openclaw_journey(args: argparse.Namespace) -> int:
     )
     if args.json:
         print(json.dumps(report.to_json_dict(), ensure_ascii=False, indent=2))
+    elif not report.ok:
+        from twinbox_core.openclaw_onboard import format_openclaw_onboard_report
+
+        if report.error:
+            print(f"twinbox onboard openclaw: {report.error}", file=sys.stderr)
+        else:
+            print(format_openclaw_onboard_report(report), file=sys.stderr)
     return 0 if report.ok else 1
 
 
@@ -1954,10 +1961,10 @@ def cmd_onboarding_status(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(state.to_dict(), ensure_ascii=False, indent=2))
     else:
-        print("Twinbox Onboarding Journey")
-        print("Phase 2 of 2: Continue inside the twinbox agent")
-        print(f"  Current Stage: {state.current_stage}")
-        print(f"  Completed: {', '.join(state.completed_stages) if state.completed_stages else 'None'}")
+        print("Twinbox Onboarding（对话引导）")
+        print("阶段 2/2：请在 OpenClaw 的 twinbox agent 中继续")
+        print(f"  当前阶段: {state.current_stage}")
+        print(f"  已完成: {', '.join(state.completed_stages) if state.completed_stages else '无'}")
         if state.current_stage not in ["not_started", "completed"]:
             print(f"\n{get_stage_prompt(state.current_stage)}")
 
@@ -1980,8 +1987,8 @@ def cmd_onboarding_start(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps({"stage": state.current_stage, "prompt": get_stage_prompt(state.current_stage)}, ensure_ascii=False))
     else:
-        print("Twinbox Onboarding Journey")
-        print("Phase 2 of 2: Continue inside the twinbox agent\n")
+        print("Twinbox Onboarding（对话引导）")
+        print("阶段 2/2：请在 OpenClaw 的 twinbox agent 中继续\n")
         print(get_stage_prompt(state.current_stage))
 
     return 0
@@ -2004,7 +2011,7 @@ def cmd_onboarding_next(args: argparse.Namespace) -> int:
             "completed_stage": None,
             "current_stage": "completed",
             "completed_stages": state.completed_stages,
-            "prompt": "Onboarding already completed.",
+            "prompt": "Onboarding 已完成。",
         }
         if args.json:
             print(json.dumps(output, ensure_ascii=False, indent=2))
@@ -2043,8 +2050,8 @@ def cmd_onboarding_next(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(output, ensure_ascii=False, indent=2))
     else:
-        print("Twinbox Onboarding Journey")
-        print("Phase 2 of 2: Continue inside the twinbox agent")
+        print("Twinbox Onboarding（对话引导）")
+        print("阶段 2/2：请在 OpenClaw 的 twinbox agent 中继续")
         print(f"✅ 已完成阶段: {completed_stage}")
         print(f"➡️ 当前阶段: {state.current_stage}")
         if state.current_stage != "completed":
@@ -3694,12 +3701,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     dep_oc.add_argument("--json", action="store_true", help="Output as JSON")
 
-    onboard_parser = subparsers.add_parser("onboard", help="Guided onboarding helpers")
+    onboard_parser = subparsers.add_parser("onboard", help="引导式 onboarding 辅助命令")
     onboard_sub = onboard_parser.add_subparsers(dest="onboard_command", required=True)
 
     onboard_oc = onboard_sub.add_parser(
         "openclaw",
-        help="Guided OpenClaw host wiring, validation, and handoff to conversational onboarding",
+        help="OpenClaw 宿主接线、校验，并交接给对话侧 onboarding（twinbox agent）",
     )
     onboard_oc.add_argument(
         "--repo-root",
@@ -3714,7 +3721,7 @@ def _build_parser() -> argparse.ArgumentParser:
     onboard_oc.add_argument(
         "--dry-run",
         action="store_true",
-        help="Plan the onboarding flow without mutating files or restarting gateway",
+        help="预演流程：不写文件、不重启 Gateway",
     )
     onboard_oc.add_argument(
         "--openclaw-bin",
@@ -3733,7 +3740,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     onboard_oc.add_argument("--json", action="store_true", help="Output as JSON")
 
-    openclaw_parser = subparsers.add_parser("openclaw", help="OpenClaw-native onboarding tools (JSON)")
+    openclaw_parser = subparsers.add_parser("openclaw", help="面向 OpenClaw 的 onboarding 工具（JSON）")
     openclaw_sub = openclaw_parser.add_subparsers(dest="openclaw_command", required=True)
     oc_ob_start = openclaw_sub.add_parser("onboarding-start", help="Mirror twinbox onboarding start --json")
     oc_ob_start.add_argument("--json", action="store_true", help="Ignored; always JSON")
@@ -3777,16 +3784,16 @@ def _build_parser() -> argparse.ArgumentParser:
     hb_remove.add_argument("--repo-root", default="")
 
     # onboarding commands
-    onboarding_parser = subparsers.add_parser("onboarding", help="Conversational onboarding flow")
+    onboarding_parser = subparsers.add_parser("onboarding", help="对话式 onboarding（在 OpenClaw agent 中继续）")
     onboarding_sub = onboarding_parser.add_subparsers(dest="onboarding_command", required=True)
 
-    onboarding_start = onboarding_sub.add_parser("start", help="Start onboarding flow")
-    onboarding_start.add_argument("--json", action="store_true", help="Output as JSON")
+    onboarding_start = onboarding_sub.add_parser("start", help="开始 onboarding")
+    onboarding_start.add_argument("--json", action="store_true", help="以 JSON 输出")
 
-    onboarding_status = onboarding_sub.add_parser("status", help="Show onboarding progress")
-    onboarding_status.add_argument("--json", action="store_true", help="Output as JSON")
+    onboarding_status = onboarding_sub.add_parser("status", help="查看 onboarding 进度")
+    onboarding_status.add_argument("--json", action="store_true", help="以 JSON 输出")
 
-    onboarding_next = onboarding_sub.add_parser("next", help="Complete current stage and move to next")
+    onboarding_next = onboarding_sub.add_parser("next", help="完成当前阶段并进入下一阶段")
     onboarding_next.add_argument("--json", action="store_true", help="Output as JSON")
     onboarding_next.add_argument("--profile-notes", help="Save user profile notes during profile_setup stage")
     onboarding_next.add_argument(

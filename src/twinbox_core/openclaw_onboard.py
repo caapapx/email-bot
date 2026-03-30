@@ -33,7 +33,7 @@ from .twinbox_config import (
 
 # README.md headline — keep in sync with repo branding.
 _README_WORDMARK_TAGLINE = (
-    "Thread-level email intelligence that keeps important things from drowning."
+    "以「邮件线程」为中心的 Copilot：让重要事项不被淹没。"
 )
 
 # OpenClaw CLI `openclaw onboard` wizard header ends with a lobster mark line:
@@ -44,9 +44,9 @@ _OPENCLAW_ONBOARD_LOBSTER_MARK = "🦞 OpenClaw"
 # Phase-2 dialog onboarding in the twinbox agent (not another deploy). Matches
 # integrations/openclaw/DEPLOY.md §3.8 bootstrap: read full SKILL.md, then onboarding start.
 _OPENCLAW_PHASE2_DIALOG_BOOTSTRAP = (
-    "Read ~/.openclaw/skills/twinbox/SKILL.md, then run twinbox onboarding start --json, and follow the prompt."
+    "请先阅读 ~/.openclaw/skills/twinbox/SKILL.md，再执行 twinbox onboarding start --json，并按提示继续。"
 )
-_OPENCLAW_PHASE2_HANDOFF_LABEL = "Handoff — paste into a new twinbox session:"
+_OPENCLAW_PHASE2_HANDOFF_LABEL = "交接：请粘贴到新的 twinbox agent 会话中："
 
 InputFn = Callable[[str], str]
 SecretInputFn = Callable[[str], str]
@@ -66,7 +66,7 @@ class JourneyPrompter(Protocol):
         paste_hint_quote: str | None = None,
     ) -> None: ...
 
-    def cancel(self, summary_title: str, summary_value: str, message: str = "Setup cancelled.") -> None: ...
+    def cancel(self, summary_title: str, summary_value: str, message: str = "已取消设置。") -> None: ...
 
     def note(self, title: str, body: str, *, complete: bool | None = None) -> None: ...
 
@@ -330,7 +330,7 @@ class ConsoleJourneyPrompter:
         body_width = max(24, self._width - 4)
         lines.append(self._accent(prompt))
         if layout == "horizontal":
-            lines.append("Use ←/→ to move. Press Enter to confirm.")
+            lines.append("使用 ←/→ 移动，Enter 确认。")
             rendered_options: list[str] = []
             for idx, opt in enumerate(options):
                 label = opt.get("label", opt["value"]).strip()
@@ -348,7 +348,7 @@ class ConsoleJourneyPrompter:
                 rendered_options.append(styled)
             lines.append(" / ".join(rendered_options))
         else:
-            lines.append("Use ↑/↓ to move. Press Enter to confirm.")
+            lines.append("使用 ↑/↓ 移动，Enter 确认。")
             for idx, opt in enumerate(options):
                 label = opt.get("label", opt["value"]).strip()
                 selected = idx == current_index
@@ -423,7 +423,7 @@ class ConsoleJourneyPrompter:
             self._write(self._style(quoted, "1;3;38;5;208"))
         self._write("")
 
-    def cancel(self, summary_title: str, summary_value: str, message: str = "Setup cancelled.") -> None:
+    def cancel(self, summary_title: str, summary_value: str, message: str = "已取消设置。") -> None:
         accent = self._style("■", "1;38;5;208")
         summary = self._style(summary_title, "1;38;5;208")
         value = self._style(summary_value, "0;37")
@@ -589,14 +589,14 @@ class ConsoleJourneyPrompter:
             allowed[opt["value"]] = opt["value"]
             allowed[label.lower()] = opt["value"]
         while True:
-            self._write_inline("Enter choice: ")
+            self._write_inline("请输入选项（编号或名称）：")
             raw = self._input_fn("").strip()
             if not raw and default is not None:
                 return default
             normalized = raw.lower()
             if normalized in allowed:
                 return allowed[normalized]
-            self._write(self._style("Invalid choice. Please enter a number or option name from the list above.", "31"))
+            self._write(self._style("无效选项，请输入上方列表中的编号或名称。", "31"))
 
     def text(self, prompt: str, *, default: str | None = None) -> str:
         # Do not print default values (URLs, model IDs) — long strings wrap badly and a
@@ -608,7 +608,7 @@ class ConsoleJourneyPrompter:
         if default is not None:
             default_oneline = _collapse_lines(str(default))
             if default_oneline:
-                rendered_prompt = f"{prompt} (press Enter to keep): "
+                rendered_prompt = f"{prompt}（直接 Enter 保留当前值）："
                 raw = self._input_fn(rendered_prompt).strip()
                 if not raw:
                     return default_oneline
@@ -881,17 +881,17 @@ def _sync_onboarding_state(state_root: Path, *, mailbox_ready: bool, llm_ready: 
 
 
 def _mailbox_summary(dotenv: dict[str, str]) -> str:
-    mail = dotenv.get("MAIL_ADDRESS") or "not configured"
-    imap_host = dotenv.get("IMAP_HOST") or "not configured"
-    smtp_host = dotenv.get("SMTP_HOST") or "not configured"
-    imap_pass = "configured" if dotenv.get("IMAP_PASS") else "missing"
-    smtp_pass = "configured" if dotenv.get("SMTP_PASS") else "missing"
+    mail = dotenv.get("MAIL_ADDRESS") or "未配置"
+    imap_host = dotenv.get("IMAP_HOST") or "未配置"
+    smtp_host = dotenv.get("SMTP_HOST") or "未配置"
+    imap_pass = "已配置" if dotenv.get("IMAP_PASS") else "缺失"
+    smtp_pass = "已配置" if dotenv.get("SMTP_PASS") else "缺失"
     return (
-        f"Current mailbox\n"
-        f"- Email: {mail}\n"
-        f"- IMAP host: {imap_host}\n"
-        f"- SMTP host: {smtp_host}\n"
-        f"- Passwords: IMAP {imap_pass}, SMTP {smtp_pass}"
+        f"当前邮箱\n"
+        f"- 邮箱地址: {mail}\n"
+        f"- IMAP 主机: {imap_host}\n"
+        f"- SMTP 主机: {smtp_host}\n"
+        f"- 密码: IMAP {imap_pass}，SMTP {smtp_pass}"
     )
 
 
@@ -949,14 +949,14 @@ def _inspect_llm(env_file: Path, dotenv: dict[str, str]) -> dict[str, Any]:
 
 
 def _llm_summary(llm_info: dict[str, Any]) -> str:
-    provider = llm_info.get("backend") or "not configured"
-    model = llm_info.get("model") or "default"
-    url = llm_info.get("url") or "default"
-    key_state = "configured" if llm_info.get("configured") else "missing"
+    provider = llm_info.get("backend") or "未配置"
+    model = llm_info.get("model") or "默认"
+    url = llm_info.get("url") or "默认"
+    key_state = "已配置" if llm_info.get("configured") else "缺失"
     return (
-        f"Current LLM\n"
-        f"- Provider: {provider}\n"
-        f"- Model: {model}\n"
+        f"当前 LLM\n"
+        f"- 提供商: {provider}\n"
+        f"- 模型: {model}\n"
         f"- API URL: {url}\n"
         f"- API key: {key_state}"
     )
@@ -968,28 +968,29 @@ def _existing_config_choice(
     subject: str,
     default: str,
 ) -> str:
+    subject_zh = {"mailbox": "邮箱", "LLM": "LLM"}.get(subject, subject)
     prompter.note(
-        "Existing config detected",
-        f"Twinbox found existing {subject} settings in the current environment. Choose whether to reuse them, update them, or reset them before continuing.",
+        "检测到已有配置",
+        f"当前环境里已有「{subject_zh}」相关设置。请选择沿用、更新或清空后重新填写。",
         complete=None,
     )
     return prompter.select(
-        "◆  Config handling",
+        "◆  配置处理方式",
         options=[
             {
                 "value": "use_existing",
-                "label": "Use existing values",
-                "description": "Keep the detected values and continue with them.",
+                "label": "沿用现有值",
+                "description": "保留检测到的值并继续。",
             },
             {
                 "value": "update",
-                "label": "Update values",
-                "description": "Review the detected values and change what you need.",
+                "label": "更新配置",
+                "description": "在现有值基础上检查并修改需要的项。",
             },
             {
                 "value": "reset",
-                "label": "Reset",
-                "description": "Ignore the detected values and start this step from scratch.",
+                "label": "清空重来",
+                "description": "忽略已检测到的值，本步从零开始。",
             },
         ],
         default=default,
@@ -1009,40 +1010,40 @@ def _prompt_mailbox_customization(
         return new_email
 
     mode = prompter.select(
-        "How should Twinbox configure your mailbox?",
+        "Twinbox 如何配置你的邮箱？",
         options=[
             {
                 "value": "auto",
-                "label": "Auto-detect from email address, like ponyma@qq.com",
-                "description": "Recommended for most personal inboxes. Twinbox will detect the server settings for you.",
+                "label": "根据邮箱地址自动探测（如 name@qq.com）",
+                "description": "多数个人邮箱推荐。Twinbox 会尝试自动识别 IMAP/SMTP。",
             },
             {
                 "value": "manual",
-                "label": "Enter server settings manually",
-                "description": "Use this if your provider needs custom IMAP or SMTP settings.",
+                "label": "手动填写服务器参数",
+                "description": "当提供商需要自定义 IMAP/SMTP 时使用。",
             },
         ],
         default="auto",
     )
 
     if mode == "auto":
-        email = prompter.text("Mailbox email address", default=dotenv.get("MAIL_ADDRESS"))
+        email = prompter.text("邮箱地址", default=dotenv.get("MAIL_ADDRESS"))
         password = prompter.secret(
-            "Mailbox app password",
+            "邮箱应用专用密码 / 授权码",
             allow_empty=bool(dotenv.get("IMAP_PASS") or dotenv.get("SMTP_PASS")),
         )
         if not email:
-            raise ValueError("Mailbox email is required.")
+            raise ValueError("必须填写邮箱地址。")
         if not password and not (dotenv.get("IMAP_PASS") or dotenv.get("SMTP_PASS")):
-            raise ValueError("Mailbox password is required.")
+            raise ValueError("必须填写邮箱密码或授权码。")
         from .mailbox_detect import detect_to_env
 
-        detect_progress = prompter.progress("Detecting mailbox settings")
+        detect_progress = prompter.progress("正在探测邮箱服务器…")
         detected = detect_to_env(email, verbose=False)
         if detected is None:
-            detect_progress.fail(f"Could not auto-detect mailbox servers for {email}")
-            raise ValueError(f"Could not auto-detect mailbox servers for {email}")
-        detect_progress.finish("Mailbox settings detected")
+            detect_progress.fail(f"无法为 {email} 自动探测邮箱服务器")
+            raise ValueError(f"无法为 {email} 自动探测邮箱服务器")
+        detect_progress.finish("已探测到邮箱服务器参数")
         existing_secret = dotenv.get("IMAP_PASS") or dotenv.get("SMTP_PASS", "")
         resolved_password = password or existing_secret
         return {
@@ -1059,23 +1060,23 @@ def _prompt_mailbox_customization(
             "SMTP_PASS": resolved_password,
         }
 
-    email = prompter.text("Mailbox email address", default=dotenv.get("MAIL_ADDRESS"))
-    imap_host = prompter.text("IMAP host", default=dotenv.get("IMAP_HOST"))
-    imap_port = prompter.text("IMAP port", default=dotenv.get("IMAP_PORT", "993"))
-    imap_encryption = prompter.text("IMAP encryption", default=dotenv.get("IMAP_ENCRYPTION", "ssl"))
-    imap_login = prompter.text("IMAP login", default=dotenv.get("IMAP_LOGIN") or email)
-    imap_pass = prompter.secret("IMAP password", allow_empty=bool(dotenv.get("IMAP_PASS")))
-    smtp_host = prompter.text("SMTP host", default=dotenv.get("SMTP_HOST"))
-    smtp_port = prompter.text("SMTP port", default=dotenv.get("SMTP_PORT", "465"))
-    smtp_encryption = prompter.text("SMTP encryption", default=dotenv.get("SMTP_ENCRYPTION", "ssl"))
-    smtp_login = prompter.text("SMTP login", default=dotenv.get("SMTP_LOGIN") or email)
-    smtp_pass = prompter.secret("SMTP password", allow_empty=bool(dotenv.get("SMTP_PASS") or dotenv.get("IMAP_PASS")))
+    email = prompter.text("邮箱地址", default=dotenv.get("MAIL_ADDRESS"))
+    imap_host = prompter.text("IMAP 主机", default=dotenv.get("IMAP_HOST"))
+    imap_port = prompter.text("IMAP 端口", default=dotenv.get("IMAP_PORT", "993"))
+    imap_encryption = prompter.text("IMAP 加密方式", default=dotenv.get("IMAP_ENCRYPTION", "ssl"))
+    imap_login = prompter.text("IMAP 登录名", default=dotenv.get("IMAP_LOGIN") or email)
+    imap_pass = prompter.secret("IMAP 密码", allow_empty=bool(dotenv.get("IMAP_PASS")))
+    smtp_host = prompter.text("SMTP 主机", default=dotenv.get("SMTP_HOST"))
+    smtp_port = prompter.text("SMTP 端口", default=dotenv.get("SMTP_PORT", "465"))
+    smtp_encryption = prompter.text("SMTP 加密方式", default=dotenv.get("SMTP_ENCRYPTION", "ssl"))
+    smtp_login = prompter.text("SMTP 登录名", default=dotenv.get("SMTP_LOGIN") or email)
+    smtp_pass = prompter.secret("SMTP 密码", allow_empty=bool(dotenv.get("SMTP_PASS") or dotenv.get("IMAP_PASS")))
     if not email:
-        raise ValueError("Mailbox email is required.")
+        raise ValueError("必须填写邮箱地址。")
     resolved_imap_pass = imap_pass or dotenv.get("IMAP_PASS", "")
     resolved_smtp_pass = smtp_pass or dotenv.get("SMTP_PASS") or resolved_imap_pass
     if not resolved_imap_pass or not resolved_smtp_pass:
-        raise ValueError("Mailbox password is required.")
+        raise ValueError("必须填写邮箱密码。")
     return {
         "MAIL_ADDRESS": email,
         "IMAP_HOST": imap_host,
@@ -1332,7 +1333,7 @@ def run_openclaw_onboard(
         report.state_root = str(state_root)
         report.openclaw_home = str(resolved_openclaw_home)
         if shutil.which(openclaw_bin) is None:
-            report.error = f"Missing executable on PATH: {openclaw_bin}"
+            report.error = f"PATH 上找不到可执行文件: {openclaw_bin}（请先安装 OpenClaw CLI 并加入 PATH）"
             return report
 
         env_file = config_path_for_state_root(state_root)
@@ -1343,30 +1344,30 @@ def run_openclaw_onboard(
         prompter.intro("")
         prompter.journey_rail_begin()
         prompter.note(
-            "TwinBox setup",
-            "Phase 1 of 2. This wizard verifies host wiring first, then hands you off to the twinbox agent for profile, materials, rules, and notifications.",
+            "Twinbox 设置",
+            "阶段 1/2：本向导先完成宿主侧接线与校验，再交给 OpenClaw 里的 twinbox agent，继续画像、材料、规则与通知等对话引导。",
             complete=False,
         )
         prompter.note(
-            "Security",
+            "安全说明",
             (
-                "Twinbox is personal-by-default. Please use this setup only where mailbox access, prompts, and attached tools are trusted.\n\n"
-                "Shared or multi-user setups need extra lock-down before you rely on them."
+                "Twinbox 默认面向个人使用场景；仅在邮箱访问、提示词与挂载工具均可信的环境中使用本向导。\n\n"
+                "共享或多用户环境需额外加固后再依赖本方案。"
             ),
             complete=False,
         )
         security_choice = prompter.select(
-        "I understand this is personal-by-default and shared/multi-user use requires lock-down. Continue?",
+        "本人理解：默认面向个人；共享/多用户需额外加固。是否继续？",
         options=[
             {
                 "value": "continue",
-                "label": "Yes",
+                "label": "是",
                 "selected_glyph": "●",
                 "unselected_glyph": "○",
             },
             {
                 "value": "cancel",
-                "label": "No",
+                "label": "否",
                 "selected_glyph": "●",
                 "unselected_glyph": "○",
             },
@@ -1375,39 +1376,39 @@ def run_openclaw_onboard(
         layout="horizontal",
         )
         if security_choice != "continue":
-            report.error = "Security acknowledgement was not accepted."
+            report.error = "未接受安全确认，已中止。"
             report.onboarding = _sync_onboarding_state(
             state_root,
             mailbox_ready=False,
             llm_ready=False,
             dry_run=dry_run,
             )
-            prompter.outro("Setup stopped before any host changes were applied.")
+            prompter.outro("已在应用任何宿主侧改动前停止。")
             return report
 
         prompter.note(
-            "TwinBox setup",
-            "Phase 1 of 2. Security check complete — host wiring steps follow.",
+            "Twinbox 设置",
+            "阶段 1/2：安全确认已完成，接下来进行宿主接线。",
             complete=True,
         )
         prompter.note(
-            "Security",
+            "安全说明",
             (
-                "You acknowledged the personal-by-default policy. "
-                "Shared or multi-user hosts still need explicit lock-down beyond this wizard."
+                "你已确认个人默认使用策略。"
+                "共享或多用户宿主仍需在本向导之外显式加固。"
             ),
             complete=True,
         )
 
         flow = prompter.select(
-        "Choose onboarding flow",
+        "选择引导模式",
         options=[
-            {"value": "quickstart", "label": "Quickstart", "description": "Follow the recommended setup path with the fewest decisions."},
-            {"value": "advanced", "label": "Manual", "description": "Configure port, network, Tailscale, and auth options."},
+            {"value": "quickstart", "label": "快速（推荐）", "description": "最少决策，按推荐路径完成接线。"},
+            {"value": "advanced", "label": "高级 / 手动", "description": "可查看端口、网络、Tailscale、鉴权等细节。"},
         ],
         default="quickstart",
         )
-        flow_label = "Manual" if flow == "advanced" else "Quickstart"
+        flow_label = "高级" if flow == "advanced" else "快速"
         advanced = flow == "advanced"
 
         missing_mail = missing_required_mail_values(dotenv)
@@ -1415,11 +1416,11 @@ def run_openclaw_onboard(
         mailbox_ready = initial_mailbox_ready
         mailbox_body = (
             f"{_mailbox_summary(dotenv)}\n\n"
-            "Twinbox needs mailbox access before the agent can keep onboarding."
+            "需要可用的邮箱访问，agent 才能继续后续 onboarding。"
         )
         if advanced:
-            mailbox_body += f"\n\nState file: {env_file}"
-        prompter.note("Mailbox", mailbox_body, complete=mailbox_ready)
+            mailbox_body += f"\n\n状态文件: {env_file}"
+        prompter.note("邮箱", mailbox_body, complete=mailbox_ready)
         mailbox_action = "update"
         mailbox_prompt_dotenv = dotenv
         if mailbox_ready:
@@ -1435,7 +1436,7 @@ def run_openclaw_onboard(
             mailbox_updates = None
             if mailbox_action != "use_existing":
                 mailbox_updates = _prompt_mailbox_customization(prompter, dotenv=mailbox_prompt_dotenv)
-            mailbox_progress = prompter.progress("Checking mailbox settings")
+            mailbox_progress = prompter.progress("正在校验邮箱设置…")
             mailbox_result = _run_with_timeout(
                 lambda: mailbox_apply_runner(
                     state_root=state_root,
@@ -1447,9 +1448,9 @@ def run_openclaw_onboard(
                 timeout_seconds=mailbox_validation_timeout_seconds,
             )
             if mailbox_result is None:
-                mailbox_progress.fail("Mailbox validation timed out")
+                mailbox_progress.fail("邮箱校验超时")
                 report.error = (
-                    f"Mailbox validation timed out after {mailbox_validation_timeout_seconds:.1f}s."
+                    f"邮箱校验在 {mailbox_validation_timeout_seconds:.1f}s 内未完成。"
                 )
                 report.mailbox = {
                     "prompted": mailbox_action != "use_existing",
@@ -1466,8 +1467,8 @@ def run_openclaw_onboard(
                     dry_run=dry_run,
                 )
                 prompter.note(
-                    "Recovery",
-                    "Twinbox could not finish validating the mailbox settings in time. Check the mailbox endpoint and try again.",
+                    "恢复建议",
+                    "邮箱校验超时。请检查网络与邮箱服务可达性后重试。",
                     complete=None,
                 )
                 prompter.outro(report.error)
@@ -1492,15 +1493,15 @@ def run_openclaw_onboard(
                 dry_run=dry_run,
             )
             prompter.note(
-                "Recovery",
-                "Mailbox setup is required before Twinbox can continue. Fix the mailbox step and rerun the wizard.",
+                "恢复建议",
+                "必须先完成邮箱配置才能继续。请修正本步后重新运行向导。",
                 complete=None,
             )
             prompter.outro(report.error)
             return report
         if not mailbox_ready:
-            mailbox_progress.fail("Mailbox validation did not pass")
-            report.error = "Mailbox validation failed."
+            mailbox_progress.fail("邮箱校验未通过")
+            report.error = "邮箱校验失败。"
             report.onboarding = _sync_onboarding_state(
                 state_root,
                 mailbox_ready=False,
@@ -1508,17 +1509,17 @@ def run_openclaw_onboard(
                 dry_run=dry_run,
             )
             prompter.note(
-                "Recovery",
-                "Twinbox could not validate the mailbox settings. Review the mailbox values and rerun the wizard.",
+                "恢复建议",
+                "无法通过邮箱校验。请核对邮箱参数后重新运行向导。",
                 complete=None,
             )
             prompter.outro(report.error)
             return report
-        mailbox_progress.finish("Mailbox settings validated")
+        mailbox_progress.finish("邮箱设置已通过校验")
         if (not initial_mailbox_ready) or (mailbox_action != "use_existing"):
             prompter.note(
-                "Mailbox",
-                f"{_mailbox_summary(dotenv)}\n\nMailbox settings validated for onboarding.",
+                "邮箱",
+                f"{_mailbox_summary(dotenv)}\n\n邮箱参数已就绪，可继续 onboarding。",
                 complete=True,
             )
 
@@ -1526,24 +1527,24 @@ def run_openclaw_onboard(
         initial_llm_configured = bool(llm_info.get("configured"))
         llm_body = (
             f"{_llm_summary(llm_info)}\n\n"
-            "Twinbox needs an LLM backend for the Phase 1-4 pipeline. Choose a provider to review or update it, or skip for now."
+            "Phase 1–4 流水线需要 LLM 后端。请选择提供商以查看或更新配置，也可暂时跳过。"
         )
         if llm_info.get("configured"):
-            llm_body += "\nUpdate values keeps the current provider defaults available while you edit."
+            llm_body += "\n选择「更新」可在编辑时仍保留当前提供商的默认值。"
         prompter.note("LLM", llm_body, complete=bool(llm_info.get("configured")))
         llm_ready = bool(llm_info.get("configured"))
         llm_handling = None
         llm_prompt_dotenv = dotenv
         preserve_existing_on_skip = llm_ready
         llm_options_menu: list[dict[str, str]] = [
-            {"value": "openai", "label": "Configure OpenAI", "description": "Use the OpenAI-compatible provider path."},
-            {"value": "anthropic", "label": "Configure Anthropic", "description": "Use the Anthropic native messages API path."},
+            {"value": "openai", "label": "配置 OpenAI 兼容", "description": "走 OpenAI-compatible API 路径。"},
+            {"value": "anthropic", "label": "配置 Anthropic", "description": "走 Anthropic Messages API 路径。"},
             {
                 "value": "openclaw",
-                "label": "Import from OpenClaw",
-                "description": "Use OpenClaw's default model from openclaw.json.",
+                "label": "从 OpenClaw 导入",
+                "description": "读取 openclaw.json 中的默认模型等配置。",
             },
-            {"value": "skip", "label": "Skip for now", "description": "Keep the current value if one exists, or leave this step incomplete for now."},
+            {"value": "skip", "label": "暂时跳过", "description": "若已有值则保留；否则本步保持未完成。"},
         ]
         if llm_ready:
             llm_handling = _existing_config_choice(
@@ -1566,27 +1567,27 @@ def run_openclaw_onboard(
                     llm_prompt_dotenv = _without_env_keys(dotenv, _LLM_ENV_KEYS)
                     preserve_existing_on_skip = False
                 llm_choice = prompter.select(
-                    "Choose LLM setup",
+                    "选择 LLM 配置方式",
                     options=llm_options_menu,
                     default=llm_info.get("backend") or "openai",
                 )
         else:
             llm_choice = prompter.select(
-                "Choose LLM setup",
+                "选择 LLM 配置方式",
                 options=llm_options_menu,
                 default=llm_info.get("backend") or "openai",
             )
 
         while True:
             if llm_choice == "use_existing":
-                llm_progress = prompter.progress("Validating LLM configuration")
+                llm_progress = prompter.progress("正在校验 LLM 配置…")
                 llm_ready, report.llm, dotenv = _validate_existing_llm(
                     env_file=env_file,
                     dotenv=dotenv,
                     dry_run=dry_run,
                 )
                 if llm_ready:
-                    llm_progress.finish("LLM configuration validated")
+                    llm_progress.finish("LLM 配置已通过校验")
                     report.onboarding = _sync_onboarding_state(
                         state_root,
                         mailbox_ready=mailbox_ready,
@@ -1595,7 +1596,7 @@ def run_openclaw_onboard(
                     )
                     break
 
-                err_detail = report.llm.get("error", "LLM validation failed")
+                err_detail = report.llm.get("error", "LLM 校验失败")
                 llm_progress.fail(err_detail)
                 report.error = err_detail
                 report.onboarding = _sync_onboarding_state(
@@ -1605,10 +1606,10 @@ def run_openclaw_onboard(
                     dry_run=dry_run,
                 )
                 prompter.note(
-                    "Recovery",
+                    "恢复建议",
                     (
                         f"{err_detail}\n\n"
-                        "The existing LLM settings did not validate. Choose Update values to fix them, or Skip for now to leave this step incomplete."
+                        "当前 LLM 设置未通过校验。请选择「更新配置」修正，或「暂时跳过」保留本步未完成。"
                     ),
                     complete=None,
                 )
@@ -1633,12 +1634,12 @@ def run_openclaw_onboard(
                     extracted = import_llm_from_openclaw_path(oc_json)
                 except OpenClawLlmImportError as exc:
                     prompter.note(
-                        "Recovery",
-                        f"{exc}\n\nChoose another LLM setup option, or skip for now.",
+                        "恢复建议",
+                        f"{exc}\n\n请换其他 LLM 配置方式，或暂时跳过。",
                         complete=None,
                     )
                     llm_choice = prompter.select(
-                        "Choose LLM setup",
+                        "选择 LLM 配置方式",
                         options=llm_options_menu,
                         default="openai",
                     )
@@ -1648,7 +1649,7 @@ def run_openclaw_onboard(
                 api_key = str(extracted["api_key"])
                 model = str(extracted["model"])
                 api_url = str(extracted["api_url"])
-                llm_progress = prompter.progress("Validating LLM configuration")
+                llm_progress = prompter.progress("正在校验 LLM 配置…")
                 llm_result = _run_with_timeout(
                     lambda: llm_update_runner(
                         env_file=env_file,
@@ -1662,7 +1663,7 @@ def run_openclaw_onboard(
                     timeout_seconds=llm_validation_timeout_seconds,
                 )
                 if llm_result is None:
-                    llm_progress.fail("LLM validation timed out")
+                    llm_progress.fail("LLM 校验超时")
                     report.onboarding = _sync_onboarding_state(
                         state_root,
                         mailbox_ready=mailbox_ready,
@@ -1670,16 +1671,16 @@ def run_openclaw_onboard(
                         dry_run=dry_run,
                     )
                     prompter.note(
-                        "Recovery",
+                        "恢复建议",
                         (
-                            f"LLM validation timed out after {llm_validation_timeout_seconds:.1f}s. "
-                            "The credentials were saved to twinbox.json — you can skip for now and sync will retry once the endpoint is reachable. "
-                            "Or try again if you want to confirm connectivity before proceeding."
+                            f"LLM 校验在 {llm_validation_timeout_seconds:.1f}s 内超时。"
+                            "凭据已写入 twinbox.json，可暂时跳过，待端点可达后同步会重试；"
+                            "也可重试以在继续前确认连通性。"
                         ),
                         complete=None,
                     )
                     llm_choice = prompter.select(
-                        "Choose LLM setup",
+                        "选择 LLM 配置方式",
                         options=llm_options_menu,
                         default=llm_choice if llm_choice in ("openai", "anthropic", "openclaw") else "openai",
                     )
@@ -1687,7 +1688,7 @@ def run_openclaw_onboard(
 
                 llm_ready, report.llm, dotenv = llm_result
                 if llm_ready:
-                    llm_progress.finish("LLM configuration validated")
+                    llm_progress.finish("LLM 配置已通过校验")
                     report.llm = {
                         **report.llm,
                         "openclaw_json": str(oc_json),
@@ -1695,7 +1696,7 @@ def run_openclaw_onboard(
                     }
                     break
 
-                err_detail = report.llm.get("error", "LLM validation failed")
+                err_detail = report.llm.get("error", "LLM 校验失败")
                 llm_progress.fail(err_detail)
                 report.onboarding = _sync_onboarding_state(
                     state_root,
@@ -1704,19 +1705,18 @@ def run_openclaw_onboard(
                     dry_run=dry_run,
                 )
                 prompter.note(
-                    "Recovery",
+                    "恢复建议",
                     (
                         f"{err_detail}\n\n"
-                        "The credentials were saved to twinbox.json even though the API call failed — "
-                        "you can skip for now and the pipeline will use them on the next run.\n\n"
-                        "OpenAI-compatible bases such as https://…/v2 only need the base URL; Twinbox appends /chat/completions. "
-                        "If you still see 401, confirm the API key matches the console (often `appid:secret` as one token) with no extra text.\n\n"
-                        "Choose LLM setup again to retry, or skip for now."
+                        "即使 API 调用失败，凭据也已写入 twinbox.json；可暂时跳过，流水线下次运行时会使用。\n\n"
+                        "OpenAI-compatible 网关通常只需填 base URL；Twinbox 会追加 /chat/completions。"
+                        "若仍见 401，请核对 API key 与控制台一致（常见为 `appid:secret` 单段 token，勿含多余字符）。\n\n"
+                        "可重新选择 LLM 配置重试，或暂时跳过。"
                     ),
                     complete=None,
                 )
                 llm_choice = prompter.select(
-                    "Choose LLM setup",
+                    "选择 LLM 配置方式",
                     options=llm_options_menu,
                     default=llm_choice if llm_choice in ("openai", "anthropic", "openclaw") else "openai",
                 )
@@ -1731,7 +1731,7 @@ def run_openclaw_onboard(
             if not api_key:
                 api_key = current_key
             if not api_key:
-                report.error = "LLM API key is required."
+                report.error = "必须提供 LLM 的 API key。"
                 report.llm = {
                     "prompted": True,
                     "configured": False,
@@ -1746,14 +1746,14 @@ def run_openclaw_onboard(
                     dry_run=dry_run,
                 )
                 prompter.note(
-                    "Recovery",
-                    "Twinbox needs an API key before it can validate the selected LLM provider.",
+                    "恢复建议",
+                    "校验所选 LLM 提供商前需要提供 API key。",
                     complete=None,
                 )
                 prompter.outro(report.error)
                 return report
-            model = prompter.text("Model ID", default=current_model)
-            llm_progress = prompter.progress("Validating LLM configuration")
+            model = prompter.text("模型 ID（Model）", default=current_model)
+            llm_progress = prompter.progress("正在校验 LLM 配置…")
             llm_result = _run_with_timeout(
                 lambda: llm_update_runner(
                     env_file=env_file,
@@ -1767,7 +1767,7 @@ def run_openclaw_onboard(
                 timeout_seconds=llm_validation_timeout_seconds,
             )
             if llm_result is None:
-                llm_progress.fail("LLM validation timed out")
+                llm_progress.fail("LLM 校验超时")
                 report.onboarding = _sync_onboarding_state(
                     state_root,
                     mailbox_ready=mailbox_ready,
@@ -1775,15 +1775,15 @@ def run_openclaw_onboard(
                     dry_run=dry_run,
                 )
                 prompter.note(
-                    "Recovery",
+                    "恢复建议",
                     (
-                        f"LLM validation timed out after {llm_validation_timeout_seconds:.1f}s. "
-                        "Check the endpoint or try again — or skip for now (pipeline stays incomplete until configured)."
+                        f"LLM 校验在 {llm_validation_timeout_seconds:.1f}s 内超时。"
+                        "请检查端点或重试，也可暂时跳过（在完成 LLM 配置前流水线不完整）。"
                     ),
                     complete=None,
                 )
                 llm_choice = prompter.select(
-                    "Choose LLM setup",
+                    "选择 LLM 配置方式",
                     options=llm_options_menu,
                     default=llm_choice if llm_choice in ("openai", "anthropic", "openclaw") else "openai",
                 )
@@ -1791,10 +1791,10 @@ def run_openclaw_onboard(
 
             llm_ready, report.llm, dotenv = llm_result
             if llm_ready:
-                llm_progress.finish("LLM configuration validated")
+                llm_progress.finish("LLM 配置已通过校验")
                 break
 
-            err_detail = report.llm.get("error", "LLM validation failed")
+            err_detail = report.llm.get("error", "LLM 校验失败")
             llm_progress.fail(err_detail)
             report.onboarding = _sync_onboarding_state(
                 state_root,
@@ -1803,17 +1803,17 @@ def run_openclaw_onboard(
                 dry_run=dry_run,
             )
             prompter.note(
-                "Recovery",
+                "恢复建议",
                 (
                     f"{err_detail}\n\n"
-                    "OpenAI-compatible bases such as https://…/v2 only need the base URL; Twinbox appends /chat/completions. "
-                    "If you still see 401, confirm the API key matches the console (often `appid:secret` as one token) with no extra text.\n\n"
-                    "Choose LLM setup again, or skip for now (host wiring can continue without a validated LLM)."
+                    "OpenAI-compatible 网关通常只需 base URL；Twinbox 会追加 /chat/completions。"
+                    "若仍见 401，请核对 API key 与控制台一致（常见为 `appid:secret` 单段 token）。\n\n"
+                    "可重新选择 LLM 配置，或暂时跳过（未校验 LLM 时宿主接线仍可继续）。"
                 ),
                 complete=None,
             )
             llm_choice = prompter.select(
-                "Choose LLM setup",
+                "选择 LLM 配置方式",
                 options=llm_options_menu,
                 default=llm_choice if llm_choice in ("openai", "anthropic", "openclaw") else "openai",
             )
@@ -1822,36 +1822,36 @@ def run_openclaw_onboard(
             llm_info_final = _inspect_llm(env_file, dotenv)
             prompter.note(
                 "LLM",
-                f"{_llm_summary(llm_info_final)}\n\nLLM backend ready for Twinbox phases.",
+                f"{_llm_summary(llm_info_final)}\n\nLLM 后端已就绪，可支撑 Twinbox Phase 1–4。",
                 complete=True,
             )
 
         integration_lines = [
-            "This adds the small Twinbox integration config that helps OpenClaw discover Twinbox tools and stay on the recommended wiring path.",
+            "将写入一份轻量 Twinbox 集成配置，便于 OpenClaw 发现 Twinbox 工具并保持推荐接线。",
             "",
-            f"Expected fragment file:\n  {fragment_path}",
+            f"期望的 fragment 文件：\n  {fragment_path}",
         ]
         if fragment_exists:
-            integration_lines += ["", "Choose below whether to merge this file into your OpenClaw config."]
+            integration_lines += ["", "请选择是否将该文件合并进 OpenClaw 配置。"]
         else:
             integration_lines += [
                 "",
-                "Status: not found — there is nothing to merge, so the Yes/No step is skipped (this is normal in that situation).",
-                "How to get the file: run scripts/package_vendor_tarball.sh (or use a release tarball) so vendor/integrations/openclaw/ exists; "
-                "twinbox install --archive also writes ~/.config/twinbox/code-root to that vendor directory. "
-                "For development, point TWINBOX_CODE_ROOT at a git checkout instead.",
+                "状态：未找到 fragment — 无可合并内容，将跳过是/否步骤（在此场景下为正常情况）。",
+                "获取方式：运行 scripts/package_vendor_tarball.sh（或使用发布 tarball），确保存在 vendor/integrations/openclaw/；\n"
+                "twinbox install --archive 也会把 code-root 指向该 vendor。\n"
+                "开发环境可将 TWINBOX_CODE_ROOT 指向 git 仓库根目录。",
             ]
         integration_body = "\n".join(integration_lines)
         if advanced:
             integration_body += f"\n\nOpenClaw home: {resolved_openclaw_home}"
-        prompter.note("Twinbox tools integration", integration_body, complete=False)
+        prompter.note("Twinbox 工具集成", integration_body, complete=False)
         if fragment_exists:
             fragment_selected = (
                 prompter.select(
-                    "Use the recommended Twinbox tools integration?",
+                    "是否采用推荐的 Twinbox 工具集成 fragment？",
                     options=[
-                        {"value": "yes", "label": "Yes (Recommended)", "selected_glyph": "●", "unselected_glyph": "○"},
-                        {"value": "no", "label": "No", "selected_glyph": "●", "unselected_glyph": "○"},
+                        {"value": "yes", "label": "是（推荐）", "selected_glyph": "●", "unselected_glyph": "○"},
+                        {"value": "no", "label": "否", "selected_glyph": "●", "unselected_glyph": "○"},
                     ],
                     default=None,
                     layout="horizontal",
@@ -1882,31 +1882,31 @@ def run_openclaw_onboard(
         save_twinbox_config(config_path, twinbox_config)
 
         integration_done = (
-            "Using the recommended Twinbox tools fragment."
+            "已启用推荐的 Twinbox tools fragment。"
             if fragment_selected
-            else "Continuing without the bundled tools fragment."
+            else "未使用随包提供的 tools fragment，继续后续步骤。"
         )
         prompter.note(
-            "Twinbox tools integration",
-            f"{integration_done}\n\nSaved integration choice to twinbox config.",
+            "Twinbox 工具集成",
+            f"{integration_done}\n\n已保存集成选项到 twinbox 配置。",
             complete=True,
         )
 
         summary_lines = [
-            f"Mailbox: {report.mailbox.get('mail_address') or 'configured'}",
-            f"LLM: {report.llm.get('model') or report.llm.get('backend') or report.llm.get('status', 'not configured')}",
-            f"Twinbox tools integration: {'yes' if fragment_selected else 'no'}",
-            f"Repo root: {resolved_code_root}",
+            f"邮箱: {report.mailbox.get('mail_address') or '已配置'}",
+            f"LLM: {report.llm.get('model') or report.llm.get('backend') or report.llm.get('status', '未配置')}",
+            f"Twinbox 工具集成: {'是' if fragment_selected else '否'}",
+            f"代码根目录: {resolved_code_root}",
             f"OpenClaw home: {resolved_openclaw_home}",
         ]
         if advanced:
-            summary_lines.append(f"State root: {state_root}")
-        prompter.note("Apply setup", "\n".join(summary_lines), complete=False)
+            summary_lines.append(f"状态根目录 (state root): {state_root}")
+        prompter.note("应用设置", "\n".join(summary_lines), complete=False)
         deploy_choice = prompter.select(
-            "Apply the host setup now?",
+            "是否立即应用宿主侧设置？",
             options=[
-                {"value": "apply", "label": "Apply now", "selected_glyph": "◆", "unselected_glyph": "◇"},
-                {"value": "skip", "label": "Skip for now", "selected_glyph": "◆", "unselected_glyph": "◇"},
+                {"value": "apply", "label": "立即应用", "selected_glyph": "◆", "unselected_glyph": "◇"},
+                {"value": "skip", "label": "暂时跳过", "selected_glyph": "◆", "unselected_glyph": "◇"},
             ],
             default="apply",
             layout="horizontal",
@@ -1922,21 +1922,21 @@ def run_openclaw_onboard(
                 llm_ready=llm_ready,
                 dry_run=dry_run,
             )
-            report.error = "Host setup was reviewed but not applied yet."
+            report.error = "已审阅宿主设置，但尚未应用。"
             report.next_action = (
-                "Apply the host setup when you are ready, then continue inside OpenClaw with the twinbox agent; "
-                f"next guided conversation stage is {report.onboarding['current_stage']}."
+                "请在方便时应用宿主设置，然后在 OpenClaw 中打开 twinbox agent 继续；"
+                f"下一对话引导阶段为 {report.onboarding['current_stage']}。"
             )
             prompter.note(
-                "Recovery",
-                f"Host setup is still pending. Current guided stage is {report.onboarding['current_stage']}; apply the setup, then continue in the twinbox agent.",
+                "恢复建议",
+                f"宿主设置仍待应用。当前引导阶段为 {report.onboarding['current_stage']}；应用后请在 twinbox agent 中继续。",
                 complete=None,
             )
             prompter.outro(report.error)
             return report
 
-        deploy_progress = prompter.progress("Applying Twinbox OpenClaw setup")
-        deploy_progress.update("Syncing skill, config, fragment choice, and gateway wiring")
+        deploy_progress = prompter.progress("正在应用 Twinbox × OpenClaw 宿主设置…")
+        deploy_progress.update("同步 Skill、配置、fragment 选择与 Gateway 接线…")
         deploy_report = deploy_runner(
             code_root=resolved_code_root,
             openclaw_home=resolved_openclaw_home,
@@ -1955,8 +1955,8 @@ def run_openclaw_onboard(
         report.plugin_tools = deploy_report.plugin_tools
         report.bridge = deploy_report.bridge
         if not deploy_report.ok:
-            deploy_progress.fail("OpenClaw deploy wiring failed")
-            report.error = "OpenClaw deploy wiring failed."
+            deploy_progress.fail("OpenClaw 部署接线失败")
+            report.error = "OpenClaw 部署接线失败。"
             report.onboarding = _sync_onboarding_state(
                 state_root,
                 mailbox_ready=mailbox_ready,
@@ -1964,16 +1964,16 @@ def run_openclaw_onboard(
                 dry_run=dry_run,
             )
             prompter.note(
-                "Recovery",
-                f"Twinbox stopped during host setup. Current guided stage is {report.onboarding['current_stage']}; fix the deploy error, then rerun the wizard.",
+                "恢复建议",
+                f"宿主设置执行中断。当前引导阶段为 {report.onboarding['current_stage']}；请修复部署错误后重新运行向导。",
                 complete=None,
             )
             prompter.outro(report.error)
             return report
-        deploy_progress.finish("Host wiring applied")
+        deploy_progress.finish("宿主接线已应用")
         prompter.note(
-            "Apply setup",
-            "\n".join(summary_lines) + "\n\nOpenClaw host wiring applied.",
+            "应用设置",
+            "\n".join(summary_lines) + "\n\nOpenClaw 宿主接线已写入。",
             complete=True,
         )
 
@@ -1988,21 +1988,21 @@ def run_openclaw_onboard(
         if llm_ready and prereq_ok:
             report.ok = True
             report.next_action = (
-                "Continue inside OpenClaw with the twinbox agent; "
-                f"next guided conversation stage is {current_stage}."
+                "请在 OpenClaw 中打开 twinbox agent 继续；"
+                f"下一对话引导阶段为 {current_stage}。"
             )
             report.notes.append(
-                "Host wiring is verified locally; OpenClaw session prompt injection can still lag behind on some models."
+                "宿主接线已在本地校验；部分模型上 OpenClaw 会话级 system prompt 注入仍可能有延迟。"
             )
             prompter.note(
-                "Phase 2 of 2",
-                f"Continue in the twinbox agent inside {_OPENCLAW_ONBOARD_LOBSTER_MARK}. "
-                f"Your next guided conversation stage is {current_stage}.",
+                "阶段 2/2",
+                f"请在 {_OPENCLAW_ONBOARD_LOBSTER_MARK} 中进入 twinbox agent。"
+                f"下一对话引导阶段为 {current_stage}。",
                 complete=True,
             )
             prompter.outro(
-                f"🎉 Successfully completed host 🔗 wiring. Open the twinbox agent in {_OPENCLAW_ONBOARD_LOBSTER_MARK} "
-                "and ask to continue onboarding — it'll pick up from the next stage.",
+                f"🎉 宿主 🔗 接线已完成。请在 {_OPENCLAW_ONBOARD_LOBSTER_MARK} 打开 twinbox agent，"
+                "请求继续 onboarding，将从下一阶段接续。",
                 paste_hint_label=_OPENCLAW_PHASE2_HANDOFF_LABEL,
                 paste_hint_quote=_OPENCLAW_PHASE2_DIALOG_BOOTSTRAP,
             )
@@ -2011,47 +2011,47 @@ def run_openclaw_onboard(
         if llm_ready and not prereq_ok:
             report.ok = False
             report.error = (
-                "OpenClaw Phase 2 prerequisites are incomplete (plugin/tools + bridge timer + health check). "
-                "Fix deploy/bridge errors or rerun without --skip-bridge."
+                "OpenClaw 阶段 2 前置条件未齐（插件/工具、bridge 定时与健康检查等）。"
+                "请修复 deploy/bridge 报错，或勿使用 --skip-bridge 重试。"
             )
             prompter.note(
-                "Recovery",
+                "恢复建议",
                 report.error,
                 complete=None,
             )
             prompter.outro(report.error)
             return report
 
-        report.error = "LLM setup is still incomplete."
+        report.error = "LLM 配置尚未完成。"
         report.next_action = (
-            "Host setup is partially ready. Configure the LLM step, then continue inside OpenClaw with the twinbox agent; "
-            f"next guided conversation stage is {current_stage}."
+            "宿主侧部分就绪。请先完成 LLM 步骤，再在 OpenClaw 中通过 twinbox agent 继续；"
+            f"下一对话引导阶段为 {current_stage}。"
         )
         prompter.note(
-            "Phase 2 of 2",
-            f"Host setup is partially ready. Your next guided conversation stage is {current_stage}, but Twinbox still needs LLM setup before the full handoff is ready.",
+            "阶段 2/2",
+            f"宿主侧部分就绪。下一对话阶段为 {current_stage}，但完整交接前仍需完成 LLM 配置。",
             complete=False,
         )
-        prompter.outro("Finish the LLM step, then continue in the twinbox agent.")
+        prompter.outro("请先完成 LLM 配置，再在 twinbox agent 中继续。")
         return report
     except KeyboardInterrupt:
         report.ok = False
-        report.error = "Setup cancelled."
-        prompter.cancel("Setup mode", flow_label)
+        report.error = "已取消设置。"
+        prompter.cancel("设置模式", flow_label)
         return report
 
 
 def format_openclaw_onboard_report(report: OpenClawOnboardReport) -> str:
     lines = [
-        "Twinbox OpenClaw onboard",
-        f"result: {'ok' if report.ok else 'failed'}",
+        "Twinbox × OpenClaw onboard",
+        f"结果: {'ok' if report.ok else 'failed'}",
         f"state_root: {report.state_root}",
-        f"mailbox: {report.mailbox.get('status', 'unknown')}",
+        f"邮箱: {report.mailbox.get('status', 'unknown')}",
         f"llm: {report.llm.get('backend', 'unconfigured')}",
-        f"onboarding stage: {report.onboarding.get('current_stage', 'unknown')}",
+        f"onboarding 阶段: {report.onboarding.get('current_stage', 'unknown')}",
     ]
     if report.error:
-        lines.append(f"error: {report.error}")
+        lines.append(f"错误: {report.error}")
     if report.next_action:
-        lines.append(f"next: {report.next_action}")
+        lines.append(f"下一步: {report.next_action}")
     return "\n".join(lines)
