@@ -1289,6 +1289,7 @@ def run_openclaw_onboard(
     deploy_runner: DeployRunner = run_openclaw_deploy,
     fragment_decision: bool | None = None,
     skip_bridge: bool = False,
+    start_daemon: bool = True,
 ) -> OpenClawOnboardReport:
     """Legacy stdin/getpass onboarding wizard (minimal prompts).
 
@@ -1488,6 +1489,7 @@ def run_openclaw_onboard(
         no_fragment=fragment_path.is_file() and not use_fragment,
         openclaw_bin=openclaw_bin,
         skip_bridge=skip_bridge,
+        start_daemon=start_daemon,
     )
     report.deploy = deploy_report.to_json_dict()
     report.phase2_ready = deploy_report.phase2_ready
@@ -1537,6 +1539,7 @@ def run_openclaw_onboard_v2(
     prompter: JourneyPrompter | None = None,
     deploy_runner: DeployRunner | None = None,
     skip_bridge: bool = False,
+    start_daemon: bool = True,
     mailbox_apply_runner: MailboxApplyRunner = _apply_mailbox_updates,
     mailbox_validation_timeout_seconds: float = 15.0,
     llm_update_runner: LLMUpdateRunner = _apply_llm_updates,
@@ -2067,12 +2070,24 @@ def run_openclaw_onboard_v2(
                 complete=True,
             )
 
-        integration_body = (
-            "This adds the small Twinbox integration config that helps OpenClaw discover Twinbox tools and stay on the recommended wiring path.\n\n"
-            f"Integration fragment: {fragment_path if fragment_exists else 'not found'}"
-        )
+        integration_lines = [
+            "This adds the small Twinbox integration config that helps OpenClaw discover Twinbox tools and stay on the recommended wiring path.",
+            "",
+            f"Expected fragment file:\n  {fragment_path}",
+        ]
+        if fragment_exists:
+            integration_lines += ["", "Choose below whether to merge this file into your OpenClaw config."]
+        else:
+            integration_lines += [
+                "",
+                "Status: not found — there is nothing to merge, so the Yes/No step is skipped (this is normal in that situation).",
+                "How to get the file: it ships with the full Twinbox repo under openclaw-skill/openclaw.fragment.json. "
+                "The vendor tarball from twinbox install --archive only contains twinbox_core; set TWINBOX_CODE_ROOT to a checkout "
+                "or run this wizard from the repository root so this path resolves correctly.",
+            ]
+        integration_body = "\n".join(integration_lines)
         if advanced:
-            integration_body += f"\nOpenClaw home: {resolved_openclaw_home}"
+            integration_body += f"\n\nOpenClaw home: {resolved_openclaw_home}"
         prompter.note("Twinbox tools integration", integration_body, complete=False)
         if fragment_exists:
             fragment_selected = (
@@ -2175,6 +2190,7 @@ def run_openclaw_onboard_v2(
             no_fragment=fragment_exists and not fragment_selected,
             openclaw_bin=openclaw_bin,
             skip_bridge=skip_bridge,
+            start_daemon=start_daemon,
         )
         report.deploy = deploy_report.to_json_dict()
         report.phase2_ready = deploy_report.phase2_ready
