@@ -355,6 +355,12 @@ twinbox deploy openclaw --rollback [--remove-config] [--dry-run] [--no-restart] 
 
 操作主路径见 [integrations/openclaw/DEPLOY.md](../../integrations/openclaw/DEPLOY.md)。
 
+### onboard openclaw（TTY 上下文粘贴）
+
+`Phase 1` 向导在 **LLM 校验通过后**、**部署 OpenClaw 前**，可依次粘贴：画像 / 校准 / 参考长文（多行，**单独一行** `.` 结束；终端**不回显**正文，仅显示字符统计）。可选 **用已配置 LLM 润色** 再写入 `human-context.yaml` 与 `material-extracts/`。
+
+- 跳过该段：`twinbox onboard openclaw --skip-tty-context-bundle`
+
 ### host bridge
 
 Vendor/no-clone 场景下的 OpenClaw cron bridge：在 `~/.config/systemd/user/` 安装 **真实 unit 文件**（非指向仓库的 symlink），`ExecStart` 仅调用已安装的 `twinbox host bridge poll`。
@@ -1132,17 +1138,20 @@ twinbox digest weekly [--json]
 
 ### context import-material
 
-导入用户材料（文件）。
+导入用户材料（文件或 stdin 粘贴）。
 
 **用法**：
 
 ```bash
 twinbox context import-material SOURCE [--intent INTENT]
+twinbox context import-material --stdin [--label STEM] [--intent INTENT]   # 从管道/重定向读正文，写入 STEM.md
 ```
 
 **参数**：
 
-- `SOURCE`：材料文件路径（位置参数）
+- `SOURCE`：材料文件路径（与 `--stdin` 二选一）
+- `--stdin`：从标准输入读取全文（适合终端粘贴或 `cat file.md | …`），写入 `material-extracts/<label>.md`
+- `--label`：与 `--stdin` 联用时的文件名主干（默认 `stdin-paste`）
 - `--intent INTENT`：材料意图（可选，默认 `reference`）
   - `reference`：参考数据，用于排序和判断提示；如标记为 synthetic 会隔离到 material_summary
   - `template_hint`：输出格式参考，LLM 会按类似结构组织相关数据；忽略 synthetic 标记

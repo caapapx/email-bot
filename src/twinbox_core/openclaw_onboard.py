@@ -19,7 +19,7 @@ from typing import Any, Callable, Protocol, TextIO
 from .env_writer import load_env_file, merge_env_file, write_env_file
 from .llm import LLMError, resolve_backend
 from .mail_env_contract import missing_required_mail_values
-from .onboarding import STAGE_ORDER, load_state, save_state
+from .onboarding import STAGE_ORDER, complete_stage, load_state, save_state
 from .openclaw_deploy import run_openclaw_deploy
 from .openclaw_deploy_types import OpenClawDeployReport
 from .openclaw_json_io import default_openclaw_fragment_path, resolve_integration_fragment_path
@@ -80,6 +80,14 @@ class JourneyPrompter(Protocol):
     ) -> str: ...
 
     def text(self, prompt: str, *, default: str | None = None) -> str: ...
+
+    def paste_block(
+        self,
+        title: str,
+        *,
+        end_marker: str = ".",
+        hint: str | None = None,
+    ) -> str: ...
 
     def secret(self, prompt: str, *, allow_empty: bool = False) -> str: ...
 
@@ -619,6 +627,45 @@ class ConsoleJourneyPrompter:
             collapsed = _collapse_lines(str(default))
             return collapsed if collapsed else str(default).strip()
         return _collapse_lines(raw) if raw else raw
+
+    def paste_block(
+        self,
+        title: str,
+        *,
+        end_marker: str = ".",
+        hint: str | None = None,
+    ) -> str:
+        """Multi-line paste; terminator line alone (default '.'). Does not re-print body — only stats."""
+        self._write("")
+        self._write(self._accent(title))
+        if hint:
+            self._write(self._muted(hint))
+        self._write(
+            self._muted(
+                f"Paste text (e.g. Markdown or pasted table). End with a new line containing only {end_marker!r} then Enter. "
+                "This UI does not echo the captured text back — only a size summary."
+            )
+        )
+        lines: list[str] = []
+        while True:
+            try:
+                raw_line = self._input_fn("")
+            except EOFError:
+                break
+            line = raw_line.rstrip("\n\r")
+            if line == end_marker:
+                break
+            lines.append(line)
+        body = "\n".join(lines)
+        n_chars = len(body)
+        n_bytes = len(body.encode("utf-8", errors="replace"))
+        n_lines = len(lines)
+        self._write(
+            self._muted(
+                f"Captured {n_chars} characters ({n_bytes} bytes), {n_lines} line(s) — not shown above."
+            )
+        )
+        return body
 
     def _supports_inline_secret_input(self) -> bool:
         return self._is_tty and (self._key_reader is not None or self._stdin_is_tty)
@@ -1292,6 +1339,7 @@ def run_openclaw_onboard(
     mailbox_validation_timeout_seconds: float = 15.0,
     llm_update_runner: LLMUpdateRunner = _apply_llm_updates,
     llm_validation_timeout_seconds: float = 15.0,
+    skip_tty_context_bundle: bool = False,
 ) -> OpenClawOnboardReport:
     """Guided OpenClaw host wiring: TTY journey, mailbox/LLM validation, deploy, onboarding sync.
 
@@ -1831,6 +1879,103 @@ def run_openclaw_onboard(
                 f"{_llm_summary(llm_info_final)}\n\nLLM backend ready for Twinbox phases.",
                 complete=True,
             )
+
+        if (
+            llm_ready
+            and not dry_run
+            and not skip_tty_context_bundle
+            and hasattr(prompter, "paste_block")
+        ):
+            from twinbox_core.onboard_context_capture import apply_onboarding_paste_bundle
+
+            prompter.note(
+                "Context (optional)",
+                (
+                    "Capture profile / calibration / long reference paste in this terminal before OpenClaw deploy. "
+                    "Paste is buffered without echoing the full text back (only a size summary). "
+                    "End each block with a line containing only . then Enter. Skip a block by typing . immediately."
+                ),
+                complete=False,
+            )
+            polish_choice = prompter.select(
+                "Polish pasted text with your configured LLM before saving?",
+                options=[
+                    {
+                        "value": "yes",
+                        "label": "Yes",
+                        "description": "Cleaner Markdown; on API failure the raw paste is kept.",
+                    },
+                    {"value": "no", "label": "No", "description": "Save exactly what you pasted."},
+                ],
+                default="yes",
+                layout="horizontal",
+            )
+            polish = polish_choice == "yes"
+            profile_raw = prompter.paste_block("Profile / role / habits (optional)")
+            calibration_raw = prompter.paste_block("Calibration / priorities (optional)")
+            material_raw = prompter.paste_block(
+                "Reference paste — Markdown or plain text (optional)",
+                hint="Paste tables as text/Markdown; binary Excel upload is not required here.",
+            )
+            mat_label = "context"
+            mat_intent = "reference"
+            if material_raw.strip():
+                mat_label = prompter.text("Short label for this paste (filename stem)", default="context")
+                mat_intent = prompter.select(
+                    "Material intent",
+                    options=[
+                        {
+                            "value": "reference",
+                            "label": "reference",
+                            "description": "General / weekly context.",
+                        },
+                        {
+                            "value": "template_hint",
+                            "label": "template_hint",
+                            "description": "Weekly template shaping.",
+                        },
+                    ],
+                    default="reference",
+                    layout="horizontal",
+                )
+            bundle = apply_onboarding_paste_bundle(
+                state_root,
+                env_file=Path(env_file),
+                profile_raw=profile_raw,
+                calibration_raw=calibration_raw,
+                material_raw=material_raw,
+                material_label=mat_label,
+                material_intent=mat_intent,
+                polish=polish,
+            )
+            mat_line = "skipped"
+            if bundle.get("material"):
+                mat_line = str(bundle["material"].get("filename", "saved"))
+            prompter.note(
+                "Context capture",
+                (
+                    f"profile: {'saved' if bundle.get('profile_saved') else 'skipped'}\n"
+                    f"calibration: {'saved' if bundle.get('calibration_saved') else 'skipped'}\n"
+                    f"material: {mat_line}"
+                ),
+                complete=True,
+            )
+            st = load_state(state_root)
+            if bundle.get("profile_saved") or bundle.get("calibration_saved"):
+                complete_stage(st, "profile_setup")
+                save_state(state_root, st)
+            if bundle.get("material"):
+                st = load_state(state_root)
+                if "profile_setup" in st.completed_stages:
+                    complete_stage(st, "material_import")
+                    save_state(state_root, st)
+                else:
+                    prompter.note(
+                        "Onboarding",
+                        "Reference paste was saved to material-extracts, but profile_setup is not completed yet — "
+                        "finish profile in the twinbox agent or rerun this step with profile text.",
+                        complete=None,
+                    )
 
         integration_lines = [
             "This adds the small Twinbox integration config that helps OpenClaw discover Twinbox tools and stay on the recommended wiring path.",
