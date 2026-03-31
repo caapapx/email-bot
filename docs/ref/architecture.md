@@ -486,8 +486,7 @@ twinbox/
 │   │   ├── orchestration.md
 │   │   ├── runtime.md
 │   │   └── validation.md
-│   ├── guide/
-│   ├── archive/
+│   ├── assets/
 │   └── validation/
 │       └── README.md
 ├── src/

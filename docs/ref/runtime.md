@@ -194,5 +194,5 @@ The runtime must respect the validation program.
 ## Relationship To Other Docs
 
 - [architecture.md](./architecture.md) defines the system layers and invariants
-- [validation-framework.md](../archive/validation-framework.md) defines when each capability may be activated
+- [validation.md](./validation.md) describes validation contracts and artifact layout
 - [scheduling.md](./scheduling.md) describes cadence-driven triggering and future listener integration

@@ -188,5 +188,4 @@
 ## 相关文档
 
 - [ROADMAP.md](../../ROADMAP.md)
-- [Progressive Validation Framework](../archive/validation-framework.md)
 - [Thread State Runtime](./runtime.md)
