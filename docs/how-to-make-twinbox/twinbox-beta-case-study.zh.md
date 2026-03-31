@@ -4,7 +4,7 @@
 
 ## 一、背景与目标
 
-![开篇示意](./images/01-intro.png)
+![Twinbox 安装向导 Phase 1：产品 intro（安全确认与继续）](../assets/images/01-twinbox-setup-phase1.png)
 
 这是一篇从 Twinbox 立项、开发到目前发布 Beta 的过程总结和经验分享。我们一开始的终极目标，是想在 AI 帮助下，把琐碎工作里的数据流整理成周报，减轻统计和撰写的负担，更完整、更稳地输出一周工作总结。其中，公司内部邮件收发是非常可观的数据源，能给工作信息提供参考。那怎么把这类传统数据交给 AI 用好？
 
@@ -12,19 +12,19 @@
 
 无论是过往印象里还是实际调研，市面上已经有很多适配智能体生态的邮件类客户端或服务：Dify、OpenClaw 生态里的 Himalaya、谷歌 gog 邮箱 CLI、Anthropic 的 Email Agent SDK 等；
 
-![邮件智能体相关方案概览](./images/02-email-agents-landscape.png)
+![邮件智能体相关方案概览](../assets/images/02-email-agents-landscape.png)
 
 Anthropic 的邮件 Agent SDK 架构
 
-![Anthropic 邮件 Agent SDK 架构示意](./images/03-anthropic-email-sdk-arch.png)
+![Anthropic 邮件 Agent SDK 架构示意](../assets/images/03-anthropic-email-sdk-arch.png)
 
 OpenClaw 上发布的谷歌 gog 邮箱 CLI skill
 
-![OpenClaw 上的 gog 邮箱 CLI skill](./images/04-openclaw-gog-skill.png)
+![OpenClaw 上的 gog 邮箱 CLI skill](../assets/images/04-openclaw-gog-skill.png)
 
 我们也看了微信公众号、抖音上一些智能体开发案例。他们更多做的是流程化工单派发：比如有基于 Coze 的邮件智能体，用预设周报模板、多轮从邮件里抽数据，最后输出符合模板的总结。Himalaya 在 OpenClaw 里更多是 CLI：用户主动触发时读邮件、总结、抽今天或一周的邮件。
 
-![基于 Coze 等平台的邮件 Agent](./images/05-coze-mail-agent.png)
+![基于 Coze 等平台的邮件 Agent](../assets/images/05-coze-mail-agent.png)
 
 在这种技术背景下，我们想的是：既然要做，不是为了造轮子，要尽量用现成能力控制成本；但现有方案里，不少是「单轮、单次」处理。
 
@@ -34,55 +34,55 @@ OpenClaw 上发布的谷歌 gog 邮箱 CLI skill
 
 以结果和业务价值为导向，智能体结合邮件，我们到底要什么？我觉得有几条。第一，它得是个漏斗，像智能筛选「更重要的事」；每个人角色不同，但可能都在同一个邮件组里。以我为例，每周将近两百封，在部署组、OPS、公共支撑组，还有很多周报抄送。若按几个重要维度切，我可能只盯第一维，或第二维的一半。
 
-![无智能体前的收件与分组习惯](./images/06-inbox-without-agent.png)
+![无智能体前的收件与分组习惯](../assets/images/06-inbox-without-agent.png)
 
 没有智能体之前，我们有 Foxmail 那种分组、过滤、关键词匹配，把邮件归档好，减轻注意力负担，让人聚焦某区域、某邮件组、某类关键词——HR、OA、工时等。有了智能体，这些工作就 Copilot 化了：不是要你手把手拖配置，而是讲清需求，它像秘书一样自动管邮件，不光分类，还能挖出以前纯客户端里不容易看到的动态和价值。
 
-![「线程化」的事务串联摘要](./images/07-thread-summary.png)
+![「线程化」的事务串联摘要](../assets/images/07-thread-summary.png)
 
 定时推送的「值得关注」
 
-![定时推送的「值得关注」](./images/08-push-highlights.png)
+![定时推送的「值得关注」](../assets/images/08-push-highlights.png)
 
 也就是说某个区域的项目交付活跃度、风险、待办，如果没有总监级的一对一汇报、没有大规模抽象总结，Foxmail 不会主动「送给你」；我们就让智能体来做这件事，为 LTC 提效，也挖潜在价值。
 
-![周报生成概要](./images/09-weekly-overview.png)
+![周报生成概要](../assets/images/09-weekly-overview.png)
 
 ## 四、顶层设计：线程、上下文与 OpenClaw
 
-> 以下一块内容在飞书原文中为嵌入组件，仓库内以文字保留；若需补图，请将导出文件放入 `images/` 并按 [images/README.md](./images/README.md) 中的序号命名。
+> 以下一块内容在飞书原文中为嵌入组件，仓库内以文字保留；若需补图，请将导出文件放入 [`docs/assets/images/`](../assets/images/) 并按 [images/README.md](../assets/images/README.md) 中的序号命名。
 
 基于这个目标做了顶层设计：应用层、业务层需求驱动。一是把邮件抽象成「线程」（打引号的线程）——按日常工作优先级，把大规模邮件按线程处理，而不是孤立的一封封、一组组、一堆关键词。
 
-![部署时定制的个人画像及推送策略](./images/10-persona-push-policy.png)
+![部署时定制的个人画像及推送策略](../assets/images/10-persona-push-policy.png)
 
 定制的周报格式
 
-![定制的周报格式](./images/11-weekly-template.png)
+![定制的周报格式](../assets/images/11-weekly-template.png)
 
 二是上下文感知的邮件智能体：前期根据操作习惯、岗位画像、已确认的事实（我关心什么、不关心什么、哪些事互相关联），
 
-![基于对话的 Twinbox 邮件功能配置视图](./images/12-twinbox-config-chat.png)
+![基于对话的 Twinbox 邮件功能配置视图](../assets/images/12-twinbox-config-chat.png)
 
 这些规则打包进智能体的 memory；
 
-![在已知事实之上做漏斗抽取](./images/13-funnel-extraction.png)
+![在已知事实之上做漏斗抽取](../assets/images/13-funnel-extraction.png)
 
 在已知事实之上，像漏斗一样抽出要的东西——抽象的数据流关系、潜在业务价值。技术选型上，一开始是围绕 OpenClaw 生态来做的。
 
 OpenClaw 以及 Claude Code 对我们之前的智能体设计冲击很大。表面上是热度，本质是它把「智能体设计过于复杂」这件事简化了。开年后那一周，我大规模用了将近四个 OpenClaw 环境：云上、线下、厂商的、家里闲置机器，做批量爬虫类任务，一行代码没写，靠对话加外部爬虫 API，就拉了大量文件——整站图片、wiki 索引目录，性能好的时候半小时能爬下单模块。等于说原来的编排、工作流，被高度抽象进对话框。然后今年我们也想围绕它看看，智能体到底能做多深。
 
-![OpenClaw 工作原理](./images/14-openclaw-overview.png)
+![OpenClaw 工作原理](../assets/images/14-openclaw-overview.png)
 
 Claude Code 逆向分析后的架构绘制（搜集材料后使用 nano banana 绘制）
 
-![Claude Code 架构示意](./images/15-claude-code-architecture.png)
+![Claude Code 架构示意](../assets/images/15-claude-code-architecture.png)
 
 OpenClaw 这一侧，手边是 API、MCP、Skill、Token、命令行工具，以及 Web search、读写文档等集成插件。我们是用 Claude Code 开发 Twinbox；Claude Code 的 Skill 和 OpenClaw Skill 有相似也有差异，这点在项目也发了两版本 skill（因为 description 及调用方式差异）。Skill 设计上，只为一个岗位、一个人做一个智能体，收益小；只为 OpenClaw 做一个，也偏窄。我们希望兼顾不同人群、不同平台。
 
 业界能看到 ClawHub、腾讯 SkillHub 等，几个月里 Skill 已经很多，但真正用好、产生价值的其实不多。商业化落地更明显的是在 Claude Code 里，开源闭源都有不少优秀 Skill：大家熟悉的 Superpower、awesome-claude-code、官方的 skill creator 等。我们不会去复刻一个 OpenClaw 专用 Skill 全家桶——很多是「一行代码不写，纯 vibe」里长出来的，商业价值、规模化降本也不清晰，还在蛮荒发展期。Claude Code 出来半年多了，大量 Skill 经万千开发者验证，真实有效，有的甚至是革命性的。我在这项目里用到的包括：Superpower 里的 Brainstorm、CC 官方的 skill-creator 生成器、一款投行背景作者做的「拷问我」grill-me Skill（连环追问计划或方案）、Improve Codebase Architecture 这类提架构的 Skill，还有我自己做的 teacher-CS：
 
-![Teacher-CS skill 用于技术知识学习](./images/16-teacher-cs-skill.png)
+![Teacher-CS skill 用于技术知识学习](../assets/images/16-teacher-cs-skill.png)
 
 主要在陌生领域做问答，用几种教学模型、苏格拉底式追问、双编码图文并茂之类，补知识盲区。正式开发主语言选 Python：对接 LLM、数据分析与编排效率高、轻量，做 prompt 注入也相对简洁；大模型生态在 Python 侧也强，批量任务、拉邮件、IMAP 大批量，都可以用 Python 替代一堆零散 Shell。
 
@@ -92,15 +92,15 @@ OpenClaw 这一侧，手边是 API、MCP、Skill、Token、命令行工具，以
 
 ### 5.1 计划（plan）
 
-![计划与任务看板 1](./images/17-plan-1.png)
+![计划与任务看板 1](../assets/images/17-plan-1.png)
 
-![计划与任务看板 2](./images/18-plan-2.png)
+![计划与任务看板 2](../assets/images/18-plan-2.png)
 
-![计划与任务看板 3](./images/19-plan-3.png)
+![计划与任务看板 3](../assets/images/19-plan-3.png)
 
 计划（plan）列清楚非常重要——写代码有时半小时、一小时就完事，列计划和调试才是大头。我这一个月体感大约三成在「生成」，七成在计划和调试。难点之一是：怎么让大模型和你双向知道计划里缺什么、哪里不对、哪里其实不用做。大模型是人的镜子：你问得好它答得好，问得模糊它就懵或乱操作。开发的人要对业务和要做的工具足够熟——不是不懂前端就能光靠 Opus 4.6 变态模型做出好前端，不懂产品就能做出好产品。大模型像高级鹦鹉，会学人说话，并且说高级话，对不对还看互联网公共的训练数据质量；各家数据质量差不太远，现在更多卷参数、架构上限、领域级精调数据。为什么 Claude Code 好用，业内说法很多，实际体感 Opus 4.6 这类在不少场景仍然一骑绝尘；别的厂商也说在追赶甚至局部超越（比如 minimax2.5 / Cursor Composer 2 等），要具体任务上比。
 
-![Cursor 官方模型性能对比（以实际使用效果为准）](./images/20-cursor-model-bench.png)
+![Cursor 官方模型性能对比（以实际使用效果为准）](../assets/images/20-cursor-model-bench.png)
 
 除了「鹦鹉」，还有人的问题：信息搜集是否完整、是否精确（不是一味求全——Token 太多会干扰效率和精准度）。资料是否规范、标准：需要哪些开发文档、规划、语言风格、测试用例。我觉得测试用例重要性和 plan 同级，甚至更高；流行说法叫测试驱动开发（TDD），在 AI 辅助开发里，我会说测试往往要比「纯写实现」更下功夫。
 
@@ -128,13 +128,11 @@ OpenClaw 这一侧，手边是 API、MCP、Skill、Token、命令行工具，以
 
 其它亮点：功能可控——对话里能做的事，基本都能在本地 CLI 用命令和参数复现；CLI 里不全是硬编码流水线，可以是纯邮件处理，也可以是 LLM 加持的分析，并有 loading / syncing 等模式。
 
-![Twinbox onboard 向导（配置邮箱及 LLM 等）— 1](./images/21-onboard-wizard-1.png)
-
-![Twinbox onboard 向导（配置邮箱及 LLM 等）— 2](./images/22-onboard-wizard-2.png)
-
 部署上有简易 handoff 向导（类似装显卡驱动那种一步步），填邮箱时能自动识别常见 IMAP/SMTP 等服务器信息，不必像老式客户端一行行手填；模型配置也可从 OpenClaw 一键导入，并支持 OpenAI 协议、Anthropic 协议等，检测与配置体验向 OpenClaw 看齐。琐碎步骤收进 onboarding；第四阶段一键打包后台重启、工具绑定 OpenClaw、RPC 与后台交互等。版本形态上，第五阶段花大约一周重构——Go 做薄 CLI 与调用封装，Python 接管 shell 做核心数据流与编排策略作为 vendor 包，部署逻辑优化等；
 
-![部署时 CLI 与 vendor 压缩包示意](./images/23-cli-vendor-deploy.png)
+![Twinbox onboard 向导收尾：检测到已有配置时的邮箱确认](../assets/images/22-onboard-existing-mailbox.png)
+
+![部署时 CLI 与 vendor 压缩包示意](../assets/images/23-cli-vendor-deploy.png)
 
 部署时 CLI 上机，vendor 压缩包装编排与脚本，后续升级迭代可整体替换安装。若以后智能体形态再变，也可以继续用「编排 + prompt + 升级包」的思路发到线上，我觉得这对同类智能体项目有参考价值。
 

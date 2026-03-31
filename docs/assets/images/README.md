@@ -1,20 +1,21 @@
-# Demo 配图目录
+# 案例配图目录（`docs/assets/images`）
 
-本目录存放 [twinbox-beta-case-study.zh.md](../twinbox-beta-case-study.zh.md) 的案例配图。正文中的引用均为 `./images/<文件名>`（与 `.md` 的相对路径）。
+本目录存放 [Twinbox Beta 案例长文](../../how-to-make-twinbox/twinbox-beta-case-study.zh.md) 的配图。
+
+**正文中的引用**（相对案例 Markdown）：`../assets/images/<文件名>`（案例稿路径为 `docs/how-to-make-twinbox/twinbox-beta-case-study.zh.md`）。
 
 ## 从飞书导出
 
-1. 在飞书文档中按插图顺序导出或截屏。
-2. 将文件保存为下表中的**文件名**（勿改序号与 slug），放入本目录。
-3. 推荐 **PNG** 或 **WebP**；宽度建议 **≤1200px**，以控制仓库体积。
+1. 按文中插图顺序导出或截屏。
+2. 将文件保存为下表中的**文件名**（勿改序号与 slug），放入**本目录** `docs/assets/images/`。
+3. 推荐 **PNG** 或 **WebP**；宽度建议 **≤1200px**。
 
-## 文件名与文中顺序对照（共 23 张）
-
-与飞书原文自上而下 `[图片]` 顺序一致；其中第 4 张（OpenClaw gog CLI）在部分导出体中未单独占位，正文中仍保留引用以便补图。
+## 文件名与文中顺序对照
 
 | # | 文件名 | 文中段落（大意） | 仓库状态 |
 |---|--------|-------------------|----------|
-| 1 | `01-intro.png` | 一、背景与目标 · 开篇 | 已收录 |
+| 1 | `01-twinbox-setup-phase1.png` | **一、背景与目标** · Twinbox 产品 intro（Phase 1 安全与继续） | 已收录 |
+| — | `01-intro.png` | （备用）原「开篇示意」图，正文未引用时可删或改作他处 | 已收录 |
 | 2 | `02-email-agents-landscape.png` | 二、业界方案 · 方案概览 | 已收录 |
 | 3 | `03-anthropic-email-sdk-arch.png` | 二、Anthropic 邮件 Agent SDK 架构 | 已收录 |
 | 4 | `04-openclaw-gog-skill.png` | 二、OpenClaw 上 gog 邮箱 CLI skill | 已收录 |
@@ -34,8 +35,7 @@
 | 18 | `18-plan-2.png` | 五、计划与任务看板 2 | 待补 |
 | 19 | `19-plan-3.png` | 五、计划与任务看板 3 | 待补 |
 | 20 | `20-cursor-model-bench.png` | 五、Cursor 模型性能对比 | 待补 |
-| 21 | `21-onboard-wizard-1.png` | 七、Onboard 向导 1 | 待补 |
-| 22 | `22-onboard-wizard-2.png` | 七、Onboard 向导 2 | 待补 |
+| 22 | `22-onboard-existing-mailbox.png` | **七、产品亮点** · onboard 收尾（已有配置 / 邮箱确认） | 已收录 |
 | 23 | `23-cli-vendor-deploy.png` | 七、CLI 与 vendor 压缩包 | 待补 |
 
-补图后无需改 Markdown，除非调整顺序或增删图。
+补图后一般无需改 Markdown；若调整顺序或增删图，请同步改 [twinbox-beta-case-study.zh.md](../../how-to-make-twinbox/twinbox-beta-case-study.zh.md) 与本表。
