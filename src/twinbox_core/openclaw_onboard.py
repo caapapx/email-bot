@@ -1332,7 +1332,13 @@ def run_openclaw_onboard(
         report.state_root = str(state_root)
         report.openclaw_home = str(resolved_openclaw_home)
         if shutil.which(openclaw_bin) is None:
-            report.error = f"Missing executable on PATH: {openclaw_bin}"
+            report.error = (
+                f"Missing executable on PATH: {openclaw_bin}. "
+                "Install the OpenClaw CLI and ensure it is on PATH. "
+                "See integrations/openclaw/DEPLOY.md. "
+                "If the binary name differs, use `twinbox onboard openclaw --openclaw-bin <name>` "
+                "or set `openclaw.bin` in twinbox.json."
+            )
             return report
 
         env_file = config_path_for_state_root(state_root)
