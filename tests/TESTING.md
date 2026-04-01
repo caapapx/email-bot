@@ -7,7 +7,7 @@
 ## 第一步：确认环境
 
 ```bash
-cd /home/caapap/fun/twinbox/python
+cd /path/to/twinbox   # 仓库根目录
 python3 -m pytest --version   # 确认 pytest 已安装
 ```
 

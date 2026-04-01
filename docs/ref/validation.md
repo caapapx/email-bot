@@ -63,10 +63,10 @@
 
 | Phase | Cross-phase authoritative state | Phase-local handoff | Derived view / report | Debug / trace |
 |------|----------------------------------|---------------------|-----------------------|---------------|
-| Phase 1 | `runtime/context/phase1-context.json`, `runtime/validation/phase-1/intent-classification.json` | 无额外 handoff；`phase1-context.json` 同时承担 loading 输出与后续输入 | `runtime/validation/phase-1/mailbox-census.json`, `runtime/validation/phase-1/intent-distribution.yaml`, `runtime/validation/phase-1/contact-distribution.json`, `docs/validation/phase-1-report.md`, diagrams | `runtime/context/raw/*`, `runtime/validation/phase-1/intent-report.md` |
-| Phase 2 | `runtime/validation/phase-2/persona-hypotheses.yaml`, `runtime/validation/phase-2/business-hypotheses.yaml` | `runtime/validation/phase-2/context-pack.json` | `docs/validation/phase-2-report.md`, `docs/validation/diagrams/phase-2-relationship-map.mmd` | `runtime/validation/phase-2/llm-response.json` |
-| Phase 3 | `runtime/validation/phase-3/lifecycle-model.yaml`, `runtime/validation/phase-3/thread-stage-samples.json` | `runtime/validation/phase-3/context-pack.json` | `docs/validation/phase-3-report.md`, `docs/validation/diagrams/phase-3-lifecycle-overview.mmd`, `docs/validation/diagrams/phase-3-thread-state-machine.mmd` | `runtime/validation/phase-3/llm-response.json` |
-| Phase 4 | `runtime/validation/phase-4/daily-urgent.yaml`, `runtime/validation/phase-4/pending-replies.yaml`, `runtime/validation/phase-4/sla-risks.yaml`, `runtime/validation/phase-4/weekly-brief.md` | `runtime/validation/phase-4/context-pack.json` | `docs/validation/phase-4-report.md` | `runtime/validation/phase-4/llm-response.json`, `runtime/validation/phase-4/*-raw.json` |
+| Phase 1 | `runtime/context/phase1-context.json`, `runtime/validation/phase-1/intent-classification.json` | 无额外 handoff；`phase1-context.json` 同时承担 loading 输出与后续输入 | `runtime/validation/phase-1/mailbox-census.json`, `runtime/validation/phase-1/intent-distribution.yaml`, `runtime/validation/phase-1/contact-distribution.json`；可选本地报告（如 `phase-1-report.md`、diagrams，路径自定，勿提交实例数据） | `runtime/context/raw/*`, `runtime/validation/phase-1/intent-report.md` |
+| Phase 2 | `runtime/validation/phase-2/persona-hypotheses.yaml`, `runtime/validation/phase-2/business-hypotheses.yaml` | `runtime/validation/phase-2/context-pack.json` | 可选本地报告 / 图表（勿提交实例数据） | `runtime/validation/phase-2/llm-response.json` |
+| Phase 3 | `runtime/validation/phase-3/lifecycle-model.yaml`, `runtime/validation/phase-3/thread-stage-samples.json` | `runtime/validation/phase-3/context-pack.json` | 可选本地报告 / 图表（勿提交实例数据） | `runtime/validation/phase-3/llm-response.json` |
+| Phase 4 | `runtime/validation/phase-4/daily-urgent.yaml`, `runtime/validation/phase-4/pending-replies.yaml`, `runtime/validation/phase-4/sla-risks.yaml`, `runtime/validation/phase-4/weekly-brief.md` | `runtime/validation/phase-4/context-pack.json` | 可选本地报告（如 `phase-4-report.md`，勿提交实例数据） | `runtime/validation/phase-4/llm-response.json`, `runtime/validation/phase-4/*-raw.json` |
 
 ## 为什么 Phase 1 的 contract 这样定义
 
@@ -131,19 +131,16 @@
 
 只有 `runtime/` 下的结构化工件可以成为 authoritative state。
 
-### 规则 2：`docs/validation/` 默认只承载视图
+### 规则 2：验证报告与图表放在本地，不进入公开仓库
 
-`docs/validation/` 下的 markdown 和 mermaid：
-
-- 用于解释、审阅、对外展示
-- 不得作为后续 phase 的必需输入
+- 人类可读的 phase 报告、Mermaid、截图等应放在**本机或 state root 下自定路径**，**不要**把含实例邮箱/线程的工件提交到 git。
+- 这类文件**不得**作为后续 phase 的必需输入；契约以 `runtime/` 下结构化产物为准。
 
 当前唯一保留的实例级人工补充说明是：
 
 - `runtime/context/human-context.yaml`
 - 旧的 `manual-facts.yaml` / `manual-habits.yaml` / `instance-calibration-notes.md` 属于 legacy 输入，会迁移进该统一文件
-- 它属于 instance-local human context input，而不是 `docs/validation/` report artifact
-- `docs/validation/` 现在应完全收敛为视图层，不再承担运行时输入
+- 它属于 instance-local human context input，不是验证报告工件
 
 ### 规则 3：`llm-response.json` 不是长期契约
 

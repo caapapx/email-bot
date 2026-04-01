@@ -19,7 +19,7 @@
 - 用户最直接感受到的价值通常是“我今天该跟进什么”，而不是“机器人能不能发邮件”
 - 线程状态、证据和置信度，往往比大而全的分类覆盖更重要
 
-一次运行特有的证据，应放在 `docs/validation/` 和 `runtime/validation/` 中，而不是写进这份架构文档。
+一次运行特有的证据，应放在 **`runtime/validation/`**（或 state root 下本地验证输出目录）中，而不是写进这份架构文档。
 
 ## 设计原则
 
@@ -35,7 +35,7 @@
 
 应该保持可定制的部分：
 
-- 内部领域映射（internal domain map）
+- 组织领域映射（org domain map）
 - 工作流词典（workflow dictionaries）
 - 发件人与团队优先级
 - 面向角色的风险阈值
@@ -77,7 +77,7 @@
 定义：
 
 - `code root`：当前 checkout，提供受版本管理的脚本、公式文件和实现逻辑
-- `state root`：规范 checkout，提供 **`twinbox.json`**（邮箱/LLM/集成主配置）、`runtime/context/`、`runtime/validation/` 和 `docs/validation/`；历史 **`state root/.env`** 仅在迁移期被兼容读取
+- `state root`：规范 checkout，提供 **`twinbox.json`**（邮箱/LLM/集成主配置）、`runtime/context/`、`runtime/validation/`；可选在本地生成验证报告目录（默认不入库）；历史 **`state root/.env`** 仅在迁移期被兼容读取
 
 解析顺序：
 
@@ -197,7 +197,7 @@
 - `last_activity_at`
 - `message_count`
 - `has_attachments`
-- `internal_external`
+- 组织域与外部域比例统计（thread 级摘要；具体 JSON 键名以 `context_builder` / 规范线程 schema 为准）
 - `workflow_type`
 - `state`
 - `state_confidence`
@@ -344,7 +344,7 @@
 
 示例：
 
-- internal domain allowlist
+- org domain allowlist
 - workflow keyword dictionary
 - 发件人或团队优先级
 - 风险阈值
@@ -551,7 +551,7 @@ mail sync
 
 可定制面（customizable surface）：
 
-- internal domain map
+- org domain map
 - workflow dictionary
 - priority 和 SLA 规则
 - profile YAML
