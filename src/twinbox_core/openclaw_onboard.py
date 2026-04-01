@@ -1340,6 +1340,7 @@ def run_openclaw_onboard(
     llm_update_runner: LLMUpdateRunner = _apply_llm_updates,
     llm_validation_timeout_seconds: float = 15.0,
     skip_tty_context_bundle: bool = False,
+    skip_tty_routing_push: bool = False,
 ) -> OpenClawOnboardReport:
     """Guided OpenClaw host wiring: TTY journey, mailbox/LLM validation, deploy, onboarding sync.
 
@@ -2137,26 +2138,103 @@ def run_openclaw_onboard(
         current_stage = report.onboarding.get("current_stage", "unknown")
         prereq_ok = bool(skip_bridge or report.phase2_ready)
         if llm_ready and prereq_ok:
+            if (
+                not dry_run
+                and not skip_tty_routing_push
+                and hasattr(prompter, "paste_block")
+            ):
+                from twinbox_core.onboard_tty_routing_push import (
+                    advance_past_material_if_stuck,
+                    default_push_session_target,
+                    ensure_at_routing_rules_stage,
+                    run_push_subscription_tty,
+                    run_routing_rules_tty,
+                )
+
+                if not ensure_at_routing_rules_stage(state_root, prompter):
+                    prompter.note(
+                        "TTY onboarding",
+                        "Skipping terminal routing/push — finish profile or materials in OpenClaw, then use agent tools.",
+                        complete=None,
+                    )
+                else:
+                    advance_past_material_if_stuck(state_root, prompter)
+                    rr = run_routing_rules_tty(
+                        state_root,
+                        Path(env_file),
+                        prompter,
+                        use_llm=llm_ready,
+                    )
+                    prompter.note(
+                        "Routing rules",
+                        (
+                            f"done: advanced={rr.get('advanced')}, "
+                            f"ok={rr.get('ok')}, skipped={rr.get('skipped')}, "
+                            f"rule_id={rr.get('rule_id', '')!s}"
+                        ).strip(),
+                        complete=True,
+                    )
+                    push_session = default_push_session_target()
+                    pr = run_push_subscription_tty(
+                        state_root,
+                        prompter,
+                        session_target=push_session,
+                        openclaw_bin=openclaw_bin,
+                        twinbox_bin=None,
+                    )
+                    prompter.note(
+                        "Push subscription",
+                        (
+                            f"session={push_session}, advanced={pr.get('advanced')}, "
+                            f"ok={pr.get('ok')}, error={pr.get('error', '')!s}"
+                        ).strip(),
+                        complete=True,
+                    )
+
+            st_final = load_state(state_root)
+            report.onboarding = {
+                **report.onboarding,
+                "current_stage": st_final.current_stage,
+                "completed_stages": list(st_final.completed_stages),
+            }
+            current_stage = st_final.current_stage
+
             report.ok = True
-            report.next_action = (
-                "Continue inside OpenClaw with the twinbox agent; "
-                f"next guided conversation stage is {current_stage}."
-            )
+            if current_stage == "completed":
+                report.next_action = (
+                    "Host wiring and terminal onboarding are complete. "
+                    "You can use the twinbox agent in OpenClaw for mail tasks."
+                )
+            else:
+                report.next_action = (
+                    "Continue inside OpenClaw with the twinbox agent; "
+                    f"next guided conversation stage is {current_stage}."
+                )
             report.notes.append(
                 "Host wiring is verified locally; OpenClaw session prompt injection can still lag behind on some models."
             )
-            prompter.note(
-                "Phase 2 of 2",
-                f"Continue in the twinbox agent inside {_OPENCLAW_ONBOARD_LOBSTER_MARK}. "
-                f"Your next guided conversation stage is {current_stage}.",
-                complete=True,
-            )
-            prompter.outro(
-                f"🎉 Successfully completed host 🔗 wiring. Open the twinbox agent in {_OPENCLAW_ONBOARD_LOBSTER_MARK} "
-                "and ask to continue onboarding — it'll pick up from the next stage.",
-                paste_hint_label=_OPENCLAW_PHASE2_HANDOFF_LABEL,
-                paste_hint_quote=_OPENCLAW_PHASE2_DIALOG_BOOTSTRAP,
-            )
+            if current_stage == "completed":
+                prompter.note(
+                    "Onboarding",
+                    "All guided stages finished in this run (including TTY routing/push when enabled).",
+                    complete=True,
+                )
+                prompter.outro(
+                    f"🎉 Host wiring and onboarding complete. Open {_OPENCLAW_ONBOARD_LOBSTER_MARK} when you want to chat about mail."
+                )
+            else:
+                prompter.note(
+                    "Phase 2 of 2",
+                    f"Continue in the twinbox agent inside {_OPENCLAW_ONBOARD_LOBSTER_MARK}. "
+                    f"Your next guided conversation stage is {current_stage}.",
+                    complete=True,
+                )
+                prompter.outro(
+                    f"🎉 Successfully completed host 🔗 wiring. Open the twinbox agent in {_OPENCLAW_ONBOARD_LOBSTER_MARK} "
+                    "and ask to continue onboarding — it'll pick up from the next stage.",
+                    paste_hint_label=_OPENCLAW_PHASE2_HANDOFF_LABEL,
+                    paste_hint_quote=_OPENCLAW_PHASE2_DIALOG_BOOTSTRAP,
+                )
             return report
 
         if llm_ready and not prereq_ok:

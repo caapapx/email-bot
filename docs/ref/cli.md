@@ -360,6 +360,8 @@ twinbox deploy openclaw --rollback [--remove-config] [--dry-run] [--no-restart] 
 `Phase 1` 向导在 **LLM 校验通过后**、**部署 OpenClaw 前**，可依次粘贴：画像 / 校准 / 参考长文（多行，**单独一行** `.` 结束；终端**不回显**正文，仅显示字符统计）。可选 **用已配置 LLM 润色** 再写入 `human-context.yaml` 与 `material-extracts/`。
 
 - 跳过该段：`twinbox onboard openclaw --skip-tty-context-bundle`
+- **部署成功后**（默认）：若 onboarding 仍在 `profile_setup` / `material_import`，会询问是否 **跳过并在终端继续**「语义路由规则 + 推送订阅」；选是则快进至 `routing_rules`，在 TTY 完成规则（跳过 / 粘贴 JSON / 自然语言+LLM）与推送（daily/weekly/skip）。若 bridge timer 未启用，推送会失败并提示稍后到 OpenClaw 再确认。
+- 跳过终端路由与推送、改在 OpenClaw 对话完成：`twinbox onboard openclaw --skip-tty-routing-push`
 
 ### host bridge
 
