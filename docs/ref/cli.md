@@ -364,6 +364,7 @@ twinbox deploy openclaw --rollback [--remove-config] [--dry-run] [--no-restart] 
 - **推送 session**：先选默认（`TWINBOX_PUSH_SESSION_TARGET` / `OPENCLAW_SESSION_ID` / `OPENCLAW_SESSION`，否则 `agent:twinbox:main`）或 **自定义** OpenClaw session 字符串；订阅写入 `runtime/push-subscriptions.json` 的 `session_target`。
 - **日间/周间时间**：订阅成功后可选调整 **`daily-refresh`** / **`weekly-refresh`** 的 cron（写入 `runtime/context/schedule-overrides.yaml` 并尝试同步 OpenClaw cron）。首次开启 daily 时 `confirm_push_subscription` 仍可能在尚无 override 时写入 **每小时** `0 * * * *`；TTY 里可选「保持 / 每小时 / 每天 08:30 / 自定义」与周报的「保持 / 周五 17:30 / 自定义」。之后用 `twinbox schedule list` / `twinbox schedule update daily-refresh 'CRON'` 修改。
 - 跳过终端路由与推送、改在 OpenClaw 对话完成：`twinbox onboard openclaw --skip-tty-routing-push`
+- **成功结束 outro** 会给出**两段可复制引文**：① 在 twinbox 会话里 bootstrap（读 SKILL → `onboarding status` / 插件 `onboarding_status`，未完成再 `start`；可选 `latest-mail` 做重自检）；② 在飞书/Telegram 等**目标渠道**粘贴，引导 agent 用 `onboarding_confirm_push`+`session_target` 或 `push subscribe` 把 digest 绑到**当前会话**。
 
 ### host bridge
 

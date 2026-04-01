@@ -42,11 +42,23 @@ _README_WORDMARK_TAGLINE = (
 _OPENCLAW_ONBOARD_LOBSTER_MARK = "🦞 OpenClaw"
 
 # Phase-2 dialog onboarding in the twinbox agent (not another deploy). Matches
-# integrations/openclaw/DEPLOY.md §3.8 bootstrap: read full SKILL.md, then onboarding start.
+# integrations/openclaw/DEPLOY.md §3.8 bootstrap: read SKILL, then status (or start if needed).
 _OPENCLAW_PHASE2_DIALOG_BOOTSTRAP = (
-    "Read ~/.openclaw/skills/twinbox/SKILL.md, then run twinbox onboarding start --json, and follow the prompt."
+    "Read ~/.openclaw/skills/twinbox/SKILL.md, then in the SAME turn call "
+    "twinbox onboarding status --json (or twinbox_onboarding_status). "
+    "If current_stage is not completed, call twinbox onboarding start --json "
+    "(or twinbox_onboarding_start) and follow the prompt. "
+    "Alternatively first call twinbox_latest_mail (or twinbox task latest-mail --json) to verify mail + tools."
 )
-_OPENCLAW_PHASE2_HANDOFF_LABEL = "Handoff — paste into a new twinbox session:"
+_OPENCLAW_PHASE2_PUSH_HERE_BOOTSTRAP = (
+    "To receive digests in THIS chat (Feishu / Telegram / etc.): say you want Twinbox push bound to "
+    "the current session, then have the agent call twinbox_onboarding_confirm_push with session_target "
+    "set to this channel's session id, or run twinbox push subscribe <that-session-id> --daily on --weekly on. "
+    "If TTY onboard already subscribed a default session, this moves binding here. "
+    "ZH: 在目标会话里说请把推送绑定到当前会话，并调用 twinbox_onboarding_confirm_push(带 session_target) 或 twinbox push subscribe。"
+)
+_OPENCLAW_PHASE2_HANDOFF_LABEL = "Handoff — paste into each OpenClaw session you use:"
+_OPENCLAW_PHASE2_HANDOFF_LABEL_2 = "Optional — bind push to this channel:"
 
 InputFn = Callable[[str], str]
 SecretInputFn = Callable[[str], str]
@@ -64,6 +76,8 @@ class JourneyPrompter(Protocol):
         *,
         paste_hint_label: str | None = None,
         paste_hint_quote: str | None = None,
+        paste_hint_label_2: str | None = None,
+        paste_hint_quote_2: str | None = None,
     ) -> None: ...
 
     def cancel(self, summary_title: str, summary_value: str, message: str = "Setup cancelled.") -> None: ...
@@ -420,6 +434,8 @@ class ConsoleJourneyPrompter:
         *,
         paste_hint_label: str | None = None,
         paste_hint_quote: str | None = None,
+        paste_hint_label_2: str | None = None,
+        paste_hint_quote_2: str | None = None,
     ) -> None:
         self._write("")
         self._write(self._style(text, "1;32"))
@@ -429,6 +445,11 @@ class ConsoleJourneyPrompter:
             # Orange + italic; quotes part of the pasteable span (DEPLOY.md §3.8 bootstrap).
             quoted = f'"{paste_hint_quote}"'
             self._write(self._style(quoted, "1;3;38;5;208"))
+        if paste_hint_label_2 and paste_hint_quote_2:
+            self._write("")
+            self._write(self._style(paste_hint_label_2, "1;32"))
+            quoted2 = f'"{paste_hint_quote_2}"'
+            self._write(self._style(quoted2, "1;3;38;5;208"))
         self._write("")
 
     def cancel(self, summary_title: str, summary_value: str, message: str = "Setup cancelled.") -> None:
@@ -2202,13 +2223,16 @@ def run_openclaw_onboard(
             report.ok = True
             if current_stage == "completed":
                 report.next_action = (
-                    "Host wiring and terminal onboarding are complete. "
-                    "You can use the twinbox agent in OpenClaw for mail tasks."
+                    "TTY onboarding complete. Open a twinbox session in OpenClaw and paste the first quoted bootstrap "
+                    "line from the wizard outro; paste the second quoted line into Feishu/Telegram (or any channel) "
+                    "where digests should arrive, to bind push to that session."
                 )
             else:
                 report.next_action = (
                     "Continue inside OpenClaw with the twinbox agent; "
-                    f"next guided conversation stage is {current_stage}."
+                    f"next guided conversation stage is {current_stage}. "
+                    "Paste the first quoted handoff line into a new twinbox session; paste the second line into any "
+                    "channel where you want digest pushes bound."
                 )
             report.notes.append(
                 "Host wiring is verified locally; OpenClaw session prompt injection can still lag behind on some models."
@@ -2219,8 +2243,21 @@ def run_openclaw_onboard(
                     "All guided stages finished in this run (including TTY routing/push when enabled).",
                     complete=True,
                 )
+                prompter.note(
+                    "OpenClaw",
+                    (
+                        "Next: in each chat where you use Twinbox, paste the **first** quoted line below so the agent "
+                        "loads SKILL and checks status (or starts onboarding if needed). "
+                        "For Feishu/Telegram/etc., paste the **second** line in that channel if digests should arrive there."
+                    ),
+                    complete=True,
+                )
                 prompter.outro(
-                    f"🎉 Host wiring and onboarding complete. Open {_OPENCLAW_ONBOARD_LOBSTER_MARK} when you want to chat about mail."
+                    f"🎉 Host wiring and onboarding complete. Open {_OPENCLAW_ONBOARD_LOBSTER_MARK} when you want to chat about mail.",
+                    paste_hint_label=_OPENCLAW_PHASE2_HANDOFF_LABEL,
+                    paste_hint_quote=_OPENCLAW_PHASE2_DIALOG_BOOTSTRAP,
+                    paste_hint_label_2=_OPENCLAW_PHASE2_HANDOFF_LABEL_2,
+                    paste_hint_quote_2=_OPENCLAW_PHASE2_PUSH_HERE_BOOTSTRAP,
                 )
             else:
                 prompter.note(
@@ -2234,6 +2271,8 @@ def run_openclaw_onboard(
                     "and ask to continue onboarding — it'll pick up from the next stage.",
                     paste_hint_label=_OPENCLAW_PHASE2_HANDOFF_LABEL,
                     paste_hint_quote=_OPENCLAW_PHASE2_DIALOG_BOOTSTRAP,
+                    paste_hint_label_2=_OPENCLAW_PHASE2_HANDOFF_LABEL_2,
+                    paste_hint_quote_2=_OPENCLAW_PHASE2_PUSH_HERE_BOOTSTRAP,
                 )
             return report
 
