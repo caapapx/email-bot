@@ -72,7 +72,7 @@ flowchart LR
 
 - 对话引导**不能**代替宿主接线（无法仅靠聊天写入 `~/.openclaw/openclaw.json` 或替你执行 `cp SKILL.md`）。
 - 一旦托管侧 env 与 skill 就绪，**推荐**把 Twinbox 用户配置主路径放在 OpenClaw 对话里走 onboarding，而非要求用户 SSH 手改文件。
-- `openclaw skills info twinbox` 显示 `Ready` **不等于**当前会话 prompt 已包含 `twinbox`（见 [TROUBLESHOOT.md §1](../../integrations/openclaw/TROUBLESHOOT.md)）。
+- `openclaw skills info twinbox` 显示 `Ready` **不等于**当前会话 prompt 已包含 `twinbox`（见根 [BUGFIX.md](../../BUGFIX.md) 排障摘要）。
 
 ---
 
