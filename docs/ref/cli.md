@@ -361,6 +361,8 @@ twinbox deploy openclaw --rollback [--remove-config] [--dry-run] [--no-restart] 
 
 - 跳过该段：`twinbox onboard openclaw --skip-tty-context-bundle`
 - **部署成功后**（默认）：若 onboarding 仍在 `profile_setup` / `material_import`，会询问是否 **跳过并在终端继续**「语义路由规则 + 推送订阅」；选是则快进至 `routing_rules`，在 TTY 完成规则（跳过 / 粘贴 JSON / 自然语言+LLM）与推送（daily/weekly/skip）。若 bridge timer 未启用，推送会失败并提示稍后到 OpenClaw 再确认。
+- **推送 session**：先选默认（`TWINBOX_PUSH_SESSION_TARGET` / `OPENCLAW_SESSION_ID` / `OPENCLAW_SESSION`，否则 `agent:twinbox:main`）或 **自定义** OpenClaw session 字符串；订阅写入 `runtime/push-subscriptions.json` 的 `session_target`。
+- **日间/周间时间**：订阅成功后可选调整 **`daily-refresh`** / **`weekly-refresh`** 的 cron（写入 `runtime/context/schedule-overrides.yaml` 并尝试同步 OpenClaw cron）。首次开启 daily 时 `confirm_push_subscription` 仍可能在尚无 override 时写入 **每小时** `0 * * * *`；TTY 里可选「保持 / 每小时 / 每天 08:30 / 自定义」与周报的「保持 / 周五 17:30 / 自定义」。之后用 `twinbox schedule list` / `twinbox schedule update daily-refresh 'CRON'` 修改。
 - 跳过终端路由与推送、改在 OpenClaw 对话完成：`twinbox onboard openclaw --skip-tty-routing-push`
 
 ### host bridge
