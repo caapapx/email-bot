@@ -112,6 +112,20 @@ class JourneyPrompter(Protocol):
     def journey_rail_begin(self) -> None: ...
 
 
+def _safe_utf8_input(prompt: str = "") -> str:
+    """UTF-8 safe input that handles multi-byte characters correctly."""
+    import sys
+    if prompt:
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+    try:
+        return sys.stdin.readline().rstrip('\n\r')
+    except UnicodeDecodeError:
+        # Fallback: read bytes and decode with error handling
+        line = sys.stdin.buffer.readline()
+        return line.decode('utf-8', errors='replace').rstrip('\n\r')
+
+
 class ConsoleJourneyPrompter:
     _SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 
@@ -124,7 +138,7 @@ class ConsoleJourneyPrompter:
         width: int | None = None,
     ) -> None:
         self._stream = stream or sys.stdout
-        self._input_fn = input_fn or input
+        self._input_fn = input_fn or _safe_utf8_input
         self._key_reader = key_reader
         self._is_tty = hasattr(self._stream, "isatty") and self._stream.isatty()
         self._stdin_is_tty = hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
@@ -736,8 +750,13 @@ class ConsoleJourneyPrompter:
                 old_settings = termios.tcgetattr(fd)
                 try:
                     tty.setraw(fd, termios.TCSADRAIN)
+                    import codecs
+                    decoder = codecs.getincrementaldecoder('utf-8')('replace')
                     while True:
-                        char = sys.stdin.read(1)
+                        byte = sys.stdin.buffer.read(1)
+                        char = decoder.decode(byte, False)
+                        if not char:
+                            continue
                         if char in ("\r", "\n"):
                             key = "ENTER"
                         elif char == "\x03":
@@ -1109,8 +1128,20 @@ def _prompt_mailbox_customization(
         detected = detect_to_env(email, verbose=False)
         if detected is None:
             detect_progress.fail(f"Could not auto-detect mailbox servers for {email}")
-            raise ValueError(f"Could not auto-detect mailbox servers for {email}")
-        detect_progress.finish("Mailbox settings detected")
+            prompter.note(
+                "Auto-detection failed",
+                f"Unable to detect IMAP/SMTP servers for {email}.\n"
+                "You can enter server settings manually.",
+            )
+            retry = prompter.confirm("Switch to manual configuration?", default=True)
+            if not retry:
+                raise ValueError(f"Could not auto-detect mailbox servers for {email}")
+            # Fall through to manual mode
+            mode = "manual"
+        else:
+            detect_progress.finish("Mailbox settings detected")
+
+    if mode == "auto" and detected is not None:
         existing_secret = dotenv.get("IMAP_PASS") or dotenv.get("SMTP_PASS", "")
         resolved_password = password or existing_secret
         return {
@@ -1127,20 +1158,30 @@ def _prompt_mailbox_customization(
             "SMTP_PASS": resolved_password,
         }
 
-    email = prompter.text("Mailbox email address", default=dotenv.get("MAIL_ADDRESS"))
+    # Manual mode (or fallback from failed auto-detection)
+    if mode == "auto":
+        # Reuse email/password from auto attempt
+        pass
+    else:
+        email = prompter.text("Mailbox email address", default=dotenv.get("MAIL_ADDRESS"))
+        password = prompter.secret(
+            "Mailbox app password",
+            allow_empty=bool(dotenv.get("IMAP_PASS") or dotenv.get("SMTP_PASS")),
+        )
+
     imap_host = prompter.text("IMAP host", default=dotenv.get("IMAP_HOST"))
     imap_port = prompter.text("IMAP port", default=dotenv.get("IMAP_PORT", "993"))
     imap_encryption = prompter.text("IMAP encryption", default=dotenv.get("IMAP_ENCRYPTION", "ssl"))
     imap_login = prompter.text("IMAP login", default=dotenv.get("IMAP_LOGIN") or email)
-    imap_pass = prompter.secret("IMAP password", allow_empty=bool(dotenv.get("IMAP_PASS")))
+    imap_pass = prompter.secret("IMAP password", allow_empty=bool(dotenv.get("IMAP_PASS") or password))
     smtp_host = prompter.text("SMTP host", default=dotenv.get("SMTP_HOST"))
     smtp_port = prompter.text("SMTP port", default=dotenv.get("SMTP_PORT", "465"))
     smtp_encryption = prompter.text("SMTP encryption", default=dotenv.get("SMTP_ENCRYPTION", "ssl"))
     smtp_login = prompter.text("SMTP login", default=dotenv.get("SMTP_LOGIN") or email)
-    smtp_pass = prompter.secret("SMTP password", allow_empty=bool(dotenv.get("SMTP_PASS") or dotenv.get("IMAP_PASS")))
+    smtp_pass = prompter.secret("SMTP password", allow_empty=bool(dotenv.get("SMTP_PASS") or dotenv.get("IMAP_PASS") or password))
     if not email:
         raise ValueError("Mailbox email is required.")
-    resolved_imap_pass = imap_pass or dotenv.get("IMAP_PASS", "")
+    resolved_imap_pass = imap_pass or dotenv.get("IMAP_PASS") or password or ""
     resolved_smtp_pass = smtp_pass or dotenv.get("SMTP_PASS") or resolved_imap_pass
     if not resolved_imap_pass or not resolved_smtp_pass:
         raise ValueError("Mailbox password is required.")
@@ -1354,7 +1395,7 @@ def run_openclaw_onboard(
     openclaw_bin: str = "openclaw",
     prompter: JourneyPrompter | None = None,
     deploy_runner: DeployRunner | None = None,
-    skip_bridge: bool = False,
+    skip_bridge: bool = True,
     start_daemon: bool = True,
     mailbox_apply_runner: MailboxApplyRunner = _apply_mailbox_updates,
     mailbox_validation_timeout_seconds: float = 15.0,
@@ -1934,11 +1975,14 @@ def run_openclaw_onboard(
             )
             polish = polish_choice == "yes"
             profile_raw = prompter.paste_block("Profile / role / habits (optional)")
+            print(f"[收到 profile: {len(profile_raw)} 字符]", flush=True)
             calibration_raw = prompter.paste_block("Calibration / priorities (optional)")
+            print(f"[收到 calibration: {len(calibration_raw)} 字符]", flush=True)
             material_raw = prompter.paste_block(
                 "Reference paste — Markdown or plain text (optional)",
                 hint="Paste tables as text/Markdown; binary Excel upload is not required here.",
             )
+            print(f"[收到 material: {len(material_raw)} 字符]", flush=True)
             mat_label = "context"
             mat_intent = "reference"
             if material_raw.strip():
@@ -1960,16 +2004,22 @@ def run_openclaw_onboard(
                     default="reference",
                     layout="horizontal",
                 )
-            bundle = apply_onboarding_paste_bundle(
-                state_root,
-                env_file=Path(env_file),
-                profile_raw=profile_raw,
-                calibration_raw=calibration_raw,
-                material_raw=material_raw,
-                material_label=mat_label,
-                material_intent=mat_intent,
-                polish=polish,
-            )
+            polish_progress = prompter.progress("Processing context with LLM...")
+            try:
+                bundle = apply_onboarding_paste_bundle(
+                    state_root,
+                    env_file=Path(env_file),
+                    profile_raw=profile_raw,
+                    calibration_raw=calibration_raw,
+                    material_raw=material_raw,
+                    material_label=mat_label,
+                    material_intent=mat_intent,
+                    polish=polish,
+                )
+                polish_progress.finish("Context processed")
+            except Exception as e:
+                polish_progress.finish(f"Context processing failed: {e}")
+                raise
             mat_line = "skipped"
             if bundle.get("material"):
                 mat_line = str(bundle["material"].get("filename", "saved"))
